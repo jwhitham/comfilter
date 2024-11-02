@@ -8,3 +8,4 @@ sox signal.wav upper.wav vol 0.5 bandpass 10000 100h
 sox signal.wav lower.wav vol 0.5 bandpass 5000 100h
 ./sigdec.exe upper.wav upper2.wav upper2.bin
 ./sigdec.exe lower.wav lower2.wav lower2.bin
+python combine.py upper2.bin lower2.bin

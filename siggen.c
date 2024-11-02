@@ -21,7 +21,7 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
     const uint32_t  wav_length = (num_bits * num_repeats) / baud_rate;
     const uint32_t  bytes_per_sample = (bits == 16) ? 2 : 4;
     t_stereo32      samples[block_size];
-    const uint32_t  num_blocks = (sample_rate * 2 * wav_length) / block_size;
+    const uint32_t  num_blocks = (sample_rate * wav_length) / block_size;
     const uint32_t  num_samples = num_blocks * block_size;
     uint32_t        i = 0;
     uint32_t        j = 0;
@@ -74,16 +74,17 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
                     if (byte == '\n') {
                         byte = -1;
                     } else {
-                        byte = (byte << 2) | 2;
+                        byte |= 0x100;
                     }
+                } else {
+                    byte = byte << 1;
                 }
-                byte = byte >> 1;
                 byte_lifetime--;
             }
             bit_lifetime--;
             if (byte >= 0) {
                 samples[i].left = samples[i].right =
-                    floor((sin((byte & 1) ? upper_angle : lower_angle) * (double) (INT_MAX - 1)) + 0.5);
+                    floor((sin((byte & 0x100) ? upper_angle : lower_angle) * (double) (INT_MAX - 1)) + 0.5);
             } else {
                 samples[i].left = samples[i].right = 0;
             }
