@@ -41,8 +41,8 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
     header.number_of_channels = 2;
     header.sample_rate = sample_rate;
     header.bytes_per_second = header.sample_rate * bytes_per_sample * 2;
-    header.bytes_per_sample = bytes_per_sample;
-    header.bits_per_sample = bytes_per_sample * 8;
+    header.bytes_per_period = bytes_per_sample * 2; // applies to 2 channels
+    header.bits_per_sample = bytes_per_sample * 8; // applies to 1 channel
     memcpy(header.fixed_data, "data", 4);
     header.data_size = num_samples * bytes_per_sample * 2;
     header.file_size = header.data_size + sizeof(t_header);

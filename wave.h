@@ -13,7 +13,7 @@ typedef struct t_header {
     uint16_t    number_of_channels;     // 16
     uint32_t    sample_rate;            // 18
     uint32_t    bytes_per_second;       // 1c
-    uint16_t    bytes_per_sample;       // 20
+    uint16_t    bytes_per_period;       // 20
     uint16_t    bits_per_sample;        // 22
     uint8_t     fixed_data[4];          // 24
     uint32_t    data_size;              // 28
