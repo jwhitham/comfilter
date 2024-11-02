@@ -9,14 +9,16 @@
 
 #include "wave.h"
 
-static const uint32_t block_size = 1 << 14;
+#define block_size (1 << 14)
 
 static void generate(const uint32_t sample_rate, uint32_t bits,
             double upper_frequency, double lower_frequency,
-            uint32_t baud_rate, FILE* fd_in, FILE* fd_out)
+            uint32_t baud_rate, FILE* fd_in, uint32_t num_bytes, FILE* fd_out)
 {
     t_header        header;
-    const uint32_t  wav_length = 15;    // seconds
+    const uint32_t  num_bits = num_bytes * 10;
+    const uint32_t  num_repeats = 3;
+    const uint32_t  wav_length = (num_bits * num_repeats) / baud_rate;
     const uint32_t  bytes_per_sample = (bits == 16) ? 2 : 4;
     t_stereo32      samples[block_size];
     const uint32_t  num_blocks = (sample_rate * 2 * wav_length) / block_size;
@@ -29,7 +31,8 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
     double          lower_delta = ((M_PI * 2.0) / (double) sample_rate) * lower_frequency;
     uint32_t        samples_per_bit = sample_rate / baud_rate;
     uint32_t        bit_lifetime = 0;
-    int32_t         bit = 0;
+    uint32_t        byte_lifetime = 0;
+    int32_t         byte = -1;
 
     // Write wav header
     memset(&header, 0, sizeof(header));
@@ -61,15 +64,26 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
         for (i = 0; i < block_size; i++) {
             if (bit_lifetime == 0) {
                 bit_lifetime = samples_per_bit;
-                bit = fgetc(fd_in);
-                if (bit == EOF) {
-                    rewind(fd_in);
+                if (byte_lifetime == 0) {
+                    byte_lifetime = 10;
+                    byte = fgetc(fd_in);
+                    if (byte == EOF) {
+                        rewind(fd_in);
+                        byte = fgetc(fd_in);
+                    }
+                    if (byte == '\n') {
+                        byte = -1;
+                    } else {
+                        byte = (byte << 2) | 2;
+                    }
                 }
+                byte = byte >> 1;
+                byte_lifetime--;
             }
             bit_lifetime--;
-            if ((bit == '0') || (bit == '1')) {
+            if (byte >= 0) {
                 samples[i].left = samples[i].right =
-                    floor((sin((bit == '1') ? upper_angle : lower_angle) * (double) (INT_MAX - 1)) + 0.5);
+                    floor((sin((byte & 1) ? upper_angle : lower_angle) * (double) (INT_MAX - 1)) + 0.5);
             } else {
                 samples[i].left = samples[i].right = 0;
             }
@@ -121,7 +135,10 @@ int main(int argc, char ** argv)
         perror("open (write)");
         return 1;
     }
-    generate(48000, 16, 10000.0, 5000.0, 10, fd_in, fd_out);
+    fseek(fd_in, 0, SEEK_END);
+    off_t size = ftell(fd_in);
+    fseek(fd_in, 0, SEEK_SET);
+    generate(48000, 16, 10000.0, 5000.0, 10, fd_in, (uint32_t) size, fd_out);
     fclose(fd_out);
     fclose(fd_in);
     return 0;
