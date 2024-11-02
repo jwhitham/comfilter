@@ -121,7 +121,7 @@ int main(int argc, char ** argv)
         perror("open (write)");
         return 1;
     }
-    generate(44100, 16, 10000.0, 5000.0, 10, fd_in, fd_out);
+    generate(48000, 16, 10000.0, 5000.0, 10, fd_in, fd_out);
     fclose(fd_out);
     fclose(fd_in);
     return 0;
