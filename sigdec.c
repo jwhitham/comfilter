@@ -24,7 +24,8 @@ typedef struct t_decode_state {
 
 static void decode(t_decode_state* ds,
                     t_stereo16* samples,
-                    uint32_t num_samples)
+                    uint32_t num_samples,
+                    FILE* fd_out2)
 {
     uint32_t i;
     for (i = 0; i < num_samples; i++) {
@@ -43,15 +44,19 @@ static void decode(t_decode_state* ds,
             }
         } else {
             if (ds->total > ((int64_t) upper_threshold * (int64_t) ring_buffer_size)) {
-                ds->high = 0x7fff;
+                ds->high = 1;
             }
         }
-        samples[i].right = (ds->total / ring_buffer_size) * (ds->high ? 1 : -1);
+        samples[i].right = (1 | (ds->total / ring_buffer_size)) * (ds->high ? 1 : -1);
+        if (fputc(ds->high ? '1' : '0', fd_out2) == EOF) {
+            perror("write error (data.bin)");
+            exit(1);
+        }
     }
 }
 
 
-static void generate(FILE* fd_in, FILE* fd_out)
+static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
 {
     t_header        header;
     t_stereo16      samples[block_size];
@@ -93,9 +98,9 @@ static void generate(FILE* fd_in, FILE* fd_out)
         if (num_samples <= 0) {
             break;
         }
-        decode(&decode_state, samples, (uint32_t) num_samples);
+        decode(&decode_state, samples, (uint32_t) num_samples, fd_out2);
         if (fwrite(samples, sizeof(t_stereo16), num_samples, fd_out) != num_samples) {
-            perror("write error");
+            perror("write error (debug wav)");
             exit(1);
         }
     }
@@ -105,9 +110,10 @@ int main(int argc, char ** argv)
 {
     FILE *          fd_in;
     FILE *          fd_out;
+    FILE *          fd_out2;
 
-    if (argc != 3) {
-        fprintf(stderr, "Usage: sigdec <lower/upper.wav> <threshold.wav>\n");
+    if (argc != 4) {
+        fprintf(stderr, "Usage: sigdec <lower/upper.wav> <debug.wav> <data.bin>\n");
         return 1;
     }
 
@@ -121,7 +127,13 @@ int main(int argc, char ** argv)
         perror("open (write)");
         return 1;
     }
-    generate(fd_in, fd_out);
+    fd_out2 = fopen(argv[3], "wb");
+    if (!fd_out2) {
+        perror("open (write)");
+        return 1;
+    }
+    generate(fd_in, fd_out, fd_out2);
+    fclose(fd_out2);
     fclose(fd_out);
     fclose(fd_in);
     return 0;
