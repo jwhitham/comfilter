@@ -34,12 +34,11 @@ typedef struct t_stereo16 {
     int16_t     right;
 } t_stereo16;
 
-static const uint32_t allowed_sample_rate[] = {
-    32000, 44100, 48000, 88200, 96000, 0};
-
 static const uint32_t block_size = 1 << 14;
 
-static void generate(const uint32_t sample_rate, uint32_t bits, double frequency, FILE* fd_out)
+static void generate(const uint32_t sample_rate, uint32_t bits,
+            double upper_frequency, double lower_frequency,
+            uint32_t baud_rate, FILE* fd_in, FILE* fd_out)
 {
     t_header        header;
     const uint32_t  wav_length = 15;    // seconds
@@ -49,8 +48,13 @@ static void generate(const uint32_t sample_rate, uint32_t bits, double frequency
     const uint32_t  num_samples = num_blocks * block_size;
     uint32_t        i = 0;
     uint32_t        j = 0;
-    double          angle = 0.0;
-    double          delta = ((M_PI * 2.0) / (double) sample_rate) * frequency;
+    double          upper_angle = 0.0;
+    double          upper_delta = ((M_PI * 2.0) / (double) sample_rate) * upper_frequency;
+    double          lower_angle = 0.0;
+    double          lower_delta = ((M_PI * 2.0) / (double) sample_rate) * lower_frequency;
+    uint32_t        samples_per_bit = sample_rate / baud_rate;
+    uint32_t        bit_lifetime = 0;
+    int32_t         bit = 0;
 
     // Write wav header
     memset(&header, 0, sizeof(header));
@@ -79,13 +83,28 @@ static void generate(const uint32_t sample_rate, uint32_t bits, double frequency
     memset(&samples, 0, sizeof(samples));
 
     for (j = 0; j < num_blocks; j++) {
-        // First part of the repeating block: walking 1s (24 samples)
         for (i = 0; i < block_size; i++) {
-            samples[i].left = samples[i].right =
-                floor((sin(angle) * (double) (INT_MAX - 1)) + 0.5);
-            angle += delta;
-            if (angle > (M_PI * 2.0)) {
-                angle -= M_PI * 2.0;
+            if (bit_lifetime == 0) {
+                bit_lifetime = samples_per_bit;
+                bit = fgetc(fd_in);
+                if (bit == EOF) {
+                    rewind(fd_in);
+                }
+            }
+            bit_lifetime--;
+            if ((bit == '0') || (bit == '1')) {
+                samples[i].left = samples[i].right =
+                    floor((sin((bit == '1') ? upper_angle : lower_angle) * (double) (INT_MAX - 1)) + 0.5);
+            } else {
+                samples[i].left = samples[i].right = 0;
+            }
+            upper_angle += upper_delta;
+            if (upper_angle > (M_PI * 2.0)) {
+                upper_angle -= M_PI * 2.0;
+            }
+            lower_angle += lower_delta;
+            if (lower_angle > (M_PI * 2.0)) {
+                lower_angle -= M_PI * 2.0;
             }
         }
 
@@ -108,50 +127,28 @@ static void generate(const uint32_t sample_rate, uint32_t bits, double frequency
 
 int main(int argc, char ** argv)
 {
+    FILE *          fd_in;
     FILE *          fd_out;
-    uint32_t        sample_rate;
-    uint32_t        i, bits;
-    double          frequency;
 
-    if (argc != 5) {
-        fprintf(stderr, "Usage: siggen <sample rate> <bits> <frequency> <output.wav>\n"
-                        "<sample rate> may be");
-        for (i = 0; allowed_sample_rate[i] != 0; i++) {
-            fprintf(stderr, " %u", (unsigned) allowed_sample_rate[i]);
-        }
-        fprintf(stderr, "\n<bits> may be 16 or 24.\n");
+    if (argc != 3) {
+        fprintf(stderr, "Usage: siggen <modulation.bin> <output.wav>\n");
         return 1;
     }
 
-    sample_rate = (uint32_t) atoi(argv[1]);
-    i = 0;
-    while (allowed_sample_rate[i] != sample_rate) {
-        if (allowed_sample_rate[i] == 0) {
-            fprintf(stderr, "that sample rate is not allowed\n");
-            return 1;
-        }
-        i++;
-    }
 
-    bits = (uint32_t) atoi(argv[2]);
-    if ((bits != 16) && (bits != 24)) {
-        fprintf(stderr, "that number of bits is not allowed\n");
+    fd_in = fopen(argv[1], "rb");
+    if (!fd_in) {
+        perror("open (read)");
         return 1;
     }
-    frequency = strtod(argv[3], NULL);
-    if ((frequency <= 0.0) || (frequency >= ((double) sample_rate / 2.0)) || isnan(frequency))
-    {
-        fprintf(stderr, "that frequency is not allowed\n");
-        return 1;
-    }
-
-    fd_out = fopen(argv[4], "wb");
+    fd_out = fopen(argv[2], "wb");
     if (!fd_out) {
         perror("open (write)");
         return 1;
     }
-    generate(sample_rate, bits, frequency, fd_out);
+    generate(44100, 16, 10000.0, 5000.0, 10, fd_in, fd_out);
     fclose(fd_out);
+    fclose(fd_in);
     return 0;
 }
 
