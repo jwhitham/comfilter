@@ -175,7 +175,7 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
 
     threshold_decode_state_t upper_decode_state, lower_decode_state;
     memset(&upper_decode_state, 0, sizeof(threshold_decode_state_t));
-    upper_decode_state.ring_buffer_size = 2 * (header.sample_rate / UPPER_FREQUENCY);
+    upper_decode_state.ring_buffer_size = 2 * ((header.sample_rate / UPPER_FREQUENCY) + 1);
     if (upper_decode_state.ring_buffer_size > MAX_RING_BUFFER_SIZE) {
         upper_decode_state.ring_buffer_size = MAX_RING_BUFFER_SIZE;
     }
