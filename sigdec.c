@@ -6,8 +6,10 @@
 #include <stdlib.h>
 #include <math.h>
 #include <limits.h>
+#include <stdbool.h>
 
 #include "wave.h"
+#include "biquad.h"
 
 #define ring_buffer_size (48000 / 20)
 #define block_size (1 << 14)
@@ -15,21 +17,21 @@ static const uint32_t lower_threshold = (32768 * 1) / 10;
 static const uint32_t upper_threshold = (32768 * 2) / 10;
 
 
-typedef struct t_decode_state {
+typedef struct decode_state_t {
     int16_t     ring_buffer[ring_buffer_size];
     int64_t     total;
-    int16_t     high;
-    uint32_t    index;
-} t_decode_state;
+    bool        high;
+    size_t      index;
+} decode_state_t;
 
-static void decode(t_decode_state* ds,
-                    t_stereo16* samples,
-                    uint32_t num_samples,
-                    FILE* fd_out2)
+static void decode(decode_state_t* ds,
+                    sox_sample_t* samples,
+                    size_t num_samples,
+                    bool* threshold)
 {
-    uint32_t i;
+    size_t i;
     for (i = 0; i < num_samples; i++) {
-        int16_t sample = (int16_t) abs(samples[i].left);
+        int16_t sample = (int16_t) abs(samples[i] >> 16);
         ds->total -= (int64_t) ds->ring_buffer[ds->index];
         ds->ring_buffer[ds->index] = sample;
         ds->total += (int64_t) sample;
@@ -40,18 +42,14 @@ static void decode(t_decode_state* ds,
 
         if (ds->high) {
             if (ds->total < ((int64_t) lower_threshold * (int64_t) ring_buffer_size)) {
-                ds->high = 0;
+                ds->high = false;
             }
         } else {
             if (ds->total > ((int64_t) upper_threshold * (int64_t) ring_buffer_size)) {
-                ds->high = 1;
+                ds->high = true;
             }
         }
-        samples[i].right = (1 | (ds->total / ring_buffer_size)) * (ds->high ? 1 : -1);
-        if (fputc(ds->high ? '1' : '0', fd_out2) == EOF) {
-            perror("write error (data.bin)");
-            exit(1);
-        }
+        threshold[i] = ds->high;
     }
 }
 
@@ -59,8 +57,6 @@ static void decode(t_decode_state* ds,
 static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
 {
     t_header        header;
-    t_stereo16      samples[block_size];
-    t_decode_state  decode_state;
 
     // Read wav header
     if (fread(&header, sizeof(header), 1, fd_in) != 1) {
@@ -90,19 +86,78 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
     }
     fwrite(&header, 1, sizeof(header), fd_out);
 
-    memset(&decode_state, 0, sizeof(decode_state));
+    sox_effect_t    upper_filter;
+    sox_effect_t    lower_filter;
+    memset(&upper_filter, 0, sizeof(sox_effect_t));
+    upper_filter.in_signal.rate = header.sample_rate;
+    upper_filter.in_signal.channels = header.number_of_channels;
+    upper_filter.in_signal.precision = header.bits_per_sample;
+    memcpy(&lower_filter, &upper_filter, sizeof(sox_effect_t));
+    if (lsx_biquad_start(&upper_filter, 10000, 100) != SOX_SUCCESS) {
+        exit(1);
+    }
+    if (lsx_biquad_start(&lower_filter, 5000, 100) != SOX_SUCCESS) {
+        exit(1);
+    }
 
-    // Decode data
+    decode_state_t  upper_decode, lower_decode;
+    memset(&upper_decode, 0, sizeof(decode_state_t));
+    memset(&lower_decode, 0, sizeof(decode_state_t));
+
     while (1) {
+        t_stereo16   samples[block_size];
+        sox_sample_t input[block_size];
+        sox_sample_t upper_output[block_size];
+        sox_sample_t lower_output[block_size];
+        size_t isamp, osamp, i;
+
+        // Input from .wav file
         ssize_t num_samples = fread(samples, sizeof(t_stereo16), block_size, fd_in);
         if (num_samples <= 0) {
             break;
         }
-        decode(&decode_state, samples, (uint32_t) num_samples, fd_out2);
+
+        for (i = 0; i < ((size_t) num_samples); i++) {
+            input[i] = ((int32_t) samples[i].left) << 16;
+        }
+        // Higher frequency filter
+        isamp = osamp = (size_t) num_samples;
+        if (lsx_biquad_flow(&upper_filter, input, upper_output, &isamp, &osamp) != SOX_SUCCESS) {
+            fprintf(stderr, "upper filter fail\n");
+            exit(1);
+        }
+        size_t upper_num_samples = osamp;
+
+        // Lower frequency filter
+        isamp = osamp = (size_t) num_samples;
+        if (lsx_biquad_flow(&lower_filter, input, lower_output, &isamp, &osamp) != SOX_SUCCESS) {
+            fprintf(stderr, "lower filter fail\n");
+            exit(1);
+        }
+        size_t lower_num_samples = osamp;
+        if (upper_num_samples != lower_num_samples) {
+            fprintf(stderr, "filter output inconsistency\n");
+            exit(1);
+        }
+        num_samples = lower_num_samples;
+
+        // Debug output .wav file
+        for (i = 0; i < ((size_t) num_samples); i++) {
+            samples[i].left = (int16_t) (upper_output[i] >> (int32_t) 16);
+            samples[i].right = (int16_t) (lower_output[i] >> (int32_t) 16);
+        }
         if (fwrite(samples, sizeof(t_stereo16), num_samples, fd_out) != num_samples) {
             perror("write error (debug wav)");
             exit(1);
         }
+
+        // Threshold decoding
+        bool upper_threshold[block_size];
+        bool lower_threshold[block_size];
+        decode(&upper_decode, upper_output, (size_t) num_samples, upper_threshold);
+        decode(&lower_decode, lower_output, (size_t) num_samples, lower_threshold);
+
+        // Serial decoding
     }
 }
 
@@ -113,7 +168,7 @@ int main(int argc, char ** argv)
     FILE *          fd_out2;
 
     if (argc != 4) {
-        fprintf(stderr, "Usage: sigdec <lower/upper.wav> <debug.wav> <data.bin>\n");
+        fprintf(stderr, "Usage: sigdec <signal.wav> <debug.wav> <data.bin>\n");
         return 1;
     }
 
