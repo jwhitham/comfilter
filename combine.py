@@ -34,8 +34,6 @@ for (upper, lower) in zip(upper_data, lower_data):
         if sample_countdown <= 0:
             if byte >= 0x100:
                 # stop bit
-                if gap_counter >= (half_bit * 2):
-                    print(f"<gap {gap_counter // (half_bit * 2 * 10)}>")
                 print(chr(byte & 0xff), end="")
                 assert bit == 0
                 byte = 0
