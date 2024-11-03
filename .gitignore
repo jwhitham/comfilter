@@ -3,3 +3,4 @@ sox-14.4.2
 *.exe
 *.bin
 *.o
+debug_output

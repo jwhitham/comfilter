@@ -11,9 +11,14 @@
 #include "wave.h"
 #include "biquad.h"
 
-#define BAUD_RATE (10)
-#define BLOCK_SIZE (1 << 14)
-#define MAX_RING_BUFFER_SIZE (5000)
+#define UPPER_FREQUENCY         (10000)
+#define LOWER_FREQUENCY         (5000)
+#define FILTER_WIDTH            (100)
+#define UPPER_AMPLITUDE         (0.10)
+#define LOWER_AMPLITUDE         (0.05)
+#define BAUD_RATE               (10)
+#define BLOCK_SIZE              (1 << 14)
+#define MAX_RING_BUFFER_SIZE    (500)
 
 
 typedef struct threshold_decode_state_t {
@@ -153,7 +158,8 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
     }
     fwrite(&header, 1, sizeof(header), fd_out);
 
-    const int32_t bit_shift = 32 - header.bits_per_sample;
+    const int32_t bits_per_sample = header.bits_per_sample;
+    const int32_t bit_shift = 32 - bits_per_sample;
 
     sox_effect_t    upper_filter;
     sox_effect_t    lower_filter;
@@ -162,24 +168,25 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
     upper_filter.in_signal.channels = header.number_of_channels;
     upper_filter.in_signal.precision = header.bits_per_sample;
     memcpy(&lower_filter, &upper_filter, sizeof(sox_effect_t));
-    if (lsx_biquad_start(&upper_filter, 10000, 100) != SOX_SUCCESS) {
+    if (lsx_biquad_start(&upper_filter, UPPER_FREQUENCY, FILTER_WIDTH) != SOX_SUCCESS) {
         exit(1);
     }
-    if (lsx_biquad_start(&lower_filter, 5000, 100) != SOX_SUCCESS) {
+    if (lsx_biquad_start(&lower_filter, LOWER_FREQUENCY, FILTER_WIDTH) != SOX_SUCCESS) {
         exit(1);
     }
 
     threshold_decode_state_t upper_decode_state, lower_decode_state;
     memset(&upper_decode_state, 0, sizeof(threshold_decode_state_t));
-    upper_decode_state.ring_buffer_size = header.sample_rate / BAUD_RATE;
+    upper_decode_state.ring_buffer_size = 2 * (header.sample_rate / UPPER_FREQUENCY);
     if (upper_decode_state.ring_buffer_size > MAX_RING_BUFFER_SIZE) {
         upper_decode_state.ring_buffer_size = MAX_RING_BUFFER_SIZE;
     }
-    upper_decode_state.lower_threshold =
-        (((int64_t) (1 << header.bits_per_sample) / 2)
-        * (int64_t) upper_decode_state.ring_buffer_size) / (int64_t) 50;
     upper_decode_state.upper_threshold =
-        upper_decode_state.lower_threshold * 2;
+        (int64_t) ((((double) (1 << header.bits_per_sample) / 2)
+            * (double) upper_decode_state.ring_buffer_size) * UPPER_AMPLITUDE);
+    upper_decode_state.lower_threshold =
+        (int64_t) ((((double) (1 << header.bits_per_sample) / 2)
+            * (double) upper_decode_state.ring_buffer_size) * LOWER_AMPLITUDE);
     memcpy(&lower_decode_state, &upper_decode_state, sizeof(threshold_decode_state_t));
 
     serial_decode_state_t serial_decode_state;
@@ -224,21 +231,23 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
         }
         num_samples = lower_num_samples;
 
-        // Debug output .wav file
-        for (i = 0; i < ((size_t) num_samples); i++) {
-            samples[i].left = (int16_t) (upper_output[i] >> (int32_t) bit_shift);
-            samples[i].right = (int16_t) (lower_output[i] >> (int32_t) bit_shift);
-        }
-        if (fwrite(samples, sizeof(t_stereo16), num_samples, fd_out) != num_samples) {
-            perror("write error (debug wav)");
-            exit(1);
-        }
-
         // Threshold decoding
         bool upper_detect[BLOCK_SIZE];
         bool lower_detect[BLOCK_SIZE];
         threshold_decode(&upper_decode_state, upper_output, (size_t) num_samples, upper_detect);
         threshold_decode(&lower_decode_state, lower_output, (size_t) num_samples, lower_detect);
+
+        // Debug output .wav file shows filtering and detection
+        for (i = 0; i < ((size_t) num_samples); i++) {
+            samples[i].left = (upper_detect[i] ? 1 : -1) * (1 << (bits_per_sample - 2));
+            samples[i].right = (lower_detect[i] ? 1 : -1) * (1 << (bits_per_sample - 2));
+            samples[i].left += (int16_t) ((upper_output[i] >> (int32_t) bit_shift) >> 4);
+            samples[i].right += (int16_t) ((lower_output[i] >> (int32_t) bit_shift) >> 4);
+        }
+        if (fwrite(samples, sizeof(t_stereo16), num_samples, fd_out) != num_samples) {
+            perror("write error (debug wav)");
+            exit(1);
+        }
 
         // Serial decoding
         serial_decode(&serial_decode_state,
