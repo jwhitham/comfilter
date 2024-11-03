@@ -75,36 +75,11 @@ static char const * const width_str[] = {
 static char const all_width_types[] = "hkboqs";
 
 
-int lsx_biquad_getopts(sox_effect_t * effp, int argc, char **argv,
-    int min_args, int max_args, int fc_pos, int width_pos, int gain_pos,
-    char const * allowed_width_types, filter_t filter_type)
+
+int lsx_biquad_start(sox_effect_t * effp)
 {
   priv_t * p = (priv_t *)effp->priv;
-  char width_type = *allowed_width_types;
-  char dummy, * dummy_p;     /* To check for extraneous chars. */
-  --argc, ++argv;
 
-  p->filter_type = filter_type;
-  if (argc < min_args || argc > max_args ||
-      (argc > fc_pos    && ((p->fc = lsx_parse_frequency(argv[fc_pos], &dummy_p)) <= 0 || *dummy_p)) ||
-      (argc > width_pos && ((unsigned)(sscanf(argv[width_pos], "%lf%c %c", &p->width, &width_type, &dummy)-1) > 1 || p->width <= 0)) ||
-      (argc > gain_pos  && sscanf(argv[gain_pos], "%lf %c", &p->gain, &dummy) != 1) ||
-      !strchr(allowed_width_types, width_type) || (width_type == 's' && p->width > 1))
-    return lsx_usage(effp);
-  p->width_type = strchr(all_width_types, width_type) - all_width_types;
-  if ((size_t)p->width_type >= strlen(all_width_types))
-    p->width_type = 0;
-  if (p->width_type == width_bw_kHz) {
-    p->width *= 1000;
-    p->width_type = width_bw_Hz;
-  }
-  return SOX_SUCCESS;
-}
-
-
-static int start2(sox_effect_t * effp)
-{
-  priv_t * p = (priv_t *)effp->priv;
   /* Simplify: */
   p->b2 /= p->a0;
   p->b1 /= p->a0;
@@ -113,75 +88,7 @@ static int start2(sox_effect_t * effp)
   p->a1 /= p->a0;
 
   p->o2 = p->o1 = p->i2 = p->i1 = 0;
-  return SOX_SUCCESS;
-}
 
-
-int lsx_biquad_start(sox_effect_t * effp)
-{
-  priv_t * p = (priv_t *)effp->priv;
-
-  start2(effp);
-
-  if (effp->global_info->plot == sox_plot_octave) {
-    printf(
-      "%% GNU Octave file (may also work with MATLAB(R) )\n"
-      "Fs=%g;minF=10;maxF=Fs/2;\n"
-      "sweepF=logspace(log10(minF),log10(maxF),200);\n"
-      "[h,w]=freqz([%.15e %.15e %.15e],[1 %.15e %.15e],sweepF,Fs);\n"
-      "semilogx(w,20*log10(h))\n"
-      "title('SoX effect: %s gain=%g frequency=%g %s=%g (rate=%g)')\n"
-      "xlabel('Frequency (Hz)')\n"
-      "ylabel('Amplitude Response (dB)')\n"
-      "axis([minF maxF -35 25])\n"
-      "grid on\n"
-      "disp('Hit return to continue')\n"
-      "pause\n"
-      , effp->in_signal.rate, p->b0, p->b1, p->b2, p->a1, p->a2
-      , effp->handler.name, p->gain, p->fc, width_str[p->width_type], p->width
-      , effp->in_signal.rate);
-    return SOX_EOF;
-  }
-  if (effp->global_info->plot == sox_plot_gnuplot) {
-    printf(
-      "# gnuplot file\n"
-      "set title 'SoX effect: %s gain=%g frequency=%g %s=%g (rate=%g)'\n"
-      "set xlabel 'Frequency (Hz)'\n"
-      "set ylabel 'Amplitude Response (dB)'\n"
-      "Fs=%g\n"
-      "b0=%.15e; b1=%.15e; b2=%.15e; a1=%.15e; a2=%.15e\n"
-      "o=2*pi/Fs\n"
-      "H(f)=sqrt((b0*b0+b1*b1+b2*b2+2.*(b0*b1+b1*b2)*cos(f*o)+2.*(b0*b2)*cos(2.*f*o))/(1.+a1*a1+a2*a2+2.*(a1+a1*a2)*cos(f*o)+2.*a2*cos(2.*f*o)))\n"
-      "set logscale x\n"
-      "set samples 250\n"
-      "set grid xtics ytics\n"
-      "set key off\n"
-      "plot [f=10:Fs/2] [-35:25] 20*log10(H(f))\n"
-      "pause -1 'Hit return to continue'\n"
-      , effp->handler.name, p->gain, p->fc, width_str[p->width_type], p->width
-      , effp->in_signal.rate, effp->in_signal.rate
-      , p->b0, p->b1, p->b2, p->a1, p->a2);
-    return SOX_EOF;
-  }
-  if (effp->global_info->plot == sox_plot_data) {
-    printf("# SoX effect: %s gain=%g frequency=%g %s=%g (rate=%g)\n"
-      "# IIR filter\n"
-      "# rate: %g\n"
-      "# name: b\n"
-      "# type: matrix\n"
-      "# rows: 3\n"
-      "# columns: 1\n"
-      "%24.16e\n%24.16e\n%24.16e\n"
-      "# name: a\n"
-      "# type: matrix\n"
-      "# rows: 3\n"
-      "# columns: 1\n"
-      "%24.16e\n%24.16e\n%24.16e\n"
-      , effp->handler.name, p->gain, p->fc, width_str[p->width_type], p->width
-      , effp->in_signal.rate, effp->in_signal.rate
-      , p->b0, p->b1, p->b2, 1. /* a0 */, p->a1, p->a2);
-    return SOX_EOF;
-  }
   return SOX_SUCCESS;
 }
 
@@ -222,10 +129,12 @@ sox_effect_handler_t const * lsx_biquad_effect_fn(void)
 }
 
 static int bandpass_getopts(sox_effect_t * effp, int argc, char **argv) {
-  filter_t type = filter_BPF;
-  if (argc > 1 && strcmp(argv[1], "-c") == 0)
-    ++argv, --argc, type = filter_BPF_CSG;
-  return lsx_biquad_getopts(effp, argc, argv, 2, 2, 0, 1, 2, "hkqob", type);
+  priv_t * p = (priv_t *)effp->priv;
+  p->fc = 10000;   // frequency, Hz
+  p->width = 100;  // width, Hz
+  p->width_type = width_bw_Hz; // width type is Hz
+  p->filter_type = filter_BPF; 
+  return SOX_SUCCESS;
 }
 
 
