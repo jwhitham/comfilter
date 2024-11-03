@@ -93,9 +93,9 @@ typedef biquad_t priv_t;
 static void lsx_fail(const char* error, ...) {
     va_list ap;
     va_start(ap, error);
-    vprintf(error, ap);
+    vfprintf(stderr, error, ap);
     va_end(ap);
-    exit(1);
+    fprintf(stderr, "\n");
 }
 
 static int lsx_biquad_start2(sox_effect_t * effp)
@@ -130,13 +130,20 @@ int lsx_biquad_flow(sox_effect_t * effp, const sox_sample_t *ibuf,
 }
 
 
-int lsx_biquad_start(sox_effect_t * effp)
+int lsx_biquad_start(sox_effect_t * effp, double fc, double width)
 {
-  priv_t * p = (priv_t *)effp->priv;
   double w0, alpha, mult;
+  priv_t * p = calloc(1, sizeof(biquad_t));
 
-  p->fc = 10000;   // frequency, Hz
-  p->width = 100;  // width, Hz
+  if (!p) {
+    lsx_fail("allocating biquad_t");
+    return SOX_EOF;
+  }
+
+  effp->priv = p;
+
+  p->fc = fc;   // frequency, Hz
+  p->width = width;  // width, Hz
   p->width_type = width_bw_Hz; // width type is Hz
   p->filter_type = filter_BPF; 
 
