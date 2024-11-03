@@ -33,35 +33,6 @@ typedef struct sox_signalinfo_t {
   double           * mult;       /**< Effects headroom multiplier; may be null */
 } sox_signalinfo_t;
 typedef struct sox_effect_t sox_effect_t;
-typedef struct sox_effect_handler_t sox_effect_handler_t;
-#define LSX_API /* libSoX function */
-#define LSX_PARAM_INOUT /* Required pointer to a valid object (never NULL). */
-#define LSX_PARAM_IN_COUNT(len) /* Required const pointer to (len) valid objects (never NULL). */
-#define LSX_PARAM_OUT_CAP_POST_COUNT(len,filled) /* Required pointer to buffer for (len) elements (never NULL); on return, (filled) elements will have been initialized. */
-typedef int (LSX_API * sox_effect_handler_getopts)(
-    LSX_PARAM_INOUT sox_effect_t * effp, /**< Effect pointer. */
-    int argc, /**< Number of arguments in argv. */
-    LSX_PARAM_IN_COUNT(argc) char *argv[] /**< Array of command-line arguments. */
-    );
-typedef int (LSX_API * sox_effect_handler_start)(
-    LSX_PARAM_INOUT sox_effect_t * effp /**< Effect pointer. */
-    );
-typedef int (LSX_API * sox_effect_handler_flow)(
-    LSX_PARAM_INOUT sox_effect_t * effp, /**< Effect pointer. */
-    LSX_PARAM_IN_COUNT(*isamp) sox_sample_t const * ibuf, /**< Buffer from which to read samples. */
-    LSX_PARAM_OUT_CAP_POST_COUNT(*osamp,*osamp) sox_sample_t * obuf, /**< Buffer to which samples are written. */
-    LSX_PARAM_INOUT size_t *isamp, /**< On entry, contains capacity of ibuf; on exit, contains number of samples consumed. */
-    LSX_PARAM_INOUT size_t *osamp /**< On entry, contains capacity of obuf; on exit, contains number of samples written. */
-    );
-struct sox_effect_handler_t {
-  char const * name;  /**< Effect name */
-  char const * usage; /**< Short explanation of parameters accepted by effect */
-  unsigned int flags; /**< Combination of SOX_EFF_* flags */
-  sox_effect_handler_getopts getopts; /**< Called to parse command-line arguments (called once per effect). */
-  sox_effect_handler_start start;     /**< Called to initialize effect (called once per flow). */
-  sox_effect_handler_flow flow;       /**< Called to process samples. */
-  size_t       priv_size;             /**< Size of private data SoX should pre-allocate for effect */
-};
 struct sox_effect_t {
 //  sox_effects_globals_t    * global_info; /**< global effect parameters */
   sox_signalinfo_t         in_signal;     /**< Information about the incoming data stream */
@@ -142,9 +113,6 @@ typedef struct {
   double      o1, o2;      /* Filter memory */
 } biquad_t;
 
-int lsx_biquad_getopts(sox_effect_t * effp, int n, char **argv,
-    int min_args, int max_args, int fc_pos, int width_pos, int gain_pos,
-    char const * allowed_width_types, filter_t filter_type);
 int lsx_biquad_start(sox_effect_t * effp);
 int lsx_biquad_flow(sox_effect_t * effp, const sox_sample_t *ibuf, sox_sample_t *obuf,
                         size_t *isamp, size_t *osamp);
