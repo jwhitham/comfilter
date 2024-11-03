@@ -59,8 +59,34 @@
 
 
 #include "biquad.h"
+#include <stdio.h>
+#include <stdarg.h>
+#include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <math.h>
+#include <limits.h>
+
+#ifdef min
+#undef min
+#endif
+#define min(a, b) ((a) <= (b) ? (a) : (b))
+
+#ifdef max
+#undef max
+#endif
+#define max(a, b) ((a) >= (b) ? (a) : (b))
+
+#define dB_to_linear(x) exp((x) * M_LN10 * 0.05)
+#define linear_to_dB(x) (log10(x) * 20)
+#define sqr(a) ((a) * (a))
+
+#define SOX_SAMPLE_MIN (INT_MIN)
+#define SOX_SAMPLE_MAX (INT_MAX)
+#define SOX_EFF_NULL     32          /**< Client API: Effect does nothing (can be optimized out of chain) */
+#define SOX_ROUND_CLIP_COUNT(d, clips) \
+  ((d) < 0? (d) <= SOX_SAMPLE_MIN - 0.5? ++(clips), SOX_SAMPLE_MIN: (d) - 0.5 \
+        : (d) >= SOX_SAMPLE_MAX + 0.5? ++(clips), SOX_SAMPLE_MAX: (d) + 0.5)
 
 typedef biquad_t priv_t;
 
@@ -74,7 +100,20 @@ static char const * const width_str[] = {
 };
 static char const all_width_types[] = "hkboqs";
 
+static void lsx_fail(const char* error, ...) {
+    va_list ap;
+    va_start(ap, error);
+    vprintf(error, ap);
+    va_end(ap);
+    exit(1);
+}
 
+static void lsx_debug(const char* msg, ...) {
+    va_list ap;
+    va_start(ap, msg);
+    vprintf(msg, ap);
+    va_end(ap);
+}
 
 int lsx_biquad_start(sox_effect_t * effp)
 {
@@ -105,27 +144,6 @@ int lsx_biquad_flow(sox_effect_t * effp, const sox_sample_t *ibuf,
     *obuf++ = SOX_ROUND_CLIP_COUNT(o0, effp->clips);
   }
   return SOX_SUCCESS;
-}
-
-static int create(sox_effect_t * effp, int argc, char * * argv)
-{
-  priv_t             * p = (priv_t *)effp->priv;
-  double             * d = &p->b0;
-  char               c;
-
-  --argc, ++argv;
-  if (argc == 6)
-    for (; argc && sscanf(*argv, "%lf%c", d, &c) == 1; --argc, ++argv, ++d);
-  return argc? lsx_usage(effp) : SOX_SUCCESS;
-}
-
-sox_effect_handler_t const * lsx_biquad_effect_fn(void)
-{
-  static sox_effect_handler_t handler = {
-    "biquad", "b0 b1 b2 a0 a1 a2", 0,
-    create, lsx_biquad_start, lsx_biquad_flow, NULL, NULL, NULL, sizeof(priv_t)
-  };
-  return &handler;
 }
 
 static int bandpass_getopts(sox_effect_t * effp, int argc, char **argv) {
@@ -293,17 +311,6 @@ static int start(sox_effect_t * effp)
       p->b1 = -p->b0;
       break;
 
-    case filter_BPF_SPK: case filter_BPF_SPK_N: {
-      double bw_Hz;
-      if (!p->width)
-        p->width = p->fc / 2;
-      bw_Hz = p->width_type == width_Q?  p->fc / p->width :
-        p->width_type == width_bw_Hz? p->width :
-        p->fc * (pow(2., p->width) - 1) * pow(2., -0.5 * p->width); /* bw_oct */
-      #include "band.h" /* Has different licence */
-      break;
-    }
-
     case filter_AP1:     /* Experimental 1-pole all-pass from Tom Erbe @ UCSD */
       p->b0 = exp(-w0);
       p->b1 = -1;
@@ -373,13 +380,10 @@ static int start(sox_effect_t * effp)
 }
 
 
-#define BIQUAD_EFFECT(name,group,usage,flags) \
-sox_effect_handler_t const * lsx_##name##_effect_fn(void) { \
-  static sox_effect_handler_t handler = { \
-    #name, usage, flags, \
-    group##_getopts, start, lsx_biquad_flow, 0, 0, 0, sizeof(biquad_t)\
-  }; \
-  return &handler; \
+sox_effect_handler_t const * lsx_bandpass_effect_fn(void) {
+  static sox_effect_handler_t handler = {
+    "bandpass", "[-c] frequency width[h|k|q|o]", 0,
+    bandpass_getopts, start, lsx_biquad_flow, sizeof(biquad_t),
+  };
+  return &handler;
 }
-
-BIQUAD_EFFECT(bandpass,  bandpass, "[-c] frequency width[h|k|q|o]", 0)

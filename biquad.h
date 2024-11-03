@@ -18,8 +18,82 @@
 #ifndef biquad_included
 #define biquad_included
 
+#include <stdint.h>
+#include <stddef.h>
+
+typedef int32_t sox_int32_t;
+typedef uint64_t sox_uint64_t;
+typedef sox_int32_t sox_sample_t;
+typedef double sox_rate_t;
+typedef struct sox_signalinfo_t {
+  sox_rate_t       rate;         /**< samples per second, 0 if unknown */
+  unsigned         channels;     /**< number of sound channels, 0 if unknown */
+  unsigned         precision;    /**< bits per sample, 0 if unknown */
+  sox_uint64_t     length;       /**< samples * chans in file, 0 if unknown, -1 if unspecified */
+  double           * mult;       /**< Effects headroom multiplier; may be null */
+} sox_signalinfo_t;
+typedef struct sox_effect_t sox_effect_t;
+typedef struct sox_effect_handler_t sox_effect_handler_t;
+#define LSX_API /* libSoX function */
+#define LSX_PARAM_INOUT /* Required pointer to a valid object (never NULL). */
+#define LSX_PARAM_IN_COUNT(len) /* Required const pointer to (len) valid objects (never NULL). */
+#define LSX_PARAM_OUT_CAP_POST_COUNT(len,filled) /* Required pointer to buffer for (len) elements (never NULL); on return, (filled) elements will have been initialized. */
+typedef int (LSX_API * sox_effect_handler_getopts)(
+    LSX_PARAM_INOUT sox_effect_t * effp, /**< Effect pointer. */
+    int argc, /**< Number of arguments in argv. */
+    LSX_PARAM_IN_COUNT(argc) char *argv[] /**< Array of command-line arguments. */
+    );
+typedef int (LSX_API * sox_effect_handler_start)(
+    LSX_PARAM_INOUT sox_effect_t * effp /**< Effect pointer. */
+    );
+typedef int (LSX_API * sox_effect_handler_flow)(
+    LSX_PARAM_INOUT sox_effect_t * effp, /**< Effect pointer. */
+    LSX_PARAM_IN_COUNT(*isamp) sox_sample_t const * ibuf, /**< Buffer from which to read samples. */
+    LSX_PARAM_OUT_CAP_POST_COUNT(*osamp,*osamp) sox_sample_t * obuf, /**< Buffer to which samples are written. */
+    LSX_PARAM_INOUT size_t *isamp, /**< On entry, contains capacity of ibuf; on exit, contains number of samples consumed. */
+    LSX_PARAM_INOUT size_t *osamp /**< On entry, contains capacity of obuf; on exit, contains number of samples written. */
+    );
+struct sox_effect_handler_t {
+  char const * name;  /**< Effect name */
+  char const * usage; /**< Short explanation of parameters accepted by effect */
+  unsigned int flags; /**< Combination of SOX_EFF_* flags */
+  sox_effect_handler_getopts getopts; /**< Called to parse command-line arguments (called once per effect). */
+  sox_effect_handler_start start;     /**< Called to initialize effect (called once per flow). */
+  sox_effect_handler_flow flow;       /**< Called to process samples. */
+  size_t       priv_size;             /**< Size of private data SoX should pre-allocate for effect */
+};
+struct sox_effect_t {
+//  sox_effects_globals_t    * global_info; /**< global effect parameters */
+  sox_signalinfo_t         in_signal;     /**< Information about the incoming data stream */
+//  sox_signalinfo_t         out_signal;    /**< Information about the outgoing data stream */
+//  sox_encodinginfo_t       const * in_encoding;  /**< Information about the incoming data encoding */
+//  sox_encodinginfo_t       const * out_encoding; /**< Information about the outgoing data encoding */
+//  sox_effect_handler_t     handler;   /**< The handler for this effect */
+    sox_uint64_t         clips;         /**< increment if clipping occurs */
+//  size_t               flows;         /**< 1 if MCHAN, number of chans otherwise */
+//  size_t               flow;          /**< flow number */
+    void                 * priv;        /**< Effect's private data area (each flow has a separate copy) */
+//  /* The following items are private to the libSoX effects chain functions. */
+//  sox_sample_t             * obuf;    /**< output buffer */
+//  size_t                   obeg;      /**< output buffer: start of valid data section */
+//  size_t                   oend;      /**< output buffer: one past valid data section (oend-obeg is length of current content) */
+//  size_t               imin;          /**< minimum input buffer content required for calling this effect's flow function; set via lsx_effect_set_imin() */
+};
+enum sox_error_t {
+  SOX_SUCCESS = 0,     /**< Function succeeded = 0 */
+  SOX_EOF = -1,        /**< End Of File or other error = -1 */
+  SOX_EHDR = 2000,     /**< Invalid Audio Header = 2000 */
+  SOX_EFMT,            /**< Unsupported data format = 2001 */
+  SOX_ENOMEM,          /**< Can't alloc memory = 2002 */
+  SOX_EPERM,           /**< Operation not permitted = 2003 */
+  SOX_ENOTSUP,         /**< Operation not supported = 2004 */
+  SOX_EINVAL           /**< Invalid argument = 2005 */
+};
+
+
+
+
 #define LSX_EFF_ALIAS
-#include "sox_i.h"
 
 typedef enum {
   filter_LPF,
