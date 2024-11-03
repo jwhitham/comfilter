@@ -8,21 +8,22 @@
 #include <limits.h>
 
 #include "wave.h"
+#include "settings.h"
 
-#define block_size (1 << 14)
+#define BLOCK_SIZE (1 << 14)
 
 static void generate(const uint32_t sample_rate, uint32_t bits,
             double upper_frequency, double lower_frequency,
             uint32_t baud_rate, FILE* fd_in, uint32_t num_bytes, FILE* fd_out)
 {
     t_header        header;
-    const uint32_t  num_bits = num_bytes * 10;
+    const uint32_t  num_bits = (num_bytes + 1) * 10;
     const uint32_t  num_repeats = 3;
     const uint32_t  wav_length = (num_bits * num_repeats) / baud_rate;
     const uint32_t  bytes_per_sample = (bits == 16) ? 2 : 4;
-    t_stereo32      samples[block_size];
-    const uint32_t  num_blocks = (sample_rate * wav_length) / block_size;
-    const uint32_t  num_samples = num_blocks * block_size;
+    t_stereo32      samples[BLOCK_SIZE];
+    const uint32_t  num_blocks = (sample_rate * wav_length) / BLOCK_SIZE;
+    const uint32_t  num_samples = num_blocks * BLOCK_SIZE;
     uint32_t        i = 0;
     uint32_t        j = 0;
     double          upper_angle = 0.0;
@@ -61,7 +62,7 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
     memset(&samples, 0, sizeof(samples));
 
     for (j = 0; j < num_blocks; j++) {
-        for (i = 0; i < block_size; i++) {
+        for (i = 0; i < BLOCK_SIZE; i++) {
             if (bit_lifetime == 0) {
                 bit_lifetime = samples_per_bit;
                 if (byte_lifetime == 0) {
@@ -69,13 +70,9 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
                     byte = fgetc(fd_in);
                     if (byte == EOF) {
                         rewind(fd_in);
-                        byte = fgetc(fd_in);
-                    }
-                    if (byte == '\n') {
                         byte = -1;
-                    } else {
-                        byte |= 0x100;
                     }
+                    byte |= 0x100;
                 } else {
                     byte = byte << 1;
                 }
@@ -100,9 +97,9 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
 
         if (bits == 16) {
             // Convert 32-bit to 16-bit
-            t_stereo16      samples16[block_size];
+            t_stereo16      samples16[BLOCK_SIZE];
 
-            for (i = 0; i < block_size; i++) {
+            for (i = 0; i < BLOCK_SIZE; i++) {
                 samples16[i].left = (uint32_t) samples[i].left >> 16U;
                 samples16[i].right = (uint32_t) samples[i].right >> 16U;
             }
@@ -139,7 +136,7 @@ int main(int argc, char ** argv)
     fseek(fd_in, 0, SEEK_END);
     off_t size = ftell(fd_in);
     fseek(fd_in, 0, SEEK_SET);
-    generate(48000, 16, 10000.0, 5000.0, 10, fd_in, (uint32_t) size, fd_out);
+    generate(48000, 16, UPPER_FREQUENCY, LOWER_FREQUENCY, BAUD_RATE, fd_in, (uint32_t) size, fd_out);
     fclose(fd_out);
     fclose(fd_in);
     return 0;

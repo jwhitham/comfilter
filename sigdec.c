@@ -10,13 +10,11 @@
 
 #include "wave.h"
 #include "biquad.h"
+#include "settings.h"
 
-#define UPPER_FREQUENCY         (10000)
-#define LOWER_FREQUENCY         (5000)
-#define FILTER_WIDTH            (100)
+#define FILTER_WIDTH            (500)
 #define UPPER_AMPLITUDE         (0.10)
 #define LOWER_AMPLITUDE         (0.05)
-#define BAUD_RATE               (10)
 #define BLOCK_SIZE              (1 << 14)
 #define MAX_RING_BUFFER_SIZE    (500)
 
