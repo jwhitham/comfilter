@@ -13,7 +13,7 @@
 #include "settings.h"
 
 #define FILTER_WIDTH            (500)
-#define UPPER_AMPLITUDE         (0.10)
+#define UPPER_AMPLITUDE         (0.40)
 #define LOWER_AMPLITUDE         (0.05)
 #define BLOCK_SIZE              (1 << 14)
 #define MAX_RING_BUFFER_SIZE    (500)
@@ -175,7 +175,8 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
 
     threshold_decode_state_t upper_decode_state, lower_decode_state;
     memset(&upper_decode_state, 0, sizeof(threshold_decode_state_t));
-    upper_decode_state.ring_buffer_size = 2 * ((header.sample_rate / UPPER_FREQUENCY) + 1);
+    upper_decode_state.ring_buffer_size = (size_t) (2.0 * (
+        ((double) header.sample_rate / (double) LOWER_FREQUENCY) + 1.0));
     if (upper_decode_state.ring_buffer_size > MAX_RING_BUFFER_SIZE) {
         upper_decode_state.ring_buffer_size = MAX_RING_BUFFER_SIZE;
     }
