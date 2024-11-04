@@ -12,7 +12,7 @@
 #include "biquad.h"
 #include "settings.h"
 
-#define FILTER_WIDTH            (1000)
+#define FILTER_WIDTH            (100)
 #define THRESHOLD_AMPLITUDE     (0.1)
 #define BLOCK_SIZE              (1 << 14)
 #define MAX_RING_BUFFER_SIZE    (500)

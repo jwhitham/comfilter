@@ -1,4 +1,4 @@
 
-#define UPPER_FREQUENCY         (23000)
-#define LOWER_FREQUENCY         (21000)
+#define UPPER_FREQUENCY         (1270)
+#define LOWER_FREQUENCY         (1070)
 #define BAUD_RATE               (100)
