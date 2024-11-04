@@ -17,7 +17,7 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
             uint32_t baud_rate, FILE* fd_in, uint32_t num_bytes, FILE* fd_out)
 {
     t_header        header;
-    const uint32_t  num_bits = (num_bytes + 1) * 10;
+    const uint32_t  num_bits = num_bytes * 10;
     const uint32_t  num_repeats = 3;
     const uint32_t  wav_length = (num_bits * num_repeats) / baud_rate;
     const uint32_t  bytes_per_sample = (bits == 16) ? 2 : 4;
