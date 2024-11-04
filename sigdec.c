@@ -19,10 +19,8 @@
 
 
 typedef struct window_max_state_t {
-    int16_t     ring_buffer[MAX_RING_BUFFER_SIZE];
-    int64_t     total;
-    size_t      index;
-    size_t      ring_buffer_size;
+    double      level;
+    double      decay;
 } window_max_state_t;
 
 static void window_max_setup(
@@ -31,33 +29,29 @@ static void window_max_setup(
                     uint32_t frequency)
 {
     memset(ds, 0, sizeof(window_max_state_t));
-    ds->ring_buffer_size = 2 * (size_t) ceil((double) header->sample_rate / (double) frequency);
-    if (ds->ring_buffer_size > MAX_RING_BUFFER_SIZE) {
-        ds->ring_buffer_size = MAX_RING_BUFFER_SIZE;
-    }
+    // Amplitude should decay below the threshold in half a bit
+    const double samples_to_decay_below_threshold =
+        ((double) header->sample_rate / (double) BAUD_RATE) / 2.0;
+    // This is the time constant, like k = 1 / RC for a capacitor discharging
+    // Level is y = y0 * exp(-kt) at time t, assuming level was y0 at time 0
+    const double time_constant = log(THRESHOLD_AMPLITUDE) / -samples_to_decay_below_threshold;
+    // Each transition from t to t+1 is a multiplication by exp(-k)
+    ds->decay = exp(-time_constant);
 }
 
 static void window_max(
                     window_max_state_t* ds,
                     sox_sample_t* samples,
                     size_t num_samples,
-                    int16_t* threshold)
+                    double* levels)
 {
     for (size_t i = 0; i < num_samples; i++) {
-        int16_t sample = (int16_t) abs(samples[i] >> 16);
-        ds->ring_buffer[ds->index] = sample;
-        ds->index++;
-        if (ds->index >= ds->ring_buffer_size) {
-            ds->index = 0;
+        double sample = ((double) samples[i]) / (double) (1 << 31);
+        ds->level *= ds->decay;
+        if (sample > ds->level) {
+            ds->level = sample;
         }
-        int16_t max = ds->ring_buffer[0];
-        for (size_t j = 1; j < ds->ring_buffer_size; j++) {
-            if (ds->ring_buffer[j] > max) {
-                max = ds->ring_buffer[j];
-            }
-        }
-
-        threshold[i] = max;
+        levels[i] = ds->level;
     }
 }
 
@@ -67,21 +61,21 @@ typedef struct serial_decode_state_t {
     uint32_t    sample_countdown, half_bit;
     uint16_t    byte;
     bit_t       previous_bit;
-    int16_t     threshold;
+    double      threshold;
 } serial_decode_state_t;
 
 static void serial_decode(
                     serial_decode_state_t* ds,
-                    int16_t* upper_detect,
-                    int16_t* lower_detect,
+                    double* upper_levels,
+                    double* lower_levels,
                     size_t num_samples,
                     FILE* out)
 {
     for (size_t i = 0; i < num_samples; i++) {
         bit_t bit = INVALID;
-        if ((upper_detect[i] > ds->threshold)
-        && (lower_detect[i] > ds->threshold)) {
-            if (upper_detect[i] > lower_detect[i]) {
+        if ((upper_levels[i] > ds->threshold)
+        || (lower_levels[i] > ds->threshold)) {
+            if (upper_levels[i] > lower_levels[i]) {
                 bit = ONE;
             } else {
                 bit = ZERO;
@@ -188,8 +182,7 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
     memset(&serial_decode_state, 0, sizeof(serial_decode_state_t));
     serial_decode_state.previous_bit = INVALID;
     serial_decode_state.half_bit = (header.sample_rate / BAUD_RATE) / 2;
-    serial_decode_state.threshold =
-        (int16_t) ((double) (1 << bits_per_sample) * 0.5 * THRESHOLD_AMPLITUDE);
+    serial_decode_state.threshold = THRESHOLD_AMPLITUDE;
 
     while (1) {
         t_stereo16   samples[BLOCK_SIZE];
@@ -228,24 +221,26 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
         }
         num_samples = lower_num_samples;
 
-        // Threshold decoding
-        int16_t upper_detect[BLOCK_SIZE];
-        int16_t lower_detect[BLOCK_SIZE];
-        window_max(&upper_decode_state, upper_output, (size_t) num_samples, upper_detect);
-        window_max(&lower_decode_state, lower_output, (size_t) num_samples, lower_detect);
+        // Level
+        double upper_levels[BLOCK_SIZE];
+        double lower_levels[BLOCK_SIZE];
+        window_max(&upper_decode_state, upper_output, (size_t) num_samples, upper_levels);
+        window_max(&lower_decode_state, lower_output, (size_t) num_samples, lower_levels);
 
         // Debug output .wav file shows filtering and detection
         for (i = 0; i < ((size_t) num_samples); i++) {
-            samples[i].left = -0x4000;
-            if ((upper_detect[i] > serial_decode_state.threshold)
-            && (lower_detect[i] > serial_decode_state.threshold)) {
-                if (upper_detect[i] > lower_detect[i]) {
-                    samples[i].left = 0x4000;
+            samples[i].left = upper_output[i] >> bit_shift;
+            samples[i].right = lower_output[i] >> bit_shift;
+            if ((upper_levels[i] > serial_decode_state.threshold)
+            || (lower_levels[i] > serial_decode_state.threshold)) {
+                if (upper_levels[i] > lower_levels[i]) {
+                    samples[i].left >>= 5;
+                    samples[i].left += 0x4000;
                 } else {
-                    samples[i].left = 0;
+                    samples[i].right >>= 5;
+                    samples[i].right += 0x4000;
                 }
             }
-            samples[i].right = upper_detect[i];
         }
         if (fwrite(samples, sizeof(t_stereo16), num_samples, fd_out) != num_samples) {
             perror("write error (debug wav)");
@@ -254,8 +249,8 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
 
         // Serial decoding
         serial_decode(&serial_decode_state,
-                      upper_detect,
-                      lower_detect,
+                      upper_levels,
+                      lower_levels,
                       (size_t) num_samples,
                       fd_out2);
     }
