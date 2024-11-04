@@ -26,9 +26,8 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
     const uint32_t  num_samples = num_blocks * BLOCK_SIZE;
     uint32_t        i = 0;
     uint32_t        j = 0;
-    double          upper_angle = 0.0;
+    double          angle = 0.0;
     double          upper_delta = ((M_PI * 2.0) / (double) sample_rate) * upper_frequency;
-    double          lower_angle = 0.0;
     double          lower_delta = ((M_PI * 2.0) / (double) sample_rate) * lower_frequency;
     uint32_t        samples_per_bit = sample_rate / baud_rate;
     uint32_t        bit_lifetime = 0;
@@ -80,18 +79,15 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
             }
             bit_lifetime--;
             if (byte >= 0) {
-                samples[i].left = samples[i].right =
-                    floor((sin((byte & 0x100) ? upper_angle : lower_angle) * (double) (INT_MAX - 1)) + 0.5);
+                angle += (byte & 0x100) ? upper_delta : lower_delta;
+                if (angle > (M_PI * 2.0)) {
+                    angle -= M_PI * 2.0;
+                }
+                samples[i].left = floor((sin(angle) * (double) (INT_MAX - 1)) + 0.5);
+                samples[i].right = (byte & 0x100) ? (INT_MAX / 2) : 0;
             } else {
+                angle = 0.0;
                 samples[i].left = samples[i].right = 0;
-            }
-            upper_angle += upper_delta;
-            if (upper_angle > (M_PI * 2.0)) {
-                upper_angle -= M_PI * 2.0;
-            }
-            lower_angle += lower_delta;
-            if (lower_angle > (M_PI * 2.0)) {
-                lower_angle -= M_PI * 2.0;
             }
         }
 
