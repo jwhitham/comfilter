@@ -232,10 +232,10 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
         for (i = 0; i < ((size_t) num_samples); i++) {
             fprintf(fd_debug, "%7.5f ", (double) sample_count / (double) header.sample_rate); // time
             fprintf(fd_debug, "%7.4f ", (double) input[i] / (double) INT_MAX); // encoded signal
-            fprintf(fd_debug, "%7.4f ", (double) upper_output[i] / (double) INT_MAX); // upper filter output
-            fprintf(fd_debug, "%7.4f ", (double) lower_output[i] / (double) INT_MAX); // lower filter output
-            fprintf(fd_debug, "%7.4f ", (double) upper_levels[i] / (double) INT_MAX); // upper, rectify and RC filter
-            fprintf(fd_debug, "%7.4f ", (double) lower_levels[i] / (double) INT_MAX); // lower, rectify and RC filter
+            fprintf(fd_debug, "%7.4f ", (double) upper_output[i] / (double) INT_MAX); // upper bandpass filter output
+            fprintf(fd_debug, "%7.4f ", (double) lower_output[i] / (double) INT_MAX); // lower bandpass filter output
+            fprintf(fd_debug, "%7.4f ", upper_levels[i]); // upper, rectify and RC filter
+            fprintf(fd_debug, "%7.4f ", lower_levels[i]); // lower, rectify and RC filter
 
             if ((upper_levels[i] > serial_decode_state.threshold)
             || (lower_levels[i] > serial_decode_state.threshold)) {
