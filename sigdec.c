@@ -46,7 +46,7 @@ static void window_max(
                     double* levels)
 {
     for (size_t i = 0; i < num_samples; i++) {
-        double sample = ((double) samples[i]) / (double) (1 << 31);
+        double sample = ((double) samples[i]) / ((double) INT_MAX);
         ds->level *= ds->decay;
         if (sample > ds->level) {
             ds->level = sample;
@@ -125,7 +125,7 @@ static void serial_decode(
     }
 }
 
-static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
+static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
 {
     t_header        header;
 
@@ -155,7 +155,6 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
         fprintf(stderr, "endianness error (little endian assumed, sorry)\n");
         exit(1);
     }
-    fwrite(&header, 1, sizeof(header), fd_out);
 
     const int32_t bits_per_sample = header.bits_per_sample;
     const int32_t bit_shift = 32 - bits_per_sample;
@@ -183,6 +182,8 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
     serial_decode_state.previous_bit = INVALID;
     serial_decode_state.half_bit = (header.sample_rate / BAUD_RATE) / 2;
     serial_decode_state.threshold = THRESHOLD_AMPLITUDE;
+
+    uint64_t sample_count = 0;
 
     while (1) {
         t_stereo16   samples[BLOCK_SIZE];
@@ -227,24 +228,27 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
         window_max(&upper_decode_state, upper_output, (size_t) num_samples, upper_levels);
         window_max(&lower_decode_state, lower_output, (size_t) num_samples, lower_levels);
 
-        // Debug output .wav file shows filtering and detection
+        // Debug output shows filtering and detection
         for (i = 0; i < ((size_t) num_samples); i++) {
-            samples[i].left = upper_output[i] >> bit_shift;
-            samples[i].right = lower_output[i] >> bit_shift;
-            samples[i].left >>= 3;
-            samples[i].right >>= 3;
+            fprintf(fd_debug, "%7.5f ", (double) sample_count / (double) header.sample_rate); // time
+            fprintf(fd_debug, "%7.4f ", (double) input[i] / (double) INT_MAX); // encoded signal
+            fprintf(fd_debug, "%7.4f ", (double) upper_output[i] / (double) INT_MAX); // upper filter output
+            fprintf(fd_debug, "%7.4f ", (double) lower_output[i] / (double) INT_MAX); // lower filter output
+            fprintf(fd_debug, "%7.4f ", (double) upper_levels[i] / (double) INT_MAX); // upper, rectify and RC filter
+            fprintf(fd_debug, "%7.4f ", (double) lower_levels[i] / (double) INT_MAX); // lower, rectify and RC filter
+
             if ((upper_levels[i] > serial_decode_state.threshold)
             || (lower_levels[i] > serial_decode_state.threshold)) {
                 if (upper_levels[i] > lower_levels[i]) {
-                    samples[i].left += 0x4000;
+                    fprintf(fd_debug, "1 ");
                 } else {
-                    samples[i].right += 0x4000;
+                    fprintf(fd_debug, "0 ");
                 }
+            } else {
+                fprintf(fd_debug, "- ");
             }
-        }
-        if (fwrite(samples, sizeof(t_stereo16), num_samples, fd_out) != num_samples) {
-            perror("write error (debug wav)");
-            exit(1);
+            fprintf(fd_debug, "\n");
+            sample_count++;
         }
 
         // Serial decoding
@@ -252,7 +256,7 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_out2)
                       upper_levels,
                       lower_levels,
                       (size_t) num_samples,
-                      fd_out2);
+                      fd_out);
     }
 }
 
@@ -260,10 +264,10 @@ int main(int argc, char ** argv)
 {
     FILE *          fd_in;
     FILE *          fd_out;
-    FILE *          fd_out2;
+    FILE *          fd_debug;
 
     if (argc != 4) {
-        fprintf(stderr, "Usage: sigdec <signal.wav> <debug.wav> <data.bin>\n");
+        fprintf(stderr, "Usage: sigdec <signal.wav> <data output> <debug output>\n");
         return 1;
     }
 
@@ -277,13 +281,13 @@ int main(int argc, char ** argv)
         perror("open (write)");
         return 1;
     }
-    fd_out2 = fopen(argv[3], "wb");
-    if (!fd_out2) {
+    fd_debug = fopen(argv[3], "wt");
+    if (!fd_debug) {
         perror("open (write)");
         return 1;
     }
-    generate(fd_in, fd_out, fd_out2);
-    fclose(fd_out2);
+    generate(fd_in, fd_out, fd_debug);
+    fclose(fd_debug);
     fclose(fd_out);
     fclose(fd_in);
     return 0;
