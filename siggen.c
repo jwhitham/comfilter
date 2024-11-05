@@ -14,7 +14,7 @@
 
 static void generate(const uint32_t sample_rate, uint32_t bits,
             double upper_frequency, double lower_frequency,
-            uint32_t baud_rate, FILE* fd_in, uint32_t num_bytes, FILE* fd_out)
+            uint32_t baud_rate, FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_debug)
 {
     t_header        header;
     const uint32_t  num_bits = num_bytes * 10;
@@ -59,6 +59,7 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
 
     // Generate repeating sample
     memset(&samples, 0, sizeof(samples));
+    uint64_t sample_count = 0;
 
     for (j = 0; j < num_blocks; j++) {
         for (i = 0; i < BLOCK_SIZE; i++) {
@@ -83,12 +84,20 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
                 if (angle > (M_PI * 2.0)) {
                     angle -= M_PI * 2.0;
                 }
-                samples[i].left = floor((sin(angle) * (double) (INT_MAX - 1)) + 0.5);
-                samples[i].right = (byte & 0x100) ? (INT_MAX / 2) : 0;
+                samples[i].left = samples[i].right = floor((sin(angle) * (double) (INT_MAX - 1)) + 0.5);
             } else {
                 angle = 0.0;
                 samples[i].left = samples[i].right = 0;
             }
+            fprintf(fd_debug, "%7.5f ", (double) sample_count / (double) header.sample_rate); // time
+            fprintf(fd_debug, "%7.4f ", (double) samples[i].left / (double) INT_MAX); // encoded signal
+            if (byte >= 0) {
+                fprintf(fd_debug, "%d ", !!(byte & 0x100));
+            } else {
+                fprintf(fd_debug, "- ");
+            }
+            fprintf(fd_debug, "\n");
+            sample_count++;
         }
 
         if (bits == 16) {
@@ -112,9 +121,10 @@ int main(int argc, char ** argv)
 {
     FILE *          fd_in;
     FILE *          fd_out;
+    FILE *          fd_debug;
 
-    if (argc != 3) {
-        fprintf(stderr, "Usage: siggen <modulation.bin> <output.wav>\n");
+    if (argc != 4) {
+        fprintf(stderr, "Usage: siggen <data input> <output.wav> <debug output>\n");
         return 1;
     }
 
@@ -129,10 +139,16 @@ int main(int argc, char ** argv)
         perror("open (write)");
         return 1;
     }
+    fd_debug = fopen(argv[3], "wt");
+    if (!fd_debug) {
+        perror("open (write)");
+        return 1;
+    }
     fseek(fd_in, 0, SEEK_END);
     off_t size = ftell(fd_in);
     fseek(fd_in, 0, SEEK_SET);
-    generate(48000, 16, UPPER_FREQUENCY, LOWER_FREQUENCY, BAUD_RATE, fd_in, (uint32_t) size, fd_out);
+    generate(48000, 16, UPPER_FREQUENCY, LOWER_FREQUENCY, BAUD_RATE, fd_in, (uint32_t) size, fd_out, fd_debug);
+    fclose(fd_debug);
     fclose(fd_out);
     fclose(fd_in);
     return 0;
