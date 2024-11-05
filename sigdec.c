@@ -12,8 +12,8 @@
 #include "biquad.h"
 #include "settings.h"
 
-#define FILTER_WIDTH            (50)
-#define THRESHOLD_AMPLITUDE     (0.1)
+#define FILTER_WIDTH            (100)
+#define THRESHOLD_AMPLITUDE     (0.05)
 #define BLOCK_SIZE              (1 << 14)
 #define MAX_RING_BUFFER_SIZE    (500)
 
@@ -31,7 +31,7 @@ static void window_max_setup(
     memset(ds, 0, sizeof(window_max_state_t));
     // Amplitude should decay below the threshold in half a bit
     const double samples_to_decay_below_threshold =
-        ((double) header->sample_rate / (double) BAUD_RATE) / 1.0;
+        ((double) header->sample_rate / (double) BAUD_RATE) / 2.0;
     // This is the time constant, like k = 1 / RC for a capacitor discharging
     // Level is y = y0 * exp(-kt) at time t, assuming level was y0 at time 0
     const double time_constant = log(THRESHOLD_AMPLITUDE) / -samples_to_decay_below_threshold;
