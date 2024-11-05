@@ -90,11 +90,14 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
                 samples[i].left = samples[i].right = 0;
             }
             fprintf(fd_debug, "%7.5f ", (double) sample_count / (double) header.sample_rate); // time
-            fprintf(fd_debug, "%7.4f ", (double) samples[i].left / (double) INT_MAX); // encoded signal
             if (byte >= 0) {
-                fprintf(fd_debug, "%d ", !!(byte & 0x100));
+                if (byte & 0x100) {
+                    fprintf(fd_debug, "%7.4f - 1 ", (double) samples[i].left / (double) INT_MAX); // encoded signal
+                } else {
+                    fprintf(fd_debug, "- %7.4f 0 ", (double) samples[i].left / (double) INT_MAX); // encoded signal
+                }
             } else {
-                fprintf(fd_debug, "- ");
+                fprintf(fd_debug, "- - - ");
             }
             fprintf(fd_debug, "\n");
             sample_count++;
