@@ -18,17 +18,17 @@
 #define MAX_RING_BUFFER_SIZE    (500)
 
 
-typedef struct window_max_state_t {
+typedef struct rc_filter_state_t {
     double      level;
     double      decay;
-} window_max_state_t;
+} rc_filter_state_t;
 
-static void window_max_setup(
-                    window_max_state_t* ds,
+static void rc_filter_setup(
+                    rc_filter_state_t* ds,
                     t_header* header,
                     uint32_t frequency)
 {
-    memset(ds, 0, sizeof(window_max_state_t));
+    memset(ds, 0, sizeof(rc_filter_state_t));
     // Amplitude should decay below the threshold in half a bit
     const double samples_to_decay_below_threshold =
         ((double) header->sample_rate / (double) BAUD_RATE) / 0.25;
@@ -39,8 +39,8 @@ static void window_max_setup(
     ds->decay = exp(-time_constant);
 }
 
-static void window_max(
-                    window_max_state_t* ds,
+static void rc_filter(
+                    rc_filter_state_t* ds,
                     sox_sample_t* samples,
                     size_t num_samples,
                     double* levels)
@@ -173,9 +173,9 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
         exit(1);
     }
 
-    window_max_state_t upper_decode_state, lower_decode_state;
-    window_max_setup(&upper_decode_state, &header, UPPER_FREQUENCY); 
-    window_max_setup(&lower_decode_state, &header, LOWER_FREQUENCY); 
+    rc_filter_state_t upper_decode_state, lower_decode_state;
+    rc_filter_setup(&upper_decode_state, &header, UPPER_FREQUENCY); 
+    rc_filter_setup(&lower_decode_state, &header, LOWER_FREQUENCY); 
 
     serial_decode_state_t serial_decode_state;
     memset(&serial_decode_state, 0, sizeof(serial_decode_state_t));
@@ -225,8 +225,8 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
         // Level
         double upper_levels[BLOCK_SIZE];
         double lower_levels[BLOCK_SIZE];
-        window_max(&upper_decode_state, upper_output, (size_t) num_samples, upper_levels);
-        window_max(&lower_decode_state, lower_output, (size_t) num_samples, lower_levels);
+        rc_filter(&upper_decode_state, upper_output, (size_t) num_samples, upper_levels);
+        rc_filter(&lower_decode_state, lower_output, (size_t) num_samples, lower_levels);
 
         // Debug output shows filtering and detection
         for (i = 0; i < ((size_t) num_samples); i++) {
