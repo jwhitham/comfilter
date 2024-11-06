@@ -58,7 +58,7 @@ static void rc_filter(
 typedef enum { ZERO, ONE, INVALID } bit_t;
 typedef enum { STOP, STOP_ERROR, START,
                DATA_0, DATA_1, DATA_ERROR,
-               WAIT } identified_t;
+               NOTHING } identified_t;
 
 
 typedef struct serial_decode_state_t {
@@ -66,7 +66,6 @@ typedef struct serial_decode_state_t {
     uint32_t    byte_countdown;
     uint8_t     byte;
     bit_t       previous_bit;
-    identified_t previous_identified;
     double      threshold;
 } serial_decode_state_t;
 
@@ -80,7 +79,6 @@ static void serial_decode(
                     FILE* out)
 {
     for (size_t i = 0; i < num_samples; i++) {
-        identified[i] = ds->previous_identified;
         bit_t bit = INVALID;
         if ((upper_levels[i] > ds->threshold)
         || (lower_levels[i] > ds->threshold)) {
@@ -90,6 +88,7 @@ static void serial_decode(
                 bit = ZERO;
             }
         }
+        identified[i] = NOTHING;
         threshold[i] = bit;
         if (ds->sample_countdown == 0) {
             if ((ds->previous_bit != bit) && (bit == ZERO)) {
@@ -141,7 +140,6 @@ static void serial_decode(
             ds->sample_countdown--;
         }
         ds->previous_bit = bit;
-        ds->previous_identified = identified[i];
     }
 }
 
@@ -200,7 +198,6 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
     serial_decode_state_t serial_decode_state;
     memset(&serial_decode_state, 0, sizeof(serial_decode_state_t));
     serial_decode_state.previous_bit = INVALID;
-    serial_decode_state.previous_identified = WAIT;
     serial_decode_state.half_bit = (header.sample_rate / BAUD_RATE) / 2;
     serial_decode_state.threshold = THRESHOLD_AMPLITUDE;
 
@@ -277,11 +274,11 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
             switch(identified[i]) {
                 case DATA_0:        fprintf(fd_debug, "0 "); break;
                 case DATA_1:        fprintf(fd_debug, "1 "); break;
-                case START:         fprintf(fd_debug, "1.1 "); break;
-                case STOP:          fprintf(fd_debug, "0.1 "); break;
-                case DATA_ERROR:    fprintf(fd_debug, "-0.1 "); break;
-                case STOP_ERROR:    fprintf(fd_debug, "-0.2 "); break;
-                default:            fprintf(fd_debug, "-0.3 "); break;
+                case START:         fprintf(fd_debug, "2 "); break;
+                case STOP:          fprintf(fd_debug, "3 "); break;
+                case DATA_ERROR:    fprintf(fd_debug, "4 "); break;
+                case STOP_ERROR:    fprintf(fd_debug, "5 "); break;
+                default:            fprintf(fd_debug, "- "); break;
             }
             fprintf(fd_debug, "\n");
             sample_count++;

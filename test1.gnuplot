@@ -25,5 +25,6 @@ plot \
     "debug_2" using 1:( $4 + 8 ) with lines title "lower bandpass", \
     "debug_2" using 1:( $5 + 6 ) with lines title "upper rectify", \
     "debug_2" using 1:( $6 + 4 ) with lines title "lower rectify", \
-    "debug_1" using 1:( $4 + 2.1 ) with lines title "input bit", \
-    "debug_2" using 1:( $7 + 2 ) with lines title "output bit"
+    "debug_1" using 1:( $4 + 2 ) with lines title "input bit", \
+    "debug_2" using 1:( $7 + 0.5 ) with lines title "output bit", \
+    "debug_2" using 1:( $8 ) with points title "identified"
