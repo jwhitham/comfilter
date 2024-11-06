@@ -17,7 +17,8 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
             uint32_t baud_rate, FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_debug)
 {
     t_header        header;
-    const uint32_t  num_bits = num_bytes * 10;
+    const uint32_t  bits_per_byte = 8;
+    const uint32_t  num_bits = num_bytes * (bits_per_byte + 2);
     const uint32_t  num_repeats = 3;
     const double    silent_time = 0.01;
     const double    active_time = ((double) (num_bits * num_repeats) / baud_rate);
@@ -30,7 +31,7 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
     double          angle = 0.0;
     double          upper_delta = ((M_PI * 2.0) / (double) sample_rate) * upper_frequency;
     double          lower_delta = ((M_PI * 2.0) / (double) sample_rate) * lower_frequency;
-    uint32_t        samples_per_bit = sample_rate / baud_rate;
+    const uint32_t  samples_per_bit = sample_rate / baud_rate;
     uint32_t        bit_lifetime = 0;
     uint32_t        byte_lifetime = 0;
     int32_t         byte = -1;
@@ -79,13 +80,18 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
         }
     }
 
+    // initial state - no data
+    bit_lifetime = samples_per_bit;
+    byte = 0x3ff;       // no data
+    byte_lifetime = bits_per_byte + 1;
+
     // Generate active blocks
     for (j = 0; j < num_active_blocks; j++) {
         for (i = 0; i < BLOCK_SIZE; i++) {
             if (bit_lifetime == 0) {
                 bit_lifetime = samples_per_bit;
                 if (byte_lifetime == 0) {
-                    byte_lifetime = 10;
+                    byte_lifetime = bits_per_byte + 1;
                     byte = fgetc(fd_in);
                     if (byte == EOF) {
                         rewind(fd_in);
@@ -97,8 +103,8 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
                     }
                 } else {
                     byte = byte >> 1;
+                    byte_lifetime--;
                 }
-                byte_lifetime--;
             }
             bit_lifetime--;
             if (byte > 0) {
