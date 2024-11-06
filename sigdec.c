@@ -14,8 +14,8 @@
 
 #define BLOCK_SIZE              (1 << 14)
 #define FILTER_WIDTH            (100)
-#define MINIMUM_AMPLITUDE       (0.05)
-#define SCHMITT_AMPLITUDE       (0.05)
+#define MINIMUM_AMPLITUDE       (0.1)
+#define SCHMITT_AMPLITUDE       (0.1)
 #define RC_DECAY_PER_BIT        (0.5)
 
 

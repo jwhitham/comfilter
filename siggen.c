@@ -74,16 +74,11 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
         }
         for (i = 0; i < BLOCK_SIZE; i++) {
             fprintf(fd_debug, "%7.5f ", (double) sample_count / (double) header.sample_rate); // time
-            fprintf(fd_debug, "0 - - ");
+            fprintf(fd_debug, "- 0 - ");
             fprintf(fd_debug, "\n");
             sample_count++;
         }
     }
-
-    // initial state - no data
-    bit_lifetime = samples_per_bit;
-    byte = 0x3ff;       // no data
-    byte_lifetime = bits_per_byte + 1;
 
     // Generate active blocks
     for (j = 0; j < num_active_blocks; j++) {
@@ -95,8 +90,8 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
                     byte = fgetc(fd_in);
                     if (byte == EOF) {
                         rewind(fd_in);
-                        //byte = 0x0;       // break (silence)
-                        byte = 0x3ff;       // no data
+                        byte = 0x0;       // break (silence)
+                        //byte = 0x3ff;       // no data
                     } else {
                         byte ^= 0x1ff;      // RS232 - active low, LSB first, stop bit is high
                         byte = byte << 1;   // add low start bit
@@ -125,7 +120,7 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
                     fprintf(fd_debug, "- %7.4f 0 ", (double) samples[i].left / (double) INT_MAX); // encoded signal
                 }
             } else {
-                fprintf(fd_debug, "- - - ");
+                fprintf(fd_debug, "- 0 - ");
             }
             fprintf(fd_debug, "\n");
             sample_count++;

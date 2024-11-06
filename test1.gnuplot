@@ -16,7 +16,7 @@ set terminal png size 1300,800
 # column 6 - lower rectify and RC filter output
 # column 7 - output bit
 
-set xrange [ 0.0 : 0.1 ]
+set xrange [ 0.45 : 0.65 ]
 set yrange [ 0.0 : 14.0 ]
 plot \
     "debug_1" using 1:( $2 + 12 ) with lines title "encoded signal (upper)", \
