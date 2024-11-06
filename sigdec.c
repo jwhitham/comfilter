@@ -16,7 +16,7 @@
 #define FILTER_WIDTH            (100)
 #define MINIMUM_AMPLITUDE       (0.1)
 #define SCHMITT_AMPLITUDE       (0.1)
-#define RC_DECAY_PER_BIT        (0.5)
+#define RC_DECAY_PER_BIT        (0.1)
 
 
 typedef struct rc_filter_state_t {
@@ -47,7 +47,7 @@ static void rc_filter(
                     double* levels)
 {
     for (size_t i = 0; i < num_samples; i++) {
-        double sample = ((double) samples[i]) / ((double) INT_MAX);
+        double sample = fabs(((double) samples[i]) / ((double) INT_MAX));
         ds->level *= ds->decay;
         if (sample > ds->level) {
             ds->level = sample;
