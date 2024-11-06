@@ -89,7 +89,8 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
                     byte = fgetc(fd_in);
                     if (byte == EOF) {
                         rewind(fd_in);
-                        byte = 0;           // break (silence)
+                        //byte = 0x0;       // break (silence)
+                        byte = 0x3ff;       // no data
                     } else {
                         byte ^= 0x1ff;      // RS232 - active low, LSB first, stop bit is high
                         byte = byte << 1;   // add low start bit
