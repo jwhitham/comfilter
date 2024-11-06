@@ -89,17 +89,19 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
                     byte = fgetc(fd_in);
                     if (byte == EOF) {
                         rewind(fd_in);
-                        byte = -1;
+                        byte = 0;           // break (silence)
+                    } else {
+                        byte ^= 0x1ff;      // RS232 - active low, LSB first, stop bit is high
+                        byte = byte << 1;   // add low start bit
                     }
-                    byte |= 0x100;
                 } else {
-                    byte = byte << 1;
+                    byte = byte >> 1;
                 }
                 byte_lifetime--;
             }
             bit_lifetime--;
-            if (byte >= 0) {
-                angle += (byte & 0x100) ? upper_delta : lower_delta;
+            if (byte > 0) {
+                angle += (byte & 1) ? upper_delta : lower_delta;
                 if (angle > (M_PI * 2.0)) {
                     angle -= M_PI * 2.0;
                 }
@@ -109,8 +111,8 @@ static void generate(const uint32_t sample_rate, uint32_t bits,
                 samples[i].left = samples[i].right = 0;
             }
             fprintf(fd_debug, "%7.5f ", (double) sample_count / (double) header.sample_rate); // time
-            if (byte >= 0) {
-                if (byte & 0x100) {
+            if (byte > 0) {
+                if (byte & 1) {
                     fprintf(fd_debug, "%7.4f - 1 ", (double) samples[i].left / (double) INT_MAX); // encoded signal
                 } else {
                     fprintf(fd_debug, "- %7.4f 0 ", (double) samples[i].left / (double) INT_MAX); // encoded signal

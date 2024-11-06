@@ -63,7 +63,8 @@ typedef enum { STOP, STOP_ERROR, START,
 
 typedef struct serial_decode_state_t {
     uint32_t    sample_countdown, half_bit;
-    uint16_t    byte;
+    uint32_t    byte_countdown;
+    uint8_t     byte;
     bit_t       previous_bit;
     identified_t previous_identified;
     double      threshold;
@@ -91,22 +92,23 @@ static void serial_decode(
         }
         threshold[i] = bit;
         if (ds->sample_countdown == 0) {
-            if ((ds->previous_bit != bit) && (bit == ONE)) {
+            if ((ds->previous_bit != bit) && (bit == ZERO)) {
                 ds->sample_countdown = ds->half_bit * 3;
-                ds->byte = 1;
+                ds->byte_countdown = 8;
+                ds->byte = 0;
                 identified[i] = START;
             }
         } else if (ds->sample_countdown == 1) {
             ds->sample_countdown--;
-            if (ds->byte & 0x100) {
+            if (ds->byte_countdown == 0) {
                 // stop bit reached
                 switch (bit) {
-                    case ZERO:
-                        fputc(ds->byte & 0xff, out);
+                    case ONE:
+                        fputc(ds->byte ^ 0xff, out);
                         identified[i] = STOP;
                         break;
-                    case ONE:
-                        printf("framing error - stop bit is 1\n");
+                    case ZERO:
+                        printf("framing error - stop bit is 0\n");
                         identified[i] = STOP_ERROR;
                         break;
                     default:
@@ -118,10 +120,11 @@ static void serial_decode(
             } else {
                 // data bit
                 ds->sample_countdown = ds->half_bit * 2;
-                ds->byte = ds->byte << 1;
+                ds->byte_countdown--;
+                ds->byte = ds->byte >> 1;
                 switch (bit) {
                     case ONE:
-                        ds->byte |= 1;
+                        ds->byte |= 0x80;
                         identified[i] = DATA_1;
                         break;
                     case ZERO:
