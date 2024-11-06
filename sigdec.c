@@ -12,10 +12,10 @@
 #include "biquad.h"
 #include "settings.h"
 
-#define FILTER_WIDTH            (100)
-#define THRESHOLD_AMPLITUDE     (0.05)
 #define BLOCK_SIZE              (1 << 14)
-#define MAX_RING_BUFFER_SIZE    (500)
+#define FILTER_WIDTH            (100)
+#define MINIMUM_AMPLITUDE       (0.05)
+#define RC_DECAY_PER_BIT        (0.5)
 
 
 typedef struct rc_filter_state_t {
@@ -29,12 +29,12 @@ static void rc_filter_setup(
                     uint32_t frequency)
 {
     memset(ds, 0, sizeof(rc_filter_state_t));
-    // Amplitude should decay below the threshold in half a bit
-    const double samples_to_decay_below_threshold =
-        ((double) header->sample_rate / (double) BAUD_RATE) / 0.25;
+    // Number of samples per bit
+    const double bit_samples = ((double) header->sample_rate / (double) BAUD_RATE);
     // This is the time constant, like k = 1 / RC for a capacitor discharging
-    // Level is y = y0 * exp(-kt) at time t, assuming level was y0 at time 0
-    const double time_constant = log(THRESHOLD_AMPLITUDE) / -samples_to_decay_below_threshold;
+    // Note: Level is y = exp(-kt) at time t, assuming level was 1.0 at time 0
+    // The level should be reduced from 1.0 to RC_DECAY_PER_BIT during each bit
+    const double time_constant = log(RC_DECAY_PER_BIT) / -bit_samples;
     // Each transition from t to t+1 is a multiplication by exp(-k)
     ds->decay = exp(-time_constant);
 }
@@ -66,7 +66,6 @@ typedef struct serial_decode_state_t {
     uint32_t    byte_countdown;
     uint8_t     byte;
     bit_t       previous_bit;
-    double      threshold;
 } serial_decode_state_t;
 
 static void serial_decode(
@@ -74,14 +73,14 @@ static void serial_decode(
                     double* upper_levels,
                     double* lower_levels,
                     identified_t* identified,
-                    bit_t* threshold,
+                    bit_t* received_bit,
                     size_t num_samples,
                     FILE* out)
 {
     for (size_t i = 0; i < num_samples; i++) {
         bit_t bit = INVALID;
-        if ((upper_levels[i] > ds->threshold)
-        || (lower_levels[i] > ds->threshold)) {
+        if ((upper_levels[i] > MINIMUM_AMPLITUDE)
+        || (lower_levels[i] > MINIMUM_AMPLITUDE)) {
             if (upper_levels[i] > lower_levels[i]) {
                 bit = ONE;
             } else {
@@ -89,7 +88,7 @@ static void serial_decode(
             }
         }
         identified[i] = NOTHING;
-        threshold[i] = bit;
+        received_bit[i] = bit;
         if (ds->sample_countdown == 0) {
             if ((ds->previous_bit != bit) && (bit == ZERO)) {
                 ds->sample_countdown = ds->half_bit * 3;
@@ -199,7 +198,6 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
     memset(&serial_decode_state, 0, sizeof(serial_decode_state_t));
     serial_decode_state.previous_bit = INVALID;
     serial_decode_state.half_bit = (header.sample_rate / BAUD_RATE) / 2;
-    serial_decode_state.threshold = THRESHOLD_AMPLITUDE;
 
     uint64_t sample_count = 0;
 
@@ -248,12 +246,12 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
 
         // Serial decoding
         identified_t identified[BLOCK_SIZE];
-        bit_t threshold[BLOCK_SIZE];
+        bit_t received_bit[BLOCK_SIZE];
         serial_decode(&serial_decode_state,
                       upper_levels,
                       lower_levels,
                       identified,
-                      threshold,
+                      received_bit,
                       (size_t) num_samples,
                       fd_out);
 
@@ -266,7 +264,7 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
             fprintf(fd_debug, "%7.4f ", upper_levels[i]); // upper, rectify and RC filter
             fprintf(fd_debug, "%7.4f ", lower_levels[i]); // lower, rectify and RC filter
 
-            switch(threshold[i]) {
+            switch(received_bit[i]) {
                 case ZERO:          fprintf(fd_debug, "0 "); break;
                 case ONE:           fprintf(fd_debug, "1 "); break;
                 default:            fprintf(fd_debug, "- "); break;
