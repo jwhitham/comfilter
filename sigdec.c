@@ -15,7 +15,7 @@
 #define BLOCK_SIZE              (1 << 14)
 #define FILTER_WIDTH            (100)
 #define MINIMUM_AMPLITUDE       (0.1)
-#define SCHMITT_AMPLITUDE       (0.1)
+#define SCHMITT_THRESHOLD       (0.7)
 #define RC_DECAY_PER_BIT        (0.1)
 
 
@@ -80,15 +80,15 @@ static void serial_decode(
 {
     for (size_t i = 0; i < num_samples; i++) {
         bit_t bit = ds->previous_bit;
-        if ((upper_levels[i] > (lower_levels[i] + SCHMITT_AMPLITUDE))
+        double sum = upper_levels[i] + lower_levels[i];
+        if (sum < MINIMUM_AMPLITUDE) {
+            bit = INVALID;
+        } else if ((upper_levels[i] > (sum * SCHMITT_THRESHOLD))
         && ((bit == ZERO) || (bit == INVALID))) {
             bit = ONE;
-        } else if ((lower_levels[i] > (upper_levels[i] + SCHMITT_AMPLITUDE))
+        } else if ((lower_levels[i] > (sum * SCHMITT_THRESHOLD))
         && ((bit == ONE) || (bit == INVALID))) {
             bit = ZERO;
-        } else if ((upper_levels[i] < MINIMUM_AMPLITUDE)
-        && (lower_levels[i] < MINIMUM_AMPLITUDE)) {
-            bit = INVALID;
         }
         identified[i] = NOTHING;
         received_bit[i] = bit;
