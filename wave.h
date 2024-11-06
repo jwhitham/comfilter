@@ -19,14 +19,4 @@ typedef struct t_header {
     uint32_t    data_size;              // 28
 } t_header;
 
-typedef struct t_stereo32 {
-    int32_t     left;
-    int32_t     right;
-} t_stereo32;
-
-typedef struct t_stereo16 {
-    int16_t     left;
-    int16_t     right;
-} t_stereo16;
-
 #endif

@@ -105,7 +105,7 @@ static void serial_decode(
                 // stop bit reached
                 switch (bit) {
                     case ONE:
-                        fputc(ds->byte ^ 0xff, out);
+                        fputc(ds->byte, out);
                         identified[i] = STOP;
                         break;
                     case ZERO:
@@ -160,13 +160,13 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
     || (memcmp(header.fixed_fmt, "fmt ", 4) != 0)
     || (header.length_of_format_data != 16)
     || (header.type_of_format != 1) // WAVE_FORMAT_PCM
-    || (header.number_of_channels != 2)
+    || (header.number_of_channels != 1)
     || (header.bytes_per_second != (header.sample_rate * header.bytes_per_period))
     || (header.bits_per_sample != ((header.bytes_per_period / header.number_of_channels) * 8))
     || (memcmp(header.fixed_data, "data", 4) != 0)
-    || (header.bytes_per_period != sizeof(t_stereo16))
+    || (header.bytes_per_period != sizeof(int16_t))
     || (header.bits_per_sample != 16)) {
-        fprintf(stderr, "Format is incorrect - needs to be a simple stereo PCM file, 16 bit\n");
+        fprintf(stderr, "Format is incorrect - needs to be a simple mono PCM file, 16 bit\n");
         exit(1);
     }
 
@@ -205,20 +205,20 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
     uint64_t sample_count = 0;
 
     while (1) {
-        t_stereo16   samples[BLOCK_SIZE];
+        int16_t samples[BLOCK_SIZE];
         sox_sample_t input[BLOCK_SIZE];
         sox_sample_t upper_output[BLOCK_SIZE];
         sox_sample_t lower_output[BLOCK_SIZE];
         size_t isamp, osamp, i;
 
         // Input from .wav file
-        ssize_t num_samples = fread(samples, sizeof(t_stereo16), BLOCK_SIZE, fd_in);
+        ssize_t num_samples = fread(samples, sizeof(int16_t), BLOCK_SIZE, fd_in);
         if (num_samples <= 0) {
             break;
         }
 
         for (i = 0; i < ((size_t) num_samples); i++) {
-            input[i] = ((int32_t) samples[i].left) << bit_shift;
+            input[i] = ((int32_t) samples[i]) << bit_shift;
         }
         // Higher frequency filter
         isamp = osamp = (size_t) num_samples;
