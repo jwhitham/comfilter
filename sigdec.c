@@ -9,7 +9,6 @@
 #include <stdbool.h>
 
 #include "wave.h"
-#include "biquad.h"
 #include "settings.h"
 
 #define BLOCK_SIZE              (1 << 14)
@@ -18,6 +17,51 @@
 #define SCHMITT_THRESHOLD       (0.7)
 #define RC_DECAY_PER_BIT        (0.1)
 
+
+typedef struct my_filter_state_t {
+    double a0, a1, a2;
+    double b0, b1, b2;
+    double i1, i2;
+    double o1, o2;
+} my_filter_state_t;
+
+static void my_filter_setup(
+                my_filter_state_t* mf,
+                t_header* header,
+                double frequency,
+                double width) {
+    memset(mf, 0, sizeof(my_filter_state_t));
+    const double w0 = 2 * M_PI * frequency / (double) header->sample_rate;
+    const double alpha = sin(w0)/(2*frequency/width);
+    mf->b0 =   alpha;
+    mf->b1 =   0;
+    mf->b2 =  -alpha;
+    mf->a0 =   1 + alpha;
+    mf->a1 =  -2*cos(w0);
+    mf->a2 =   1 - alpha;
+    mf->b2 /= mf->a0;
+    mf->b1 /= mf->a0;
+    mf->b0 /= mf->a0;
+    mf->a2 /= mf->a0;
+    mf->a1 /= mf->a0;
+}
+
+static void my_filter(
+                my_filter_state_t* mf,
+                double* input,
+                double* output,
+                size_t num_samples) {
+
+    for (size_t i = 0; i < num_samples; i++) {
+        double i0 = input[i];
+        double o0 = i0*mf->b0 + mf->i1*mf->b1 + mf->i2*mf->b2 - mf->o1*mf->a1 - mf->o2*mf->a2;
+        mf->i2 = mf->i1;
+        mf->i1 = i0;
+        mf->o2 = mf->o1;
+        mf->o1 = o0;
+        output[i] = o0;
+    }
+}
 
 typedef struct rc_filter_state_t {
     double      level;
@@ -42,12 +86,12 @@ static void rc_filter_setup(
 
 static void rc_filter(
                     rc_filter_state_t* ds,
-                    sox_sample_t* samples,
+                    double* samples,
                     size_t num_samples,
                     double* levels)
 {
     for (size_t i = 0; i < num_samples; i++) {
-        double sample = fabs(((double) samples[i]) / ((double) INT_MAX));
+        double sample = samples[i];
         ds->level *= ds->decay;
         if (sample > ds->level) {
             ds->level = sample;
@@ -176,22 +220,10 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
         exit(1);
     }
 
-    const int32_t bits_per_sample = header.bits_per_sample;
-    const int32_t bit_shift = 32 - bits_per_sample;
-
-    sox_effect_t    upper_filter;
-    sox_effect_t    lower_filter;
-    memset(&upper_filter, 0, sizeof(sox_effect_t));
-    upper_filter.in_signal.rate = header.sample_rate;
-    upper_filter.in_signal.channels = header.number_of_channels;
-    upper_filter.in_signal.precision = header.bits_per_sample;
-    memcpy(&lower_filter, &upper_filter, sizeof(sox_effect_t));
-    if (lsx_biquad_start(&upper_filter, UPPER_FREQUENCY, FILTER_WIDTH) != SOX_SUCCESS) {
-        exit(1);
-    }
-    if (lsx_biquad_start(&lower_filter, LOWER_FREQUENCY, FILTER_WIDTH) != SOX_SUCCESS) {
-        exit(1);
-    }
+    my_filter_state_t upper_filter;
+    my_filter_state_t lower_filter;
+    my_filter_setup(&upper_filter, &header, UPPER_FREQUENCY, FILTER_WIDTH);
+    my_filter_setup(&lower_filter, &header, LOWER_FREQUENCY, FILTER_WIDTH);
 
     rc_filter_state_t upper_decode_state, lower_decode_state;
     rc_filter_setup(&upper_decode_state, &header, UPPER_FREQUENCY); 
@@ -206,10 +238,10 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
 
     while (1) {
         int16_t samples[BLOCK_SIZE];
-        sox_sample_t input[BLOCK_SIZE];
-        sox_sample_t upper_output[BLOCK_SIZE];
-        sox_sample_t lower_output[BLOCK_SIZE];
-        size_t isamp, osamp, i;
+        double input[BLOCK_SIZE];
+        double upper_output[BLOCK_SIZE];
+        double lower_output[BLOCK_SIZE];
+        size_t i;
 
         // Input from .wav file
         ssize_t num_samples = fread(samples, sizeof(int16_t), BLOCK_SIZE, fd_in);
@@ -218,28 +250,11 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
         }
 
         for (i = 0; i < ((size_t) num_samples); i++) {
-            input[i] = ((int32_t) samples[i]) << bit_shift;
+            input[i] = (double) samples[i] / (double) INT16_MAX;
         }
-        // Higher frequency filter
-        isamp = osamp = (size_t) num_samples;
-        if (lsx_biquad_flow(&upper_filter, input, upper_output, &isamp, &osamp) != SOX_SUCCESS) {
-            fprintf(stderr, "upper filter fail\n");
-            exit(1);
-        }
-        size_t upper_num_samples = osamp;
-
-        // Lower frequency filter
-        isamp = osamp = (size_t) num_samples;
-        if (lsx_biquad_flow(&lower_filter, input, lower_output, &isamp, &osamp) != SOX_SUCCESS) {
-            fprintf(stderr, "lower filter fail\n");
-            exit(1);
-        }
-        size_t lower_num_samples = osamp;
-        if (upper_num_samples != lower_num_samples) {
-            fprintf(stderr, "filter output inconsistency\n");
-            exit(1);
-        }
-        num_samples = lower_num_samples;
+        // Bandpass filters
+        my_filter(&upper_filter, input, upper_output, num_samples);
+        my_filter(&lower_filter, input, lower_output, num_samples);
 
         // Level
         double upper_levels[BLOCK_SIZE];
