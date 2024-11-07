@@ -1,4 +1,4 @@
-// Suggested compile command: gcc -o sigdec.exe sigdec.c -Wall -Werror -g  -O -lm
+// Suggested compile command: g++ -o sigdec.exe sigdec.cpp -Wall -Werror -g  -O -lm -std=c++17
 //
 #include <stdio.h>
 #include <string.h>
@@ -17,6 +17,7 @@
 #define SCHMITT_THRESHOLD       (0.7)
 #define RC_DECAY_PER_BIT        (0.1)
 
+namespace {
 
 typedef struct my_filter_state_t {
     double a0, a1, a2;
@@ -305,6 +306,8 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
         }
     }
 }
+
+} // namespace
 
 int main(int argc, char ** argv)
 {
