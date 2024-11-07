@@ -22,7 +22,14 @@ namespace {
 struct fixed_t {
 public:
     fixed_t() : m_value(0.0) {}
-    fixed_t(const double value) : m_value(value) {}
+    fixed_t(const double value) : m_value(value) {
+        if (fabs(value) >= 2.0) {
+            fprintf(stderr, "Fixed point value out of range: %1.3f\n", value);
+            exit(1);
+        }
+    }
+    fixed_t(const std::int16_t value) : m_value((double) value / (double) INT16_MAX) {}
+
     fixed_t operator*(const fixed_t& other) {
         return fixed_t(m_value * other.m_value);
     }
@@ -288,7 +295,7 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
         }
 
         for (i = 0; i < ((size_t) num_samples); i++) {
-            input[i] = (fixed_t) samples[i] / (fixed_t) INT16_MAX;
+            input[i] = fixed_t(samples[i]);
         }
         // Bandpass filters
         my_filter(&upper_filter, input, upper_output, num_samples);
