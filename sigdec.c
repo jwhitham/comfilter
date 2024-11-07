@@ -44,6 +44,10 @@ static void my_filter_setup(
     mf->b0 /= mf->a0;
     mf->a2 /= mf->a0;
     mf->a1 /= mf->a0;
+    printf("Matrix for frequency %1.0f Hz width %1.0f Hz\n", frequency, width);
+    printf("   w0 = %14.6e a  = %14.6e\n", w0, alpha);
+    printf("   a0 = %14.6e a1 = %14.6e a2 = %14.6e\n", mf->a0, mf->a1, mf->a2);
+    printf("   b0 = %14.6e b1 = %14.6e b2 = %14.6e\n", mf->b0, mf->b1, mf->b2);
 }
 
 static void my_filter(
