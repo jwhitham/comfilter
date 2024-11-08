@@ -74,9 +74,8 @@ static void generate(FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_deb
     }
 
     // Initial setup time - no data
-    byte = 0x3ff;
-    byte_lifetime = bits_per_byte + 1;
-    bit_lifetime = samples_per_bit;
+    byte = 1;
+    bit_lifetime = samples_per_bit * (bits_per_byte * 2);
 
     // Generate active blocks
     for (j = 0; j < num_active_blocks; j++) {

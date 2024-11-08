@@ -13,7 +13,6 @@
 
 static constexpr size_t BLOCK_SIZE = 1 << 14;
 static constexpr double FILTER_WIDTH = 100;
-static constexpr double SCHMITT_THRESHOLD = 0.7;
 static constexpr double RC_DECAY_PER_BIT = 0.1;
 
 namespace {
@@ -224,17 +223,17 @@ static void rc_filter(
     }
 }
 
-typedef enum { ZERO, ONE, INVALID } bit_t;
-typedef enum { STOP, STOP_ERROR, START,
-               DATA_0, DATA_1, DATA_ERROR,
-               NOTHING } identified_t;
+typedef enum { WAIT_START = 0, WAIT_NEXT, CHECK_START,
+               STOP, STOP_ERROR, START, START_ERROR,
+               DATA_0, DATA_1 } identified_t;
 
 
 typedef struct serial_decode_state_t {
     std::uint32_t   sample_countdown, half_bit;
     std::uint32_t   byte_countdown;
     std::uint8_t    byte;
-    bit_t           previous_bit;
+    bool            previous_bit;
+    identified_t    state;
 } serial_decode_state_t;
 
 static void serial_decode(
@@ -242,71 +241,72 @@ static void serial_decode(
                     fixed_t* upper_levels,
                     fixed_t* lower_levels,
                     identified_t* identified,
-                    bit_t* received_bit,
+                    bool* received_bit,
                     size_t num_samples,
                     FILE* out)
 {
     for (size_t i = 0; i < num_samples; i++) {
-        bit_t bit = ds->previous_bit;
-        fixed_t sum = upper_levels[i] + lower_levels[i];
-        if ((upper_levels[i] > (sum * fixed_t(SCHMITT_THRESHOLD)))
-        && ((bit == ZERO) || (bit == INVALID))) {
-            bit = ONE;
-        } else if ((lower_levels[i] > (sum * fixed_t(SCHMITT_THRESHOLD)))
-        && ((bit == ONE) || (bit == INVALID))) {
-            bit = ZERO;
-        }
-        identified[i] = NOTHING;
+        const bool bit = (upper_levels[i] > lower_levels[i]);
         received_bit[i] = bit;
-        if (ds->sample_countdown == 0) {
-            if ((ds->previous_bit != bit) && (bit == ZERO)) {
-                ds->sample_countdown = ds->half_bit * 3;
-                ds->byte_countdown = 8;
-                ds->byte = 0;
-                identified[i] = START;
-            }
-        } else if (ds->sample_countdown == 1) {
-            ds->sample_countdown--;
-            if (ds->byte_countdown == 0) {
-                // stop bit reached
-                switch (bit) {
-                    case ONE:
-                        fputc(ds->byte, out);
-                        identified[i] = STOP;
-                        break;
-                    case ZERO:
-                        printf("framing error - stop bit is 0\n");
-                        identified[i] = STOP_ERROR;
-                        break;
-                    default:
-                        printf("framing error - stop bit is invalid\n");
-                        identified[i] = STOP_ERROR;
-                        break;
+
+        switch (ds->state) {
+            case WAIT_START:
+                if (ds->previous_bit && !bit) {
+                    ds->sample_countdown = ds->half_bit;
+                    ds->state = START;
                 }
-                ds->byte = 0;
-            } else {
-                // data bit
-                ds->sample_countdown = ds->half_bit * 2;
-                ds->byte_countdown--;
-                ds->byte = ds->byte >> 1;
-                switch (bit) {
-                    case ONE:
-                        ds->byte |= 0x80;
-                        identified[i] = DATA_1;
-                        break;
-                    case ZERO:
-                        identified[i] = DATA_0;
-                        break;
-                    default:
-                        printf("framing error - data bit is invalid\n");
-                        ds->sample_countdown = 0;
-                        identified[i] = DATA_ERROR;
-                        break;
+                break;
+            case START:
+                ds->state = CHECK_START;
+                break;
+            case CHECK_START:
+                if (bit) {
+                    ds->state = START_ERROR;
+                } else {
+                    ds->sample_countdown--;
+                    if (ds->sample_countdown == 0) {
+                        ds->sample_countdown = ds->half_bit * 2;
+                        ds->state = WAIT_NEXT;
+                        ds->byte_countdown = 9;
+                        ds->byte = 0;
+                    }
                 }
-            }
-        } else {
-            ds->sample_countdown--;
+                break;
+            case WAIT_NEXT:
+                ds->sample_countdown--;
+                if (ds->sample_countdown == 0) {
+                    ds->sample_countdown = ds->half_bit * 2;
+                    ds->byte_countdown--;
+                    if (ds->byte_countdown == 0) {
+                        if (bit) {
+                            fputc(ds->byte, out);
+                            ds->state = STOP;
+                        } else {
+                            ds->state = STOP_ERROR;
+                        }
+                    } else {
+                        ds->byte = ds->byte >> 1;
+                        if (bit) {
+                            ds->byte |= 0x80;
+                            ds->state = DATA_1;
+                        } else {
+                            ds->state = DATA_0;
+                        }
+                    }
+                }
+                break;
+            case DATA_1:
+            case DATA_0:
+                ds->sample_countdown--;
+                ds->state = WAIT_NEXT;
+                break;
+            case START_ERROR:
+            case STOP_ERROR:
+            case STOP:
+                ds->state = WAIT_START;
+                break;
         }
+        identified[i] = ds->state;
         ds->previous_bit = bit;
     }
 }
@@ -354,7 +354,6 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
 
     serial_decode_state_t serial_decode_state;
     memset(&serial_decode_state, 0, sizeof(serial_decode_state_t));
-    serial_decode_state.previous_bit = INVALID;
     serial_decode_state.half_bit = (header.sample_rate / BAUD_RATE) / 2;
 
     uint64_t sample_count = 0;
@@ -387,7 +386,7 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
 
         // Serial decoding
         identified_t identified[BLOCK_SIZE];
-        bit_t received_bit[BLOCK_SIZE];
+        bool received_bit[BLOCK_SIZE];
         serial_decode(&serial_decode_state,
                       upper_levels,
                       lower_levels,
@@ -406,16 +405,15 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
             fprintf(fd_debug, "%7.4f ", lower_levels[i].to_double()); // lower, rectify and RC filter
 
             switch(received_bit[i]) {
-                case ZERO:          fprintf(fd_debug, "0 "); break;
-                case ONE:           fprintf(fd_debug, "1 "); break;
-                default:            fprintf(fd_debug, "- "); break;
+                case false:         fprintf(fd_debug, "0 "); break;
+                default:            fprintf(fd_debug, "1 "); break;
             }
             switch(identified[i]) {
                 case DATA_0:        fprintf(fd_debug, "0 "); break;
                 case DATA_1:        fprintf(fd_debug, "1 "); break;
                 case START:         fprintf(fd_debug, "2 "); break;
                 case STOP:          fprintf(fd_debug, "3 "); break;
-                case DATA_ERROR:    fprintf(fd_debug, "4 "); break;
+                case START_ERROR:   fprintf(fd_debug, "4 "); break;
                 case STOP_ERROR:    fprintf(fd_debug, "5 "); break;
                 default:            fprintf(fd_debug, "- "); break;
             }
