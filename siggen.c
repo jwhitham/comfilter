@@ -73,6 +73,11 @@ static void generate(FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_deb
         }
     }
 
+    // Initial setup time - no data
+    byte = 0x3ff;
+    byte_lifetime = bits_per_byte + 1;
+    bit_lifetime = samples_per_bit;
+
     // Generate active blocks
     for (j = 0; j < num_active_blocks; j++) {
         for (i = 0; i < BLOCK_SIZE; i++) {
@@ -83,8 +88,7 @@ static void generate(FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_deb
                     byte = fgetc(fd_in);
                     if (byte == EOF) {
                         rewind(fd_in);
-                        byte = 0x0;       // break (silence)
-                        //byte = 0x3ff;       // no data
+                        byte = 0x3ff;       // no data
                     } else {
                         byte ^= 0x100;      // RS232 - LSB first, stop bit is high
                         byte = byte << 1;   // add low start bit

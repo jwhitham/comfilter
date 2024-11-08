@@ -13,7 +13,6 @@
 
 static constexpr size_t BLOCK_SIZE = 1 << 14;
 static constexpr double FILTER_WIDTH = 100;
-static constexpr double MINIMUM_AMPLITUDE = 0.1;
 static constexpr double SCHMITT_THRESHOLD = 0.7;
 static constexpr double RC_DECAY_PER_BIT = 0.1;
 
@@ -250,9 +249,7 @@ static void serial_decode(
     for (size_t i = 0; i < num_samples; i++) {
         bit_t bit = ds->previous_bit;
         fixed_t sum = upper_levels[i] + lower_levels[i];
-        if (fixed_t(MINIMUM_AMPLITUDE) > sum) {
-            bit = INVALID;
-        } else if ((upper_levels[i] > (sum * fixed_t(SCHMITT_THRESHOLD)))
+        if ((upper_levels[i] > (sum * fixed_t(SCHMITT_THRESHOLD)))
         && ((bit == ZERO) || (bit == INVALID))) {
             bit = ONE;
         } else if ((lower_levels[i] > (sum * fixed_t(SCHMITT_THRESHOLD)))
