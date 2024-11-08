@@ -98,6 +98,12 @@ public:
         return (!temp.m_negative) && (temp.m_bits > 0);
     }
 
+    fixed_t abs() {
+        fixed_t temp = *this;
+        temp.m_negative = false;
+        return temp;
+    }
+
     double to_double() {
         double value = (double) m_bits / (double) one;
         if (m_negative) {
@@ -210,7 +216,7 @@ static void rc_filter(
                     fixed_t* levels)
 {
     for (size_t i = 0; i < num_samples; i++) {
-        fixed_t sample = samples[i];
+        fixed_t sample = samples[i].abs();
         ds->level = ds->level * ds->decay;
         if (sample > ds->level) {
             ds->level = sample;
