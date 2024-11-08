@@ -11,45 +11,112 @@
 #include "wave.h"
 #include "settings.h"
 
-#define BLOCK_SIZE              (1 << 14)
-#define FILTER_WIDTH            (100)
-#define MINIMUM_AMPLITUDE       (0.1)
-#define SCHMITT_THRESHOLD       (0.7)
-#define RC_DECAY_PER_BIT        (0.1)
+static constexpr size_t BLOCK_SIZE = 1 << 14;
+static constexpr double FILTER_WIDTH = 100;
+static constexpr double MINIMUM_AMPLITUDE = 0.1;
+static constexpr double SCHMITT_THRESHOLD = 0.7;
+static constexpr double RC_DECAY_PER_BIT = 0.1;
 
 namespace {
 
+static constexpr std::uint64_t FIXED_BITS = 9;
+
 struct fixed_t {
 public:
-    fixed_t() : m_value(0.0) {}
-    fixed_t(const double value) : m_value(value) {
-        if (fabs(value) >= 2.0) {
-            fprintf(stderr, "Fixed point value out of range: %1.3f\n", value);
+    fixed_t() {}
+    fixed_t(double value) {
+        if (value < 0.0) {
+            m_negative = true;
+            value = -value;
+        }
+        if (value >= 2.0) {
+            fprintf(stderr, "Fixed point value out of range on construction: %1.3f\n", value);
+            exit(1);
+        }
+        value *= (double) one;
+        m_bits = static_cast<std::uint64_t>(floor(value + 0.5));
+    }
+
+    fixed_t(const fixed_t&) = default;
+    fixed_t& operator=(const fixed_t&) = default;
+
+    fixed_t(std::int16_t value) {
+        if (value < 0) {
+            m_negative = true;
+            value = -value;
+        }
+        const std::uint64_t value_bits = 15; // 16 bit -> 15 magnitude, 1 sign
+        if constexpr (FIXED_BITS >= value_bits) {
+            m_bits = static_cast<std::uint64_t>(value) << (FIXED_BITS - value_bits);
+        } else {
+            m_bits = static_cast<std::uint64_t>(value) >> (value_bits - FIXED_BITS);
+        }
+    }
+
+    fixed_t operator*(const fixed_t& other) {
+        fixed_t out;
+        out.m_bits = (m_bits * other.m_bits) >> FIXED_BITS;
+        out.m_negative = (m_negative != other.m_negative);
+        out.range_check();
+        return out;
+    }
+
+    fixed_t operator/(const fixed_t& other) {
+        fixed_t out;
+        out.m_bits = (m_bits << FIXED_BITS) / other.m_bits;
+        out.m_negative = (m_negative != other.m_negative);
+        out.range_check();
+        return out;
+    }
+
+    fixed_t operator+(const fixed_t& other) {
+        fixed_t out;
+        if (m_negative == other.m_negative) {
+            out.m_bits = m_bits + other.m_bits;
+            out.m_negative = m_negative;
+        } else if (other.m_bits <= m_bits) {
+            out.m_bits = m_bits - other.m_bits;
+            out.m_negative = m_negative;
+        } else {
+            out.m_bits = other.m_bits - m_bits;
+            out.m_negative = other.m_negative;
+        }
+        out.range_check();
+        return out;
+    }
+
+    fixed_t operator-(const fixed_t& other) {
+        fixed_t negated;
+        negated.m_bits = other.m_bits;
+        negated.m_negative = !other.m_negative;
+        return *this + negated;
+    }
+
+    bool operator>(const fixed_t& other) {
+        fixed_t temp = *this - other;
+        temp.range_check();
+        return (!temp.m_negative) && (temp.m_bits > 0);
+    }
+
+    double to_double() {
+        double value = (double) m_bits / (double) one;
+        if (m_negative) {
+            value = -value;
+        }
+        return value;
+    }
+
+    void range_check() {
+        if (m_bits >= (one * 2)) {
+            fprintf(stderr, "Fixed point value out of range after operation: %1.3f\n", 
+                to_double());
             exit(1);
         }
     }
-    fixed_t(const std::int16_t value) : m_value((double) value / (double) INT16_MAX) {}
-
-    fixed_t operator*(const fixed_t& other) {
-        return fixed_t(m_value * other.m_value);
-    }
-    fixed_t operator+(const fixed_t& other) {
-        return fixed_t(m_value + other.m_value);
-    }
-    fixed_t operator-(const fixed_t& other) {
-        return fixed_t(m_value - other.m_value);
-    }
-    fixed_t operator/(const fixed_t& other) {
-        return fixed_t(m_value / other.m_value);
-    }
-    bool operator>(const fixed_t& other) {
-        return m_value > other.m_value;
-    }
-    double to_double() {
-        return m_value;
-    }
 private:
-    double m_value;
+    std::uint64_t m_bits{0};
+    bool m_negative{false};
+    static constexpr std::uint64_t one{static_cast<std::uint64_t>(1) << FIXED_BITS};
 };
 
 struct my_filter_state_t {
@@ -80,14 +147,20 @@ static void my_filter_setup(
     a1 /= a0;
     printf("Matrix for frequency %1.0f Hz width %1.0f Hz\n", frequency, width);
     printf("   w0 = %14.6e a  = %14.6e\n", w0, alpha);
-    printf("   a0 = %14.6e a1 = %14.6e a2 = %14.6e\n", a0, a1, a2);
-    printf("   b0 = %14.6e b1 = %14.6e b2 = %14.6e\n", b0, b1, b2);
+    printf("   a0 = %14.6e a1 = %14.6e a2 = %14.6e (double)\n", a0, a1, a2);
+    printf("   b0 = %14.6e b1 = %14.6e b2 = %14.6e (double)\n", b0, b1, b2);
     mf->b0 = fixed_t(b0);
     mf->b1 = fixed_t(b1);
     mf->b2 = fixed_t(b2);
     mf->a0 = fixed_t(a0);
     mf->a1 = fixed_t(a1);
     mf->a2 = fixed_t(a2);
+    printf("   a0 = %14.6e a1 = %14.6e a2 = %14.6e (fixed_t %u)\n",
+            mf->a0.to_double(), mf->a1.to_double(), mf->a2.to_double(),
+            static_cast<unsigned>(FIXED_BITS));
+    printf("   b0 = %14.6e b1 = %14.6e b2 = %14.6e (fixed_t %u)\n",
+            mf->b0.to_double(), mf->b1.to_double(), mf->b2.to_double(),
+            static_cast<unsigned>(FIXED_BITS));
 }
 
 static void my_filter(
@@ -125,7 +198,9 @@ static void rc_filter_setup(
     // The level should be reduced from 1.0 to RC_DECAY_PER_BIT during each bit
     const double time_constant = log(RC_DECAY_PER_BIT) / -bit_samples;
     // Each transition from t to t+1 is a multiplication by exp(-k)
-    ds->decay = fixed_t(exp(-time_constant));
+    const double decay = exp(-time_constant);
+    ds->decay = fixed_t(decay);
+    printf("Decay %10.6f (double) %10.6f (fixed_t)\n", decay, ds->decay.to_double());
 }
 
 static void rc_filter(
