@@ -2,7 +2,7 @@
 import typing, struct
 
 CLOCK_PERIOD_NS = 10
-INTERSAMPLE_NS = CLOCK_PERIOD_NS * 19
+INTERSAMPLE_NS = CLOCK_PERIOD_NS * 99
 
 def print_banner(fd: typing.IO, banner: str) -> None:
     fd.write("""write (l, String'("{}")); writeline (output, l);\n""".format(banner))

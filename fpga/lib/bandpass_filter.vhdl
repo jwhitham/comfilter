@@ -69,9 +69,9 @@ architecture structural of bandpass_filter is
 
     -- Large fixed width type is the result from multiplication
     constant large_fixed_width   : Natural := fixed_width * 2;
-    constant large_fixed_left    : Natural := large_fixed_width - 1;
-    constant large_fixed_right   : Natural := large_fixed_width - fixed_width;
-    subtype large_fixed_t is std_logic_vector (large_fixed_left downto 0);
+    constant large_fixed_left    : Natural := large_fixed_width - nonfractional_bits - 1;
+    constant large_fixed_right   : Natural := large_fixed_width - nonfractional_bits - fixed_width;
+    subtype large_fixed_t is std_logic_vector (large_fixed_width - 1 downto 0);
 
     -- Signals
     signal i0_b0_finish         : std_logic := '0';
@@ -107,13 +107,15 @@ begin
     -----------------------------------------------------------------------
 
     process (value_in)
+        variable j : Integer := Integer (sample_width);
     begin
         i0_value <= (others => value_in (sample_width - 1));
-        if fractional_bits <= sample_width then
-            i0_value (fractional_bits - 1 downto 0) <= value_in (sample_width - 1 downto sample_width - fractional_bits);
-        else
-            i0_value (fractional_bits - 1 downto fractional_bits - sample_width) <= value_in;
-        end if;
+        for i in fractional_bits - 1 downto 0 loop
+            j := j - 1;
+            if j >= 0 then
+                i0_value (i) <= value_in (j);
+            end if;
+        end loop;
     end process;
 
     -----------------------------------------------------------------------

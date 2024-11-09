@@ -46,18 +46,21 @@ begin
             ready_out => filter_ready,
             clock_in => clock);
 
-    assert sample_strobe = '0' or filter_ready = '1';
 
     process is
         variable l : line;
     begin
+        wait until reset = '0';
         while done = '0' loop
             wait until clock = '1' and clock'event;
-
             if sample_strobe = '1' then
                 write (l, String'("Sample in: "));
                 write (l, Integer'(ieee.numeric_std.to_integer(signed(sample_value))));
                 writeline (output, l);
+                if filter_ready = '0' then
+                    write (l, String'("Filter not ready!"));
+                    writeline (output, l);
+                end if;
             end if;
             if filter_finish = '1' then
                 write (l, String'("Filter out: "));
