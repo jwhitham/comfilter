@@ -14,14 +14,14 @@ use ieee.numeric_std."-";
 entity bandpass_filter is
     generic (
         sample_width        : Natural;       -- Bit width of sample data (samples are 2s-complement)
-        fixed_width         : Natural;       -- Internal fixed point number size
+        result_width        : Natural;       -- Output width
         frequency           : Real;          -- Centre of pass band (Hz)
         filter_width        : Real;          -- Width of pass band (Hz)
         sample_rate         : Real;          -- Sample rate to assume for calculations (Hz)
         slice_width         : Natural := 8); -- Bit width of adders and subtractors
     port (
         value_in            : in std_logic_vector (sample_width - 1 downto 0);
-        result_out          : out std_logic_vector (sample_width - 1 downto 0);
+        result_out          : out std_logic_vector (result_width - 1 downto 0);
         start_in            : in std_logic;
         reset_in            : in std_logic;
         finish_out          : out std_logic := '0';
@@ -42,9 +42,10 @@ architecture structural of bandpass_filter is
     constant a2         : Real := (1.0 - alpha) / a0;
 
     -- Fixed point conversion
-    subtype small_fixed_t is std_logic_vector (fixed_width - 1 downto 0);
     constant nonfractional_bits : Natural := 2; -- fixed point number represents [-2, +2)
-    constant fractional_bits : Natural := fixed_width - nonfractional_bits;
+    constant fractional_bits    : Natural := result_width;
+    constant small_fixed_width  : Natural := nonfractional_bits + fractional_bits;
+    subtype small_fixed_t is std_logic_vector (small_fixed_width - 1 downto 0);
     function to_small_fixed (n : Real) return small_fixed_t is
         variable n1 : Real := n;
         variable negate : Boolean := false;
@@ -58,7 +59,7 @@ architecture structural of bandpass_filter is
         if negate then
             n2 := -n2;
         end if;
-        return std_logic_vector (ieee.numeric_std.to_signed (n2, fixed_width));
+        return std_logic_vector (ieee.numeric_std.to_signed (n2, small_fixed_width));
     end to_small_fixed;
     
     -- Filter configuration constants converted to fixed point
@@ -68,9 +69,9 @@ architecture structural of bandpass_filter is
     constant b2_fixed   : small_fixed_t := to_small_fixed(b2);
 
     -- Large fixed width type is the result from multiplication
-    constant large_fixed_width   : Natural := fixed_width * 2;
+    constant large_fixed_width   : Natural := small_fixed_width * 2;
     constant large_fixed_left    : Natural := large_fixed_width - nonfractional_bits - 1;
-    constant large_fixed_right   : Natural := large_fixed_width - nonfractional_bits - fixed_width;
+    constant large_fixed_right   : Natural := large_fixed_left + 1 - small_fixed_width;
     subtype large_fixed_t is std_logic_vector (large_fixed_width - 1 downto 0);
 
     -- Signals
@@ -124,8 +125,8 @@ begin
 
     i0_b0_multiplier : entity multiplier
         generic map (
-            a_width => fixed_width,
-            b_width => fixed_width,
+            a_width => small_fixed_width,
+            b_width => small_fixed_width,
             adder_slice_width => slice_width)
         port map (
             a_value_in => i0_value,
@@ -139,8 +140,8 @@ begin
     -- No i1_b1_multiplier as b1 = 0
     i2_b2_multiplier : entity multiplier
         generic map (
-            a_width => fixed_width,
-            b_width => fixed_width,
+            a_width => small_fixed_width,
+            b_width => small_fixed_width,
             adder_slice_width => slice_width)
         port map (
             a_value_in => i2_value,
@@ -153,8 +154,8 @@ begin
             clock_in => clock_in);
     o1_a1_multiplier : entity multiplier
         generic map (
-            a_width => fixed_width,
-            b_width => fixed_width,
+            a_width => small_fixed_width,
+            b_width => small_fixed_width,
             adder_slice_width => slice_width)
         port map (
             a_value_in => o1_value,
@@ -167,8 +168,8 @@ begin
             clock_in => clock_in);
     o2_a2_multiplier : entity multiplier
         generic map (
-            a_width => fixed_width,
-            b_width => fixed_width,
+            a_width => small_fixed_width,
+            b_width => small_fixed_width,
             adder_slice_width => slice_width)
         port map (
             a_value_in => o2_value,
@@ -211,7 +212,7 @@ begin
 
     i0_b0_i2_b2_adder : entity subtractor
         generic map (
-            value_width => fixed_width,
+            value_width => small_fixed_width,
             slice_width => slice_width,
             do_addition => true)
         port map (
@@ -225,7 +226,7 @@ begin
             clock_in => clock_in);
     o1_a1_o2_a2_adder : entity subtractor
         generic map (
-            value_width => fixed_width,
+            value_width => small_fixed_width,
             slice_width => slice_width,
             do_addition => true)
         port map (
@@ -248,7 +249,7 @@ begin
 
     o0_subtractor : entity subtractor
         generic map (
-            value_width => fixed_width,
+            value_width => small_fixed_width,
             slice_width => slice_width,
             do_addition => false)
         port map (
@@ -265,15 +266,7 @@ begin
     -- Output wires (pipeline part 3b)
     -----------------------------------------------------------------------
     finish_out <= o0_finish;
-    process (o0_result)
-    begin
-        if fractional_bits <= sample_width then
-            result_out <= (others => '0');
-            result_out (sample_width - 1 downto sample_width - fractional_bits) <= o0_result (fractional_bits - 1 downto 0);
-        else
-            result_out <= o0_result (fractional_bits - 1 downto fractional_bits - sample_width);
-        end if;
-    end process;
+    result_out <= o0_result (fractional_bits - 1 downto 0);
 
     -----------------------------------------------------------------------
     -- Output storage registers (pipeline part 4)
