@@ -17,11 +17,13 @@ architecture structural of test_bandpass_filter is
     signal clock               : std_logic := '0';
     signal value_negative      : std_logic := '0';
     signal value               : std_logic_vector(14 downto 0) := (others => '0');
+    signal strobe              : std_logic := '0';
 
 begin
     test_signal_gen : entity test_signal_generator
         port map (done_out => done,
                   clock_out => clock,
+                  strobe_out => strobe,
                   value_negative_out => value_negative,
                   value_out => value);
 
