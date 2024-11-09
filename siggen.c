@@ -67,7 +67,7 @@ static void generate(FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_deb
 
     for (j = 0; j < num_silent_blocks; j++) {
         fwrite(&samples, 1, sizeof(samples), fd_out);
-        for (i = 0; i < BLOCK_SIZE; i++) {
+        for (i = 0; fd_debug && (i < BLOCK_SIZE); i++) {
             fprintf(fd_debug, "%7.5f ", (double) sample_count / (double) header.sample_rate); // time
             fprintf(fd_debug, "- 0 - ");
             fprintf(fd_debug, "\n");
@@ -110,18 +110,20 @@ static void generate(FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_deb
                 angle = 0.0;
                 samples[i] = 0;
             }
-            fprintf(fd_debug, "%7.5f ", (double) sample_count / (double) header.sample_rate); // time
-            if (byte > 0) {
-                if (byte & 1) {
-                    fprintf(fd_debug, "%7.4f - 1 ", (double) samples[i] / (double) INT16_MAX); // encoded signal
+            if (fd_debug) {
+                fprintf(fd_debug, "%7.5f ", (double) sample_count / (double) header.sample_rate); // time
+                if (byte > 0) {
+                    if (byte & 1) {
+                        fprintf(fd_debug, "%7.4f - 1 ", (double) samples[i] / (double) INT16_MAX); // encoded signal
+                    } else {
+                        fprintf(fd_debug, "- %7.4f 0 ", (double) samples[i] / (double) INT16_MAX); // encoded signal
+                    }
                 } else {
-                    fprintf(fd_debug, "- %7.4f 0 ", (double) samples[i] / (double) INT16_MAX); // encoded signal
+                    fprintf(fd_debug, "- 0 - ");
                 }
-            } else {
-                fprintf(fd_debug, "- 0 - ");
+                fprintf(fd_debug, "\n");
+                sample_count++;
             }
-            fprintf(fd_debug, "\n");
-            sample_count++;
         }
 
         fwrite(&samples, 1, sizeof(samples), fd_out);
@@ -138,12 +140,12 @@ static void generate(FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_deb
 
 int main(int argc, char ** argv)
 {
-    FILE *          fd_in;
-    FILE *          fd_out;
-    FILE *          fd_debug;
+    FILE *          fd_in = NULL;
+    FILE *          fd_out = NULL;
+    FILE *          fd_debug = NULL;
 
-    if (argc != 4) {
-        fprintf(stderr, "Usage: siggen <data input> <output.wav> <debug output>\n");
+    if ((argc < 3) || (argc > 4)) {
+        fprintf(stderr, "Usage: siggen <data input> <output.wav> [debug output]\n");
         return 1;
     }
 
@@ -158,16 +160,20 @@ int main(int argc, char ** argv)
         perror("open (write)");
         return 1;
     }
-    fd_debug = fopen(argv[3], "wt");
-    if (!fd_debug) {
-        perror("open (write)");
-        return 1;
+    if (argc > 3) {
+        fd_debug = fopen(argv[3], "wt");
+        if (!fd_debug) {
+            perror("open (write)");
+            return 1;
+        }
     }
     fseek(fd_in, 0, SEEK_END);
     off_t size = ftell(fd_in);
     fseek(fd_in, 0, SEEK_SET);
     generate(fd_in, (uint32_t) size, fd_out, fd_debug);
-    fclose(fd_debug);
+    if (fd_debug) {
+        fclose(fd_debug);
+    }
     fclose(fd_out);
     fclose(fd_in);
     return 0;

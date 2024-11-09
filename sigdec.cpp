@@ -396,7 +396,7 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
                       fd_out);
 
         // Debug output shows filtering and detection
-        for (i = 0; i < ((size_t) num_samples); i++) {
+        for (i = 0; fd_debug && (i < ((size_t) num_samples)); i++) {
             fprintf(fd_debug, "%7.5f ", (double) sample_count / (double) header.sample_rate); // time
             fprintf(fd_debug, "%7.4f ", input[i].to_double()); // encoded signal
             fprintf(fd_debug, "%7.4f ", upper_output[i].to_double()); // upper bandpass filter output
@@ -404,9 +404,10 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
             fprintf(fd_debug, "%7.4f ", upper_levels[i].to_double()); // upper, rectify and RC filter
             fprintf(fd_debug, "%7.4f ", lower_levels[i].to_double()); // lower, rectify and RC filter
 
-            switch(received_bit[i]) {
-                case false:         fprintf(fd_debug, "0 "); break;
-                default:            fprintf(fd_debug, "1 "); break;
+            if (!received_bit[i]) {
+                fprintf(fd_debug, "0 ");
+            } else {
+                fprintf(fd_debug, "1 ");
             }
             switch(identified[i]) {
                 case DATA_0:        fprintf(fd_debug, "0 "); break;
@@ -427,12 +428,12 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
 
 int main(int argc, char ** argv)
 {
-    FILE *          fd_in;
-    FILE *          fd_out;
-    FILE *          fd_debug;
+    FILE *          fd_in = nullptr;
+    FILE *          fd_out = nullptr;
+    FILE *          fd_debug = nullptr;
 
-    if (argc != 4) {
-        fprintf(stderr, "Usage: sigdec <signal.wav> <data output> <debug output>\n");
+    if ((argc < 3) || (argc > 4)) {
+        fprintf(stderr, "Usage: sigdec <signal.wav> <data output> [debug output]\n");
         return 1;
     }
 
@@ -446,13 +447,17 @@ int main(int argc, char ** argv)
         perror("open (write)");
         return 1;
     }
-    fd_debug = fopen(argv[3], "wt");
-    if (!fd_debug) {
-        perror("open (write)");
-        return 1;
+    if (argc > 3) {
+        fd_debug = fopen(argv[3], "wt");
+        if (!fd_debug) {
+            perror("open (write)");
+            return 1;
+        }
     }
     generate(fd_in, fd_out, fd_debug);
-    fclose(fd_debug);
+    if (fd_debug) {
+        fclose(fd_debug);
+    }
     fclose(fd_out);
     fclose(fd_in);
     return 0;
