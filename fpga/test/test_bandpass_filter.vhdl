@@ -49,14 +49,16 @@ begin
 
     process is
         variable l : line;
+        variable valid : Boolean := false;
+        variable saved : std_logic_vector (15 downto 0) := (others => '0');
+        variable counter : Integer := 0;
     begin
         wait until reset = '0';
         while done = '0' loop
             wait until clock = '1' and clock'event;
             if sample_strobe = '1' then
-                write (l, String'("Sample in: "));
-                write (l, Integer'(ieee.numeric_std.to_integer(signed(sample_value))));
-                writeline (output, l);
+                saved := sample_value;
+                valid := true;
                 if filter_ready = '0' then
                     write (l, String'("Filter not ready!"));
                     writeline (output, l);
@@ -64,11 +66,19 @@ begin
                 end if;
             end if;
             if filter_finish = '1' then
-                write (l, String'("Filter out: "));
+                assert valid;
+                write (l, Integer'(counter));
+                write (l, String'(" "));
+                write (l, Integer'(ieee.numeric_std.to_integer(signed(saved))));
+                write (l, String'(" "));
                 write (l, Integer'(ieee.numeric_std.to_integer(signed(filter_value))));
                 writeline (output, l);
+                valid := false;
+                counter := counter + 1;
             end if;
         end loop;
+        write (l, String'("Reached the end"));
+        writeline (output, l);
     end process;
 end structural;
 

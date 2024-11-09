@@ -24,5 +24,5 @@ run_tests: test/generated/signal.wav
 	ghdl --remove
 	python test/make_test_bench.py
 	ghdl -a --work=work $(VHDL) $(TEST_VHDL)
-	ghdl -r test_bandpass_filter $(RFLAGS)
-	echo "tests ok"
+	ghdl -r test_bandpass_filter $(RFLAGS) > output.txt
+	grep 'Reached the end' output.txt
