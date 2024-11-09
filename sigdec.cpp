@@ -223,7 +223,7 @@ static void rc_filter(
     }
 }
 
-typedef enum { WAIT_START = 0, WAIT_NEXT, CHECK_START,
+typedef enum { WAIT_HIGH = 0, WAIT_LOW, WAIT_NEXT, CHECK_START,
                STOP, STOP_ERROR, START, START_ERROR,
                DATA_0, DATA_1 } identified_t;
 
@@ -250,16 +250,29 @@ static void serial_decode(
         received_bit[i] = bit;
 
         switch (ds->state) {
-            case WAIT_START:
-                if (ds->previous_bit && !bit) {
-                    ds->sample_countdown = ds->half_bit;
+            case STOP_ERROR:
+            case STOP:
+            case WAIT_HIGH:
+                // Wait for high (ready for start bit)
+                if (bit) {
+                    ds->state = WAIT_LOW;
+                } else {
+                    ds->state = WAIT_HIGH;
+                }
+                break;
+            case START_ERROR:
+            case WAIT_LOW:
+                // Wait for low (start bit)
+                if (bit) {
+                    ds->state = WAIT_LOW;
+                } else {
                     ds->state = START;
+                    ds->sample_countdown = ds->half_bit;
                 }
                 break;
             case START:
-                ds->state = CHECK_START;
-                break;
             case CHECK_START:
+                // Ensure start is maintained for half a bit
                 if (bit) {
                     ds->state = START_ERROR;
                 } else {
@@ -269,9 +282,13 @@ static void serial_decode(
                         ds->state = WAIT_NEXT;
                         ds->byte_countdown = 9;
                         ds->byte = 0;
+                    } else {
+                        ds->state = CHECK_START;
                     }
                 }
                 break;
+            case DATA_1:
+            case DATA_0:
             case WAIT_NEXT:
                 ds->sample_countdown--;
                 if (ds->sample_countdown == 0) {
@@ -293,21 +310,12 @@ static void serial_decode(
                             ds->state = DATA_0;
                         }
                     }
+                } else {
+                    ds->state = WAIT_NEXT;
                 }
-                break;
-            case DATA_1:
-            case DATA_0:
-                ds->sample_countdown--;
-                ds->state = WAIT_NEXT;
-                break;
-            case START_ERROR:
-            case STOP_ERROR:
-            case STOP:
-                ds->state = WAIT_START;
                 break;
         }
         identified[i] = ds->state;
-        ds->previous_bit = bit;
     }
 }
 
