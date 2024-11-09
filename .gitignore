@@ -7,3 +7,5 @@ debug_1
 debug_2
 output
 *.png
+fpga/test/generated/*
+work-obj93.cf
