@@ -12,12 +12,11 @@
 #include "settings.h"
 
 static constexpr size_t BLOCK_SIZE = 1 << 14;
-static constexpr double FILTER_WIDTH = 100;
 static constexpr double RC_DECAY_PER_BIT = 0.1;
 
 namespace {
 
-static constexpr std::uint64_t FIXED_BITS = 11;
+static constexpr std::uint64_t FIXED_BITS = 9;
 
 struct fixed_t {
 public:
@@ -352,8 +351,8 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
 
     my_filter_state_t upper_filter;
     my_filter_state_t lower_filter;
-    my_filter_setup(&upper_filter, &header, UPPER_FREQUENCY, FILTER_WIDTH);
-    my_filter_setup(&lower_filter, &header, LOWER_FREQUENCY, FILTER_WIDTH);
+    my_filter_setup(&upper_filter, &header, UPPER_FREQUENCY, UPPER_FILTER_WIDTH);
+    my_filter_setup(&lower_filter, &header, LOWER_FREQUENCY, LOWER_FILTER_WIDTH);
 
     rc_filter_state_t upper_decode_state;
     rc_filter_state_t lower_decode_state;
