@@ -19,7 +19,7 @@ static void generate(FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_deb
     const uint32_t  bits_per_byte = 8;
     const uint32_t  num_bits = (num_bytes + 1) * (bits_per_byte + 2);
     const uint32_t  samples_per_bit = sample_rate / BAUD_RATE;
-    const uint32_t  num_repeats = 3;
+    const uint32_t  num_repeats = 1;
     const uint32_t  leadin_samples = samples_per_bit * (bits_per_byte * 2);
     const double    silent_time = 0.01;
     const double    active_time =
