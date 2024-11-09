@@ -14,10 +14,10 @@ all: run_tests
 
 clean:
 	ghdl --remove
-	-rm -f generated/*
+	-rm -f test/generated/*
 
-test/generated/signal.wav: ../test_data ../siggen.c
-	gcc -o ../siggen.exe ../siggen.c -I.. -Wall -Werror -g  -O -lm
+test/generated/signal.wav: ../test_data ../siggen.c ../settings.h
+	gcc -o ../siggen.exe ../siggen.c -I.. -Wall -Werror -g -lm
 	../siggen.exe ../test_data test/generated/signal.wav
 
 run_tests: test/generated/signal.wav
