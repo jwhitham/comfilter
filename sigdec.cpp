@@ -17,7 +17,7 @@ static constexpr double RC_DECAY_PER_BIT = 0.1;
 
 namespace {
 
-static constexpr std::uint64_t FIXED_BITS = 9;
+static constexpr std::uint64_t FIXED_BITS = 11;
 
 struct fixed_t {
 public:
