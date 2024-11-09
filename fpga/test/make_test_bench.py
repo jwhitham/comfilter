@@ -16,15 +16,7 @@ def wav_to_test_data(fd: typing.IO, wav_file_name: str) -> None:
             data = fd2.read(2)
             if len(data) == 0:
                 break
-            (sample, ) = struct.unpack("<h", data)
-
-            if sample < 0:
-                # convert to sign-magnitude form
-                sample = -sample
-                if sample == 0x8000:
-                    sample = 0x7fff
-                sample |= 0x8000
-
+            (sample, ) = struct.unpack("<H", data)
             fd.write(f"""p <= x"{sample:04x}"; v <= '1'; """)
             fd.write(f"""wait for {CLOCK_PERIOD_NS} ns; """)
             fd.write(f"""v <= '0'; wait for {INTERSAMPLE_NS} ns;\n""")
@@ -42,9 +34,9 @@ entity test_signal_generator is
     port (
         done_out            : out std_logic;
         clock_out           : out std_logic;
+        reset_out           : out std_logic;
         strobe_out          : out std_logic;
-        value_negative_out  : out std_logic;
-        value_out           : out std_logic_vector(14 downto 0)
+        value_out           : out std_logic_vector(15 downto 0)
     );
 end test_signal_generator;
 
@@ -54,8 +46,7 @@ architecture structural of test_signal_generator is
     signal clock : std_logic := '0';
     signal v : std_logic := '0';
 begin
-    value_out <= p (14 downto 0);
-    value_negative_out <= p (15);
+    value_out <= p;
     clock_out <= clock;
     done_out <= done;
     strobe_out <= v;
@@ -73,6 +64,9 @@ begin
         variable l : line;
     begin
         done <= '0';
+        reset_out <= '1';
+        wait for {CLOCK_PERIOD_NS * 10} ns;
+        reset_out <= '0';
 """)
         # read input files
         wav_to_test_data(fd, "test/generated/signal.wav")

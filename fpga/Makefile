@@ -1,11 +1,14 @@
 
 RFLAGS = --assert-level=note
 
-VHDL =
+VHDL = \
+        lib/subtractor.vhdl \
+        lib/multiplier.vhdl \
+        lib/bandpass_filter.vhdl \
 
 TEST_VHDL = \
 		test/generated/test_signal_generator.vhdl \
-		test/test_bandpass_filter.vhdl
+		test/test_bandpass_filter.vhdl \
 
 all: run_tests
 

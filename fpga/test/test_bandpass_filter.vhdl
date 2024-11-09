@@ -15,18 +15,56 @@ architecture structural of test_bandpass_filter is
 
     signal done                : std_logic := '0';
     signal clock               : std_logic := '0';
-    signal value_negative      : std_logic := '0';
-    signal value               : std_logic_vector(14 downto 0) := (others => '0');
-    signal strobe              : std_logic := '0';
+    signal reset               : std_logic := '0';
+    signal sample_value        : std_logic_vector(15 downto 0) := (others => '0');
+    signal sample_strobe       : std_logic := '0';
+    signal filter_value        : std_logic_vector(15 downto 0) := (others => '0');
+    signal filter_finish       : std_logic := '0';
+    signal filter_ready        : std_logic := '0';
 
 begin
     test_signal_gen : entity test_signal_generator
         port map (done_out => done,
                   clock_out => clock,
-                  strobe_out => strobe,
-                  value_negative_out => value_negative,
-                  value_out => value);
+                  strobe_out => sample_strobe,
+                  value_out => sample_value,
+                  reset_out => reset);
 
+    filter : entity bandpass_filter
+        generic map (
+            sample_width => 16,
+            fixed_width => 11,
+            frequency => 21500.0,
+            filter_width => 1000.0,
+            sample_rate => 48000.0)
+        port map (
+            value_in => sample_value,
+            result_out => filter_value,
+            start_in => sample_strobe,
+            reset_in => reset,
+            finish_out => filter_finish,
+            ready_out => filter_ready,
+            clock_in => clock);
 
+    assert sample_strobe = '0' or filter_ready = '1';
+
+    process is
+        variable l : line;
+    begin
+        while done = '0' loop
+            wait until clock = '1' and clock'event;
+
+            if sample_strobe = '1' then
+                write (l, String'("Sample in: "));
+                write (l, Integer'(ieee.numeric_std.to_integer(signed(sample_value))));
+                writeline (output, l);
+            end if;
+            if filter_finish = '1' then
+                write (l, String'("Filter out: "));
+                write (l, Integer'(ieee.numeric_std.to_integer(signed(filter_value))));
+                writeline (output, l);
+            end if;
+        end loop;
+    end process;
 end structural;
 

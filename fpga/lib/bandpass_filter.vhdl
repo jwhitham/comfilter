@@ -5,6 +5,11 @@ use work.all;
 
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std."+";
+use ieee.numeric_std."*";
+use ieee.math_real."**";
+use ieee.numeric_std."/";
+use ieee.numeric_std."-";
 
 entity bandpass_filter is
     generic (
@@ -38,6 +43,8 @@ architecture structural of bandpass_filter is
 
     -- Fixed point conversion
     subtype small_fixed_t is std_logic_vector (fixed_width - 1 downto 0);
+    constant nonfractional_bits : Natural := 2; -- fixed point number represents [-2, +2)
+    constant fractional_bits : Natural := fixed_width - nonfractional_bits;
     function to_small_fixed (n : Real) return small_fixed_t is
         variable n1 : Real := n;
         variable negate : Boolean := false;
@@ -47,11 +54,11 @@ architecture structural of bandpass_filter is
             n1 := -n1;
             negate := true;
         end if;
-        n2 := Integer (ieee.math_real.floor((n1 * (2.0 ** Real (fixed_width - 2.0))) + 0.5));
+        n2 := Integer (ieee.math_real.floor((n1 * (2.0 ** (Real (fractional_bits)))) + 0.5));
         if negate then
             n2 := -n2;
         end if;
-        return conv_std_logic_vector(n2, fixed_width);
+        return std_logic_vector (ieee.numeric_std.to_signed (n2, fixed_width));
     end to_small_fixed;
     
     -- Filter configuration constants converted to fixed point
@@ -101,11 +108,11 @@ begin
 
     process (value_in)
     begin
-        if fixed_width <= sample_width then
-            i0_value <= value_in (sample_width - 1 downto sample_width - fixed_width);
+        i0_value <= (others => value_in (sample_width - 1));
+        if fractional_bits <= sample_width then
+            i0_value (fractional_bits - 1 downto 0) <= value_in (sample_width - 1 downto sample_width - fractional_bits);
         else
-            i0_value <= (others => '0');
-            i0_value (sample_width - 1 downto sample_width - fixed_width) <= value_in;
+            i0_value (fractional_bits - 1 downto fractional_bits - sample_width) <= value_in;
         end if;
     end process;
 
@@ -258,11 +265,11 @@ begin
     finish_out <= o0_finish;
     process (o0_result)
     begin
-        if fixed_width <= sample_width then
+        if fractional_bits <= sample_width then
             result_out <= (others => '0');
-            result_out (sample_width - 1 downto sample_width - fixed_width) <= o0_result;
+            result_out (sample_width - 1 downto sample_width - fractional_bits) <= o0_result (fractional_bits - 1 downto 0);
         else
-            result_out <= o0_result (fixed_width - 1 downto fixed_width - sample_width);
+            result_out <= o0_result (fractional_bits - 1 downto fractional_bits - sample_width);
         end if;
     end process;
 
