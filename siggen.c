@@ -20,8 +20,10 @@ static void generate(FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_deb
     const uint32_t  num_bits = (num_bytes + 1) * (bits_per_byte + 2);
     const uint32_t  samples_per_bit = sample_rate / BAUD_RATE;
     const uint32_t  num_repeats = 3;
+    const uint32_t  leadin_samples = samples_per_bit * (bits_per_byte * 2);
     const double    silent_time = 0.01;
-    const double    active_time = (num_repeats * samples_per_bit * num_bits) / (double) sample_rate;
+    const double    active_time =
+        (leadin_samples + (num_repeats * samples_per_bit * num_bits)) / (double) sample_rate;
     const uint32_t  bytes_per_sample = 2;
     const uint32_t  num_active_blocks = (uint32_t) ceil((sample_rate * active_time) / BLOCK_SIZE);
     const uint32_t  num_silent_blocks = (uint32_t) ceil((sample_rate * silent_time) / BLOCK_SIZE);
@@ -75,7 +77,7 @@ static void generate(FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_deb
 
     // Initial setup time - no data
     byte = 1;
-    bit_lifetime = samples_per_bit * (bits_per_byte * 2);
+    bit_lifetime = leadin_samples;
 
     // Generate active blocks
     for (j = 0; j < num_active_blocks; j++) {
