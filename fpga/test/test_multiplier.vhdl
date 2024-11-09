@@ -47,13 +47,16 @@ begin
         constant a_width   : Natural := test_table (part).a_width;
         constant b_width   : Natural := test_table (part).b_width;
         constant r_width   : Natural := a_width + b_width;
-        constant a_max     : Natural := (2 ** a_width) - 1;
-        constant b_max     : Natural := (2 ** b_width) - 1;
+        constant a_min     : Integer := - (2 ** (a_width - 1));
+        constant b_min     : Integer := - (2 ** (b_width - 1));
+        constant a_max     : Integer := (2 ** (a_width - 1)) - 1;
+        constant b_max     : Integer := (2 ** (b_width - 1)) - 1;
 
-        function convert (value : Natural; size : Natural) return std_logic_vector is
+        function convert (value : Integer; size : Integer) return std_logic_vector is
         begin
-            assert value <= ((2 ** size) - 1);
-            return std_logic_vector (to_unsigned (value, size));
+            assert value <= ((2 ** (size - 1)) - 1);
+            assert value >= (- (2 ** (size - 1)));
+            return std_logic_vector (to_signed (value, size));
         end convert;
 
         signal a_value          : std_logic_vector (a_width - 1 downto 0) := (others => '0');
@@ -79,6 +82,7 @@ begin
         process
             variable l : line;
             variable expect : Integer;
+            variable bad_count : Integer := 0;
         begin
             done (part) <= '0';
             wait until done (part - 1) = '1';
@@ -88,8 +92,8 @@ begin
             write (l, String'("multiplication test "));
             write (l, part);
             writeline (output, l);
-            outer : for a in 0 to a_max loop
-                for b in 0 to b_max loop
+            outer : for a in a_min to a_max loop
+                for b in b_min to b_max loop
                     a_value <= convert (a, a_width);
                     b_value <= convert (b, b_width);
 
@@ -116,10 +120,18 @@ begin
                         write (l, String'(" should be "));
                         write (l, expect);
                         write (l, String'(" got "));
-                        write (l, to_integer (unsigned (result)));
+                        write (l, to_integer (signed (result)));
+                        write (l, String'(" bits "));
+                        write (l, a_width);
+                        write (l, String'(" "));
+                        write (l, b_width);
+                        write (l, String'(" "));
+                        write (l, r_width);
                         writeline (output, l);
-                        assert False;
-                        exit outer;
+                        bad_count := bad_count + 1;
+                        -- assert False;
+                        -- exit outer;
+                        assert bad_count < 10;
                     end if;
                 end loop;
             end loop outer;

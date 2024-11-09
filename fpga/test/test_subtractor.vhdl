@@ -51,7 +51,9 @@ begin
         constant value_width    : Natural := test_table (part).value_width;
         constant slice_width    : Natural := test_table (part).slice_width;
         constant do_addition    : Boolean := test_table (part).do_addition;
-        constant max_value      : Integer := (2 ** value_width) - 1;
+        constant min_value      : Integer := -(2 ** (value_width - 1));
+        constant max_value      : Integer := (2 ** (value_width - 1)) - 1;
+        constant wrap_value     : Integer := 2 ** value_width;
 
         signal top_value        : std_logic_vector (value_width - 1 downto 0) := (others => '0');
         signal bottom_value     : std_logic_vector (value_width - 1 downto 0) := (others => '0');
@@ -96,11 +98,11 @@ begin
             reset <= '0';
             wait until clock'event and clock = '1';
 
-            outer : for top in 0 to max_value loop
-                top_value <= std_logic_vector (to_unsigned (top, value_width));
+            outer : for top in min_value to max_value loop
+                top_value <= std_logic_vector (to_signed (top, value_width));
 
-                for bottom in 0 to max_value loop
-                    bottom_value <= std_logic_vector (to_unsigned (bottom, value_width));
+                for bottom in min_value to max_value loop
+                    bottom_value <= std_logic_vector (to_signed (bottom, value_width));
                     start <= '1';
                     wait until clock'event and clock = '1';
                     start <= '0';
@@ -111,18 +113,18 @@ begin
                     expect_overflow := '0';
                     if do_addition then
                         expect := top + bottom;
-                        if expect > max_value then
-                            expect := expect - max_value - 1;
-                            expect_overflow := '1';
-                        end if;
                     else
                         expect := top - bottom;
-                        if expect < 0 then
-                            expect := expect + max_value + 1;
-                            expect_overflow := '1';
-                        end if;
                     end if;
-                    if std_logic_vector (to_unsigned (expect, value_width)) /= result
+                    if expect > max_value then
+                        expect := expect - wrap_value;
+                        expect_overflow := '1';
+                    end if;
+                    if expect < min_value then
+                        expect := expect + wrap_value;
+                        expect_overflow := '1';
+                    end if;
+                    if std_logic_vector (to_signed (expect, value_width)) /= result
                             or expect_overflow /= overflow then
                         if do_addition then
                             write (l, String'("Adder error. "));
@@ -137,7 +139,7 @@ begin
                         write (l, String'(" should be "));
                         write (l, expect);
                         write (l, String'(" got "));
-                        write (l, to_integer (unsigned (result)));
+                        write (l, to_integer (signed (result)));
                         if expect_overflow /= overflow then
                             if expect_overflow = '1' then
                                 write (l, String'(" overflow flag should be set"));
