@@ -2,6 +2,7 @@
 
 library work;
 use work.all;
+use std.textio.all;
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -10,6 +11,7 @@ use ieee.numeric_std."*";
 use ieee.math_real."**";
 use ieee.numeric_std."/";
 use ieee.numeric_std."-";
+use ieee.numeric_std.all;
 
 entity bandpass_filter is
     generic (
@@ -190,7 +192,7 @@ begin
     assert i0_b0_ready = o2_a2_ready;
 
     -- Ready for more data when multipliers are ready
-    ready_out <= i0_b0_ready;
+    ready_out <= i0_b0_ready; -- TODO, wait for finish (o1, o2 registers)
 
     -----------------------------------------------------------------------
     -- Input storage registers (pipeline part 1c)
@@ -218,7 +220,7 @@ begin
         port map (
             top_value_in => i0_b0_result (large_fixed_left downto large_fixed_right),
             bottom_value_in => i2_b2_result (large_fixed_left downto large_fixed_right),
-            start_in => i0_b0_finish,
+            start_in => i0_b0_finish, -- THIS IS INCORRECT
             reset_in => reset_in,
             finish_out => i0_b0_i2_b2_finish,
             overflow_out => open,

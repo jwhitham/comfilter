@@ -8,6 +8,8 @@ VHDL = \
 
 TEST_VHDL = \
 		test/generated/test_signal_generator.vhdl \
+		test/test_subtractor.vhdl \
+		test/test_multiplier.vhdl \
 		test/test_bandpass_filter.vhdl \
 
 all: run_tests
@@ -24,5 +26,7 @@ run_tests: test/generated/signal.wav
 	ghdl --remove
 	python test/make_test_bench.py
 	ghdl -a --work=work $(VHDL) $(TEST_VHDL)
+	ghdl -r test_subtractor $(RFLAGS)
+	ghdl -r test_multiplier $(RFLAGS)
 	ghdl -r test_bandpass_filter $(RFLAGS) > output.txt
 	grep 'Reached the end' output.txt
