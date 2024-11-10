@@ -16,9 +16,11 @@ architecture structural of test_bandpass_filter is
     signal done                : std_logic := '0';
     signal clock               : std_logic := '0';
     signal reset               : std_logic := '0';
-    signal sample_value        : std_logic_vector(15 downto 0) := (others => '0');
+    signal sample_value        : std_logic_vector(14 downto 0) := (others => '0');
+    signal sample_value_neg    : std_logic := '0';
     signal sample_strobe       : std_logic := '0';
     signal filter_value        : std_logic_vector(10 downto 0) := (others => '0');
+    signal filter_value_neg    : std_logic := '0';
     signal filter_finish       : std_logic := '0';
     signal filter_ready        : std_logic := '0';
 
@@ -28,18 +30,21 @@ begin
                   clock_out => clock,
                   strobe_out => sample_strobe,
                   value_out => sample_value,
+                  value_negative_out => sample_value_neg,
                   reset_out => reset);
 
     filter : entity bandpass_filter
         generic map (
-            sample_width => 16,
+            sample_width => 15,
             result_width => 11,
             frequency => 1270.0,
             filter_width => 100.0,
             sample_rate => 48000.0)
         port map (
             value_in => sample_value,
+            value_negative_in => sample_value_neg,
             result_out => filter_value,
+            result_negative_out => filter_value_neg,
             start_in => sample_strobe,
             reset_in => reset,
             finish_out => filter_finish,
@@ -50,7 +55,8 @@ begin
     process is
         variable l : line;
         variable active : Boolean := false;
-        variable saved : std_logic_vector (15 downto 0) := (others => '0');
+        variable saved : std_logic_vector (14 downto 0) := (others => '0');
+        variable saved_neg : std_logic := '0';
         variable counter : Integer := 0;
     begin
         wait until reset = '0';
@@ -60,6 +66,7 @@ begin
             if sample_strobe = '1' then
                 assert not active;
                 saved := sample_value;
+                saved_neg := sample_value_neg;
                 active := true;
                 if filter_ready = '0' then
                     write (l, String'("Filter not ready!"));
@@ -71,9 +78,15 @@ begin
                 assert active;
                 write (l, Integer'(counter));
                 write (l, String'(" "));
-                write (l, Integer'(ieee.numeric_std.to_integer(signed(saved))));
+                if saved_neg = '1' then
+                    write (l, String'("-"));
+                end if;
+                write (l, Integer'(ieee.numeric_std.to_integer(unsigned(saved))));
                 write (l, String'(" "));
-                write (l, Integer'(ieee.numeric_std.to_integer(signed(filter_value))));
+                if filter_value_neg = '1' then
+                    write (l, String'("-"));
+                end if;
+                write (l, Integer'(ieee.numeric_std.to_integer(unsigned(filter_value))));
                 writeline (output, l);
                 active := false;
                 counter := counter + 1;

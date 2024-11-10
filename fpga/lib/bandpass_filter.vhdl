@@ -23,7 +23,9 @@ entity bandpass_filter is
         slice_width         : Natural := 8); -- Bit width of adders and subtractors
     port (
         value_in            : in std_logic_vector (sample_width - 1 downto 0);
+        value_negative_in   : in std_logic;
         result_out          : out std_logic_vector (result_width - 1 downto 0);
+        result_negative_out : out std_logic;
         start_in            : in std_logic;
         reset_in            : in std_logic;
         finish_out          : out std_logic := '0';
@@ -47,21 +49,26 @@ architecture structural of bandpass_filter is
     constant nonfractional_bits : Natural := 2; -- fixed point number represents [-2, +2)
     constant fractional_bits    : Natural := result_width;
     constant small_fixed_width  : Natural := nonfractional_bits + fractional_bits;
-    subtype small_fixed_t is std_logic_vector (small_fixed_width - 1 downto 0);
+
+    type small_fixed_t is record
+        bits    : std_logic_vector (small_fixed_width - 1 downto 0);
+        neg     : std_logic;
+    end record;
+
     function to_small_fixed (n : Real) return small_fixed_t is
         variable n1 : Real := n;
         variable negate : Boolean := false;
         variable n2 : Integer := 0;
+        variable n3 : small_fixed_t;
     begin
+        n3.neg := '0';
         if n1 < 0.0 then
             n1 := -n1;
-            negate := true;
+            n3.neg := '1';
         end if;
         n2 := Integer (ieee.math_real.floor((n1 * (2.0 ** (Real (fractional_bits)))) + 0.5));
-        if negate then
-            n2 := -n2;
-        end if;
-        return std_logic_vector (ieee.numeric_std.to_signed (n2, small_fixed_width));
+        n3.bits := std_logic_vector (ieee.numeric_std.to_signed (n2, small_fixed_width));
+        return n3;
     end to_small_fixed;
     
     -- Filter configuration constants converted to fixed point
@@ -90,10 +97,14 @@ architecture structural of bandpass_filter is
     signal o0_finish            : std_logic := '0';
 
     signal i0_value             : small_fixed_t := (others => '0');
-    signal i0_b0_result         : large_fixed_t := (others => '0');
-    signal i2_b2_result         : large_fixed_t := (others => '0');
-    signal o1_a1_result         : large_fixed_t := (others => '0');
-    signal o2_a2_result         : large_fixed_t := (others => '0');
+    signal i0_b0_result_wide    : large_fixed_t := (others => '0');
+    signal i2_b2_result_wide    : large_fixed_t := (others => '0');
+    signal o1_a1_result_wide    : large_fixed_t := (others => '0');
+    signal o2_a2_result_wide    : large_fixed_t := (others => '0');
+    signal i0_b0_result         : small_fixed_t := (others => '0');
+    signal i2_b2_result         : small_fixed_t := (others => '0');
+    signal o1_a1_result         : small_fixed_t := (others => '0');
+    signal o2_a2_result         : small_fixed_t := (others => '0');
     signal i0_b0_i2_b2_result   : small_fixed_t := (others => '0');
     signal o1_a1_o2_a2_result   : small_fixed_t := (others => '0');
     signal o0_result            : small_fixed_t := (others => '0');
@@ -103,6 +114,7 @@ architecture structural of bandpass_filter is
     signal i2_value             : small_fixed_t := (others => '0');
     signal o1_value             : small_fixed_t := (others => '0');
     signal o2_value             : small_fixed_t := (others => '0');
+    signal i0_b0_finish_delay   : std_logic := '0';
 begin
 
     -----------------------------------------------------------------------
@@ -112,13 +124,14 @@ begin
     process (value_in)
         variable j : Integer := Integer (sample_width);
     begin
-        i0_value <= (others => value_in (sample_width - 1));
+        i0_value.bits <= (others => value_in (sample_width - 1));
         for i in fractional_bits - 1 downto 0 loop
             j := j - 1;
             if j >= 0 then
-                i0_value (i) <= value_in (j);
+                i0_value.bits (i) <= value_in (j);
             end if;
         end loop;
+        i0_value.neg <= value_negative_in;
     end process;
 
     -----------------------------------------------------------------------
@@ -131,13 +144,13 @@ begin
             b_width => small_fixed_width,
             adder_slice_width => slice_width)
         port map (
-            a_value_in => i0_value,
-            b_value_in => b0_fixed,
+            a_value_in => i0_value.bits,
+            b_value_in => b0_fixed.bits,
             start_in => start_in,
             reset_in => reset_in,
             finish_out => i0_b0_finish,
             ready_out => i0_b0_ready,
-            result_out => i0_b0_result,
+            result_out => i0_b0_result_wide,
             clock_in => clock_in);
     -- No i1_b1_multiplier as b1 = 0
     i2_b2_multiplier : entity multiplier
@@ -146,13 +159,13 @@ begin
             b_width => small_fixed_width,
             adder_slice_width => slice_width)
         port map (
-            a_value_in => i2_value,
-            b_value_in => b2_fixed,
+            a_value_in => i2_value.bits,
+            b_value_in => b2_fixed.bits,
             start_in => start_in,
             reset_in => reset_in,
             finish_out => i2_b2_finish,
             ready_out => i2_b2_ready,
-            result_out => i2_b2_result,
+            result_out => i2_b2_result_wide,
             clock_in => clock_in);
     o1_a1_multiplier : entity multiplier
         generic map (
@@ -160,13 +173,13 @@ begin
             b_width => small_fixed_width,
             adder_slice_width => slice_width)
         port map (
-            a_value_in => o1_value,
-            b_value_in => a1_fixed,
+            a_value_in => o1_value.bits,
+            b_value_in => a1_fixed.bits,
             start_in => start_in,
             reset_in => reset_in,
             finish_out => o1_a1_finish,
             ready_out => o1_a1_ready,
-            result_out => o1_a1_result,
+            result_out => o1_a1_result_wide,
             clock_in => clock_in);
     o2_a2_multiplier : entity multiplier
         generic map (
@@ -174,13 +187,13 @@ begin
             b_width => small_fixed_width,
             adder_slice_width => slice_width)
         port map (
-            a_value_in => o2_value,
-            b_value_in => a2_fixed,
+            a_value_in => o2_value.bits,
+            b_value_in => a2_fixed.bits,
             start_in => start_in,
             reset_in => reset_in,
             finish_out => o2_a2_finish,
             ready_out => o2_a2_ready,
-            result_out => o2_a2_result,
+            result_out => o2_a2_result_wide,
             clock_in => clock_in);
 
     -- Multipliers should all finish work at the same time
@@ -191,11 +204,37 @@ begin
     assert i0_b0_ready = o1_a1_ready;
     assert i0_b0_ready = o2_a2_ready;
 
-    -- Ready for more data when multipliers are ready
-    ready_out <= i0_b0_ready; -- TODO, wait for finish (o1, o2 registers)
+    -- Results are truncated
+    i0_b0_result.bits <= i0_b0_result_wide (large_fixed_left downto large_fixed_right);
+    i2_b2_result.bits <= i2_b2_result_wide (large_fixed_left downto large_fixed_right);
+    o1_b1_result.bits <= o1_b1_result_wide (large_fixed_left downto large_fixed_right);
+    o2_b2_result.bits <= o2_b2_result_wide (large_fixed_left downto large_fixed_right);
+
+    -- Check for overflow
+    overcheck : for i in large_fixed_width - 1 downto large_fixed_left + 1 generate
+        assert i0_b0_result_wide (i) = '0';
+        assert i2_b2_result_wide (i) = '0';
+        assert o1_b1_result_wide (i) = '0';
+        assert o2_b2_result_wide (i) = '0';
+    end generate overcheck;
 
     -----------------------------------------------------------------------
-    -- Input storage registers (pipeline part 1c)
+    -- Sign registers (pipeline part 1c)
+    -----------------------------------------------------------------------
+    process (clock_in)
+    begin
+        if clock_in'event and clock_in = '1' then
+            if start_in = '1' then
+                i0_b0_result.neg <= o0_value.neg xor b0_fixed.neg;
+                i2_b2_result.neg <= o2_value.neg xor b2_fixed.neg;
+                o1_a1_result.neg <= o1_value.neg xor a1_fixed.neg;
+                o2_a2_result.neg <= o2_value.neg xor a2_fixed.neg;
+            end if;
+        end if;
+    end process;
+
+    -----------------------------------------------------------------------
+    -- Storage registers (pipeline part 1d)
     -----------------------------------------------------------------------
 
     process (clock_in)
@@ -209,22 +248,36 @@ begin
     end process;
 
     -----------------------------------------------------------------------
-    -- Adders (pipeline part 2)
+    -- Ready register (pipeline part 1e)
+    -----------------------------------------------------------------------
+    process (clock_in)
+    begin
+        if clock_in'event and clock_in = '1' then
+            if reset_in = '1' or finish_out = '1' then
+                ready_out <= '1';
+            elsif start_in = '1' then
+                ready_out <= '0';
+            end if;
+        end if;
+    end process;
+
+    -----------------------------------------------------------------------
+    -- Adders (pipeline part 2a)
     -----------------------------------------------------------------------
 
-    i0_b0_i2_b2_adder : entity subtractor
+    i0_b0_i2_b2_adder : entity adder_subtractor
         generic map (
             value_width => small_fixed_width,
-            slice_width => slice_width,
+            slice_width => slice_width)
             do_addition => true)
         port map (
-            top_value_in => i0_b0_result (large_fixed_left downto large_fixed_right),
-            bottom_value_in => i2_b2_result (large_fixed_left downto large_fixed_right),
-            start_in => i0_b0_finish, -- THIS IS INCORRECT
+            top_value_in => i0_b0_result.bits,
+            bottom_value_in => i2_b2_result.bits,
+            start_in => pipeline_2_start,
             reset_in => reset_in,
             finish_out => i0_b0_i2_b2_finish,
             overflow_out => open,
-            result_out => i0_b0_i2_b2_result,
+            result_out => i0_b0_i2_b2_result.bits,
             clock_in => clock_in);
     o1_a1_o2_a2_adder : entity subtractor
         generic map (
@@ -232,17 +285,44 @@ begin
             slice_width => slice_width,
             do_addition => true)
         port map (
-            top_value_in => o1_a1_result (large_fixed_left downto large_fixed_right),
-            bottom_value_in => o2_a2_result (large_fixed_left downto large_fixed_right),
-            start_in => o1_a1_finish,
+            top_value_in => o1_a1_result.bits,
+            bottom_value_in => o2_a2_result.bits,
+            start_in => pipeline_2_start,
             reset_in => reset_in,
             finish_out => o1_a1_o2_a2_finish,
             overflow_out => open,
-            result_out => o1_a1_o2_a2_result,
+            result_out => o1_a1_o2_a2_result.bits,
             clock_in => clock_in);
 
     -- Adders should finish work at the same time
     assert i0_b0_i2_b2_finish = o1_a1_o2_a2_finish;
+
+    -----------------------------------------------------------------------
+    -- Start signal (pipeline part 2b)
+    -----------------------------------------------------------------------
+    pipeline_2_start <= i0_b0_finish and not i0_b0_finish_delay;
+    process (clock_in)
+    begin
+        if clock_in'event and clock_in = '1' then
+            i0_b0_finish_delay <= i0_b0_finish;
+        end if;
+    end process;
+
+    -----------------------------------------------------------------------
+    -- Sign registers (pipeline part 2c)
+    -----------------------------------------------------------------------
+    process (clock_in)
+    begin
+        if clock_in'event and clock_in = '1' then
+            if start_in = '1' then
+                i0_b0_i2_b2_result.neg <= i0_b0_result.neg xor i2_b2_result.neg;
+                i0_b0_result.neg <= o0_value.neg xor b0_fixed.neg;
+                i2_b2_result.neg <= o2_value.neg xor b2_fixed.neg;
+                o1_a1_result.neg <= o1_value.neg xor a1_fixed.neg;
+                o2_a2_result.neg <= o2_value.neg xor a2_fixed.neg;
+            end if;
+        end if;
+    end process;
 
     -----------------------------------------------------------------------
     -- Subtractor (pipeline part 3a)
