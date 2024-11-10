@@ -135,7 +135,7 @@ def bandpass_filter(ops: OperationList, frequency: float, width: float) -> None:
     fixed_multiply(ops, -a2)
 
     # Discard low bits of R
-    for i in range(ALL_BITS):
+    for i in range(FRACTIONAL_BITS):
         ops.append(Operation.SHIFT_R_RIGHT)
 
     # Move O1 to O2
@@ -150,11 +150,11 @@ def bandpass_filter(ops: OperationList, frequency: float, width: float) -> None:
         ops.append(Operation.SHIFT_O1_RIGHT)
         ops.append(Operation.SHIFT_O0_RIGHT)
 
-    # Move high bits of R to O0
+    # Move result bits of R to O0
     ops.append(Operation.SET_REG_OUT_TO_R)
     for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_R_RIGHT)
         ops.append(Operation.SHIFT_O0_RIGHT)
+        ops.append(Operation.SHIFT_R_RIGHT)
 
     # Move I1 to I2
     ops.append(Operation.SET_REG_OUT_TO_I1)
@@ -166,6 +166,11 @@ def bandpass_filter(ops: OperationList, frequency: float, width: float) -> None:
     for i in range(ALL_BITS):
         ops.append(Operation.SHIFT_I1_RIGHT)
         ops.append(Operation.SHIFT_I0_RIGHT)
+
+    # Discard high bits of R
+    for i in range(ALL_BITS - FRACTIONAL_BITS):
+        ops.append(Operation.SHIFT_R_RIGHT)
+
     # R should be zero again here!
 
     ops.append(Operation.SEND_O0_TO_OUTPUT)
@@ -188,7 +193,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                             ("A", a_value),
                             ("R", r_value),
                         ]:
-                    print(f"{name} {value:06x} ", end="")
+                    print(f"{name} {value:08x} ", end="")
                 for (name, value) in [
                             ("I0", i0_value),
                             ("I1", i1_value),
