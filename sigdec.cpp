@@ -17,89 +17,110 @@ static constexpr double FILTER_WIDTH = 100;
 
 namespace {
 
-static constexpr std::uint64_t LEFT_BITS = 2;
-static constexpr std::uint64_t FIXED_BITS = 11;
-static constexpr std::uint64_t UNUSED_BITS = 64 - LEFT_BITS - FIXED_BITS;
+static constexpr std::uint64_t FIXED_BITS = 9;
 
 struct fixed_t {
 public:
     fixed_t() {}
     fixed_t(double value) {
-        bool negative = false;
         if (value < 0.0) {
-            negative = true;
+            m_negative = true;
             value = -value;
         }
-        if (value >= static_cast<double>(1 << (LEFT_BITS - 1))) {
+        if (value >= 2.0) {
             fprintf(stderr, "Fixed point value out of range on construction: %1.3f\n", value);
             exit(1);
         }
-        value *= static_cast<double>(one);
-        m_bits = static_cast<std::int64_t>(floor(value + 0.5));
-        if (negative) {
-            m_bits = -m_bits;
-        }
-        m_bits = (m_bits >> UNUSED_BITS) << UNUSED_BITS;
+        value *= (double) one;
+        m_bits = static_cast<std::uint64_t>(floor(value + 0.5));
     }
 
     fixed_t(const fixed_t&) = default;
     fixed_t& operator=(const fixed_t&) = default;
 
     fixed_t(std::int16_t value) {
-        m_bits = static_cast<std::int64_t>(value) << 48;
-        m_bits = m_bits >> LEFT_BITS;
-        m_bits = (m_bits >> UNUSED_BITS) << UNUSED_BITS;
-    }
-
-    fixed_t operator*(const fixed_t& other) const {
-        fixed_t out;
-        out.m_bits = ((m_bits >> UNUSED_BITS) * (other.m_bits >> UNUSED_BITS))
-                << (UNUSED_BITS - FIXED_BITS);
-        return out;
-    }
-
-    fixed_t operator/(const fixed_t& other) const {
-        fixed_t out;
-        out.m_bits = ((m_bits >> (UNUSED_BITS - FIXED_BITS)) /
-                        (other.m_bits >> UNUSED_BITS)) << UNUSED_BITS;
-        return out;
-    }
-
-    fixed_t operator+(const fixed_t& other) const {
-        fixed_t out;
-        out.m_bits = m_bits + other.m_bits;
-        return out;
-    }
-
-    fixed_t operator-(const fixed_t& other) const {
-        fixed_t out;
-        out.m_bits = m_bits - other.m_bits;
-        return out;
-    }
-
-    bool operator>(const fixed_t& other) const {
-        fixed_t temp = *this - other;
-        return temp.m_bits > 0;
-    }
-
-    fixed_t abs() const {
-        fixed_t temp = *this;
-        if (temp.m_bits < 0) {
-            temp.m_bits = -temp.m_bits;
+        if (value < 0) {
+            m_negative = true;
+            value = -value;
         }
+        const std::uint64_t value_bits = 15; // 16 bit -> 15 magnitude, 1 sign
+        if constexpr (FIXED_BITS >= value_bits) {
+            m_bits = static_cast<std::uint64_t>(value) << (FIXED_BITS - value_bits);
+        } else {
+            m_bits = static_cast<std::uint64_t>(value) >> (value_bits - FIXED_BITS);
+        }
+    }
+
+    fixed_t operator*(const fixed_t& other) {
+        fixed_t out;
+        out.m_bits = (m_bits * other.m_bits) >> FIXED_BITS;
+        out.m_negative = (m_negative != other.m_negative);
+        out.range_check();
+        return out;
+    }
+
+    fixed_t operator/(const fixed_t& other) {
+        fixed_t out;
+        out.m_bits = (m_bits << FIXED_BITS) / other.m_bits;
+        out.m_negative = (m_negative != other.m_negative);
+        out.range_check();
+        return out;
+    }
+
+    fixed_t operator+(const fixed_t& other) {
+        fixed_t out;
+        if (m_negative == other.m_negative) {
+            out.m_bits = m_bits + other.m_bits;
+            out.m_negative = m_negative;
+        } else if (other.m_bits <= m_bits) {
+            out.m_bits = m_bits - other.m_bits;
+            out.m_negative = m_negative;
+        } else {
+            out.m_bits = other.m_bits - m_bits;
+            out.m_negative = other.m_negative;
+        }
+        out.range_check();
+        return out;
+    }
+
+    fixed_t operator-(const fixed_t& other) {
+        fixed_t negated;
+        negated.m_bits = other.m_bits;
+        negated.m_negative = !other.m_negative;
+        return *this + negated;
+    }
+
+    bool operator>(const fixed_t& other) {
+        fixed_t temp = *this - other;
+        temp.range_check();
+        return (!temp.m_negative) && (temp.m_bits > 0);
+    }
+
+    fixed_t abs() {
+        fixed_t temp = *this;
+        temp.m_negative = false;
         return temp;
     }
 
-    double to_double() const {
-        double value = static_cast<double>(abs().m_bits)/ static_cast<double>(one);
-        if (m_bits < 0) {
+    double to_double() {
+        double value = (double) m_bits / (double) one;
+        if (m_negative) {
             value = -value;
         }
         return value;
     }
+
+    void range_check() {
+        if (m_bits >= (one * 2)) {
+            fprintf(stderr, "Fixed point value out of range after operation: %1.3f\n", 
+                to_double());
+            exit(1);
+        }
+    }
 private:
-    std::int64_t m_bits{0};
-    static constexpr std::int64_t one{static_cast<std::int64_t>(1) << (UNUSED_BITS + FIXED_BITS)};
+    std::uint64_t m_bits{0};
+    bool m_negative{false};
+    static constexpr std::uint64_t one{static_cast<std::uint64_t>(1) << FIXED_BITS};
 };
 
 struct my_filter_state_t {
