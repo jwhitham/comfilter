@@ -17,7 +17,7 @@ static constexpr double FILTER_WIDTH = 100;
 
 namespace {
 
-static constexpr std::uint64_t FIXED_BITS = 9;
+static constexpr std::uint64_t FIXED_BITS = 14;
 
 struct fixed_t {
 public:
@@ -406,11 +406,11 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
         // Debug output shows filtering and detection
         for (i = 0; fd_debug && (i < ((size_t) num_samples)); i++) {
             fprintf(fd_debug, "%7.5f ", (double) sample_count / (double) header.sample_rate); // time
-            fprintf(fd_debug, "%7.4f ", input[i].to_double()); // encoded signal
-            fprintf(fd_debug, "%7.4f ", upper_output[i].to_double()); // upper bandpass filter output
-            fprintf(fd_debug, "%7.4f ", lower_output[i].to_double()); // lower bandpass filter output
-            fprintf(fd_debug, "%7.4f ", upper_levels[i].to_double()); // upper, rectify and RC filter
-            fprintf(fd_debug, "%7.4f ", lower_levels[i].to_double()); // lower, rectify and RC filter
+            fprintf(fd_debug, "%9.6f ", input[i].to_double()); // encoded signal
+            fprintf(fd_debug, "%9.6f ", upper_output[i].to_double()); // upper bandpass filter output
+            fprintf(fd_debug, "%9.6f ", lower_output[i].to_double()); // lower bandpass filter output
+            fprintf(fd_debug, "%9.6f ", upper_levels[i].to_double()); // upper, rectify and RC filter
+            fprintf(fd_debug, "%9.6f ", lower_levels[i].to_double()); // lower, rectify and RC filter
 
             if (!received_bit[i]) {
                 fprintf(fd_debug, "0 ");

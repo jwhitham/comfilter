@@ -59,6 +59,12 @@ def make_fixed(value: float) -> int:
     assert 0 <= ivalue < (1 << ALL_BITS)
     return ivalue
 
+def make_float(ivalue: int) -> float:
+    assert 0 <= ivalue < (1 << ALL_BITS)
+    if ivalue >= (1 << (ALL_BITS - 1)):
+        ivalue -= 1 << ALL_BITS
+    return ivalue / float(1 << FRACTIONAL_BITS)
+
 def fixed_multiply(ops: OperationList, value: float) -> None:
     ivalue = make_fixed(value)
     print(f"Multiplication with value {value:1.6f} fixed encoding {ivalue:04x}")
@@ -175,14 +181,14 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
     o1_value = 0
     o2_value = 0
     out_values = []
-    while len(in_values) != 0:
+    while len(out_values) < len(in_values):
         for op in ops:
             if debug:
                 for (name, value) in [
                             ("A", a_value),
                             ("R", r_value),
                         ]:
-                    print(f"{name} {value:08x} ", end="")
+                    print(f"{name} {value:06x} ", end="")
                 for (name, value) in [
                             ("I0", i0_value),
                             ("I1", i1_value),
@@ -250,7 +256,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 o2_value |= reg_out << ALL_BITS
                 o2_value = o2_value >> 1
             elif op == Operation.LOAD_I0_FROM_INPUT:
-                i0_value = in_values.pop(0)
+                i0_value = in_values[len(out_values)]
             elif op == Operation.SEND_O0_TO_OUTPUT:
                 out_values.append(o0_value)
             else:
@@ -261,7 +267,32 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
 def main() -> None:
     ops: OperationList = []
     bandpass_filter(ops, UPPER_FREQUENCY, FILTER_WIDTH)
-    print(run_ops(ops, [0x1234 for _ in range(10)], False))
+    in_values = []
+    expect_out_values = []
+    count = 0
+    with open("sigdec.txt", "rt", encoding="utf-8") as fd:
+        for line in fd:
+            fields = line.split()
+            in_values.append(make_fixed(float(fields[1])))
+            expect_out_values.append(make_fixed(float(fields[2])))
+            if in_values[-1] != 0:
+                count += 1
+                if count > 20:
+                    break
+
+    count += 5
+    in_values = in_values[-count:]
+    expect_out_values = expect_out_values[-count:]
+    out_values = run_ops(ops, in_values, False)
+    for i in range(len(in_values)):
+        for (name, value) in [
+                    ("in", in_values[i]),
+                    ("exp", expect_out_values[i]),
+                    ("out", out_values[i]),
+                ]:
+            fvalue = make_float(value)
+            print(f"{name} {value:04x} {fvalue:1.6f} ", end="")
+        print("")
 
 if __name__ == "__main__":
     main()
