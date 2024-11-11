@@ -419,6 +419,7 @@ def main() -> None:
     expect_out_values = []
     count = 0
     trigger = False
+    test_size = 1000
     with open("debug_2", "rt", encoding="utf-8") as fd:
         for line in fd:
             fields = line.split()
@@ -429,6 +430,7 @@ def main() -> None:
                     "a1": a1,
                     "a2": a2,
                     "b0": b0,
+                    "b1": 0,
                     "b2": b2,
                     }[name])
                 cpp_parameter = int(fields[2], 16)
@@ -441,24 +443,25 @@ def main() -> None:
                 trigger = True
             if trigger:
                 count += 1
-                if count > 40:
+                if count > test_size:
                     break
 
-    count += 3
     in_values = in_values[-count:]
     expect_out_values = expect_out_values[-count:]
     out_values = run_ops(ops, in_values, debug > 1)
     for i in range(len(in_values)):
-        print(f"step {i}", end="")
-        for (name, value) in [
-                    ("in", in_values[i]),
-                    ("exp", expect_out_values[i]),
-                    ("out", out_values[i]),
-                ]:
-            fvalue = make_float(value)
-            print(f" {name} {value:04x} {fvalue:1.6f} ", end="")
+        if debug > 0:
+            print(f"step {i}", end="")
+            for (name, value) in [
+                        ("in", in_values[i]),
+                        ("exp", expect_out_values[i]),
+                        ("out", out_values[i]),
+                    ]:
+                fvalue = make_float(value)
+                print(f" {name} {value:04x} {fvalue:1.6f} ", end="")
         error = abs(make_float(expect_out_values[i]) - make_float(out_values[i]))
-        print(f" error {error:1.6f}")
+        if debug > 0:
+            print(f" error {error:1.6f}")
         assert error < ACCEPTABLE_ERROR
 
 if __name__ == "__main__":
