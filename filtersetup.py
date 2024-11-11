@@ -95,6 +95,7 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
             }[source])
 
     # Do multiplication
+    ops.append(Operation.SET_REG_OUT_TO_ZERO)
     for i in range(ALL_BITS):
         if ivalue & 1:
             ops.append(Operation.ADD_A_TO_R)
@@ -103,8 +104,7 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
 
     # Continue to multiply the -1 part when negative
     if negative:
-        ops.append(Operation.SET_REG_OUT_TO_ZERO)
-        for i in range(ALL_BITS):
+        for i in range(ALL_BITS - 1):
             ops.append(Operation.ADD_A_TO_R)
             ops.append(Operation.SHIFT_A_LEFT)
 
@@ -322,7 +322,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
         
 def main() -> None:
     r = random.Random(1)
-    debug = 2
+    debug = 0
     ops: OperationList = []
     for i in range(100):
         if debug > 0:
