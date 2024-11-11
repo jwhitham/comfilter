@@ -48,6 +48,9 @@ class Operation(enum.Enum):
     SHIFT_O2_RIGHT = enum.auto()
     LOAD_I0_FROM_INPUT = enum.auto()
     SEND_O0_TO_OUTPUT = enum.auto()
+    ASSERT_A_HIGH_ZERO = enum.auto()
+    ASSERT_A_LOW_ZERO = enum.auto()
+    ASSERT_R_ZERO = enum.auto()
    
 OperationList = typing.List[Operation]
 
@@ -65,21 +68,22 @@ def make_float(ivalue: int) -> float:
         ivalue -= 1 << ALL_BITS
     return ivalue / float(1 << FRACTIONAL_BITS)
 
-def fixed_multiply(ops: OperationList, value: float) -> None:
+def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
     ivalue = make_fixed(value)
+    negative = ivalue & (1 << (ALL_BITS - 1))
     print(f"Multiplication with value {value:1.6f} fixed encoding {ivalue:04x}")
-    ops.append(Operation.SET_REG_OUT_TO_A_SIGN)
-    for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_A_RIGHT)
-        ivalue = ivalue << 1
-        if ivalue & (1 << ALL_BITS):
-            ops.append(Operation.ADD_A_TO_R)
 
-def load_A_register(ops: OperationList, source: Register) -> None:
-    # Fill the low bits of A with zero
+    # Clear high A bits
     ops.append(Operation.SET_REG_OUT_TO_ZERO)
     for i in range(ALL_BITS):
         ops.append(Operation.SHIFT_A_RIGHT)
+    ops.append(Operation.ASSERT_A_HIGH_ZERO)
+
+    # If negative, also clear the low bits, as these will be added during shift-in
+    if negative:
+        for i in range(ALL_BITS):
+            ops.append(Operation.SHIFT_A_RIGHT)
+        ops.append(Operation.ASSERT_A_LOW_ZERO)
 
     # Configure source
     ops.append({
@@ -92,12 +96,26 @@ def load_A_register(ops: OperationList, source: Register) -> None:
     # Fill the high bits of A with the register value
     for i in range(ALL_BITS):
         ops.append(Operation.SHIFT_A_RIGHT)
+        if negative:
+            ops.append(Operation.ADD_A_TO_R)
         ops.append({
             Register.I0: Operation.SHIFT_I0_RIGHT,
             Register.I2: Operation.SHIFT_I2_RIGHT,
             Register.O1: Operation.SHIFT_O1_RIGHT,
             Register.O2: Operation.SHIFT_O2_RIGHT,
             }[source])
+
+    ops.append(Operation.ASSERT_A_LOW_ZERO)
+
+    # Do multiplication
+    ops.append(Operation.SET_REG_OUT_TO_A_SIGN)
+    for i in range(ALL_BITS):
+        ops.append(Operation.SHIFT_A_RIGHT)
+        ivalue = ivalue << 1
+        if ivalue & (1 << ALL_BITS):
+            ops.append(Operation.ADD_A_TO_R)
+
+
 
 def clear_R(ops: OperationList) -> None:
     # R = 0
@@ -119,20 +137,17 @@ def bandpass_filter(ops: OperationList, frequency: float, width: float) -> None:
     a1 /= a0
 
     # R should be zero here!
+    ops.append(Operation.ASSERT_R_ZERO)
     ops.append(Operation.LOAD_I0_FROM_INPUT)
 
     # R += i0 * b0
-    load_A_register(ops, Register.I0)
-    fixed_multiply(ops, b0)
+    fixed_multiply(ops, Register.I0, b0)
     # R += i2 * b2
-    load_A_register(ops, Register.I2)
-    fixed_multiply(ops, b2)
+    # fixed_multiply(ops, Register.I2, b2)
     # R -= o1 * a1
-    load_A_register(ops, Register.O1)
-    fixed_multiply(ops, -a1)
-    # R -= o2 * a2
-    load_A_register(ops, Register.O2)
-    fixed_multiply(ops, -a2)
+    #fixed_multiply(ops, Register.O1, -a1)
+    ## R -= o2 * a2
+    #fixed_multiply(ops, Register.O2, -a2)
 
     # Discard low bits of R
     for i in range(FRACTIONAL_BITS):
@@ -172,6 +187,7 @@ def bandpass_filter(ops: OperationList, frequency: float, width: float) -> None:
         ops.append(Operation.SHIFT_R_RIGHT)
 
     # R should be zero again here!
+    ops.append(Operation.ASSERT_R_ZERO)
 
     ops.append(Operation.SEND_O0_TO_OUTPUT)
 
@@ -185,6 +201,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
     o0_value = 0
     o1_value = 0
     o2_value = 0
+    neg_value = 0
     out_values = []
     while len(out_values) < len(in_values):
         for op in ops:
@@ -203,6 +220,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                             ("O2", o2_value),
                         ]:
                     print(f"{name} {value:04x} ", end="")
+                print(f"neg {neg_value:x} ", end="")
                 print(f"op: {op.name}")
                 
             reg_out = {
@@ -264,6 +282,12 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 i0_value = in_values[len(out_values)]
             elif op == Operation.SEND_O0_TO_OUTPUT:
                 out_values.append(o0_value)
+            elif op == Operation.ASSERT_A_HIGH_ZERO:
+                assert (a_value >> ALL_BITS) == 0
+            elif op == Operation.ASSERT_A_LOW_ZERO:
+                assert (a_value & ((1 << ALL_BITS) - 1)) == 0
+            elif op == Operation.ASSERT_R_ZERO:
+                assert r_value == 0
             else:
                 assert False
 
@@ -282,13 +306,17 @@ def main() -> None:
             expect_out_values.append(make_fixed(float(fields[2])))
             if in_values[-1] != 0:
                 count += 1
-                if count > 20:
+                if count > 40:
                     break
 
-    count += 5
+    count += 3
     in_values = in_values[-count:]
     expect_out_values = expect_out_values[-count:]
-    out_values = run_ops(ops, in_values, False)
+    ##in_values = in_values[:3]
+    ##expect_out_values = expect_out_values[:3]
+    #in_values = [0xc000]
+    #expect_out_values = [2]
+    out_values = run_ops(ops, in_values, True)
     for i in range(len(in_values)):
         for (name, value) in [
                     ("in", in_values[i]),

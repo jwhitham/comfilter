@@ -175,7 +175,7 @@ static void my_filter(
 
     for (size_t i = 0; i < num_samples; i++) {
         fixed_t i0 = input[i];
-        fixed_t o0 = i0*mf->b0 + mf->i1*mf->b1 + mf->i2*mf->b2 - mf->o1*mf->a1 - mf->o2*mf->a2;
+        fixed_t o0 = i0*mf->b0; // + mf->i1*mf->b1; // + mf->i2*mf->b2 - mf->o1*mf->a1 - mf->o2*mf->a2;
         mf->i2 = mf->i1;
         mf->i1 = i0;
         mf->o2 = mf->o1;
