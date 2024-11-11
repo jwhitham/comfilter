@@ -7,4 +7,4 @@ g++ -o sigdec.exe sigdec.cpp -std=c++17 -Wall -Werror -g -lm
 ./sigdec.exe signal.wav output debug_2
 gnuplot test1.gnuplot > t.png
 cmp test_data output
-
+python filtersetup.py

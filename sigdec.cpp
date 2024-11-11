@@ -97,6 +97,10 @@ public:
         }
         return value;
     }
+
+    unsigned internal() const {
+        return static_cast<unsigned>(static_cast<std::uint64_t>(m_bits) >> UNUSED_BITS);
+    }
 private:
     std::int64_t m_bits{0};
     static constexpr std::int64_t one{static_cast<std::int64_t>(1) << (UNUSED_BITS + FIXED_BITS)};
@@ -342,6 +346,14 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
     serial_decode_state_t serial_decode_state;
     memset(&serial_decode_state, 0, sizeof(serial_decode_state_t));
     serial_decode_state.half_bit = (header.sample_rate / BAUD_RATE) / 2;
+
+    if (fd_debug) {
+        fprintf(fd_debug, "a1 = %04x\n", upper_filter.a1.internal());
+        fprintf(fd_debug, "a2 = %04x\n", upper_filter.a2.internal());
+        fprintf(fd_debug, "b0 = %04x\n", upper_filter.b0.internal());
+        fprintf(fd_debug, "b1 = %04x\n", upper_filter.b1.internal());
+        fprintf(fd_debug, "b2 = %04x\n", upper_filter.b2.internal());
+    }
 
     uint64_t sample_count = 0;
 
