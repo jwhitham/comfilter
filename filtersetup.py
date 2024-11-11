@@ -2,8 +2,8 @@
 
 SAMPLE_RATE = 48000
 FRACTIONAL_BITS = 14
-NONFRACTIONAL_BITS = 2
-ALL_BITS = FRACTIONAL_BITS + NONFRACTIONAL_BITS
+NON_FRACTIONAL_BITS = 2
+ALL_BITS = FRACTIONAL_BITS + NON_FRACTIONAL_BITS
 UPPER_FREQUENCY = 1270
 LOWER_FREQUENCY = 1070
 FILTER_WIDTH = 100
@@ -463,6 +463,7 @@ def main() -> None:
         if debug > 0:
             print(f" error {error:1.6f}")
         assert error < ACCEPTABLE_ERROR
+    print(f"Test: error {error:1.6f}")
 
 if __name__ == "__main__":
     main()

@@ -17,9 +17,9 @@ static constexpr double FILTER_WIDTH = 100;
 
 namespace {
 
-static constexpr std::uint64_t LEFT_BITS = 2;
-static constexpr std::uint64_t FIXED_BITS = 14;
-static constexpr std::uint64_t UNUSED_BITS = 64 - LEFT_BITS - FIXED_BITS;
+static constexpr std::uint64_t NON_FRACTIONAL_BITS = 2;
+static constexpr std::uint64_t FRACTIONAL_BITS = 14;
+static constexpr std::uint64_t UNUSED_BITS = 64 - NON_FRACTIONAL_BITS - FRACTIONAL_BITS;
 
 struct fixed_t {
 public:
@@ -30,11 +30,11 @@ public:
             negative = true;
             value = -value;
         }
-        if (value >= static_cast<double>(1 << (LEFT_BITS - 1))) {
+        if (value >= static_cast<double>(1 << (NON_FRACTIONAL_BITS - 1))) {
             fprintf(stderr, "Fixed point value out of range on construction: %1.3f\n", value);
             exit(1);
         }
-        value *= static_cast<double>(1 << FIXED_BITS);
+        value *= static_cast<double>(1 << FRACTIONAL_BITS);
         m_bits = static_cast<std::int64_t>(floor(value + 0.5));
         m_bits = m_bits << UNUSED_BITS;
         if (negative) {
@@ -47,20 +47,20 @@ public:
 
     fixed_t(std::int16_t value) {
         m_bits = static_cast<std::int64_t>(value) << 48;
-        m_bits = m_bits >> LEFT_BITS;
+        m_bits = m_bits >> NON_FRACTIONAL_BITS;
         m_bits = (m_bits >> UNUSED_BITS) << UNUSED_BITS;
     }
 
     fixed_t operator*(const fixed_t& other) const {
         fixed_t out;
         out.m_bits = ((m_bits >> UNUSED_BITS) * (other.m_bits >> UNUSED_BITS))
-                << (UNUSED_BITS - FIXED_BITS);
+                << (UNUSED_BITS - FRACTIONAL_BITS);
         return out;
     }
 
     fixed_t operator/(const fixed_t& other) const {
         fixed_t out;
-        out.m_bits = ((m_bits >> (UNUSED_BITS - FIXED_BITS)) /
+        out.m_bits = ((m_bits >> (UNUSED_BITS - FRACTIONAL_BITS)) /
                         (other.m_bits >> UNUSED_BITS)) << UNUSED_BITS;
         return out;
     }
@@ -103,7 +103,7 @@ public:
     }
 private:
     std::int64_t m_bits{0};
-    static constexpr std::int64_t one{static_cast<std::int64_t>(1) << (UNUSED_BITS + FIXED_BITS)};
+    static constexpr std::int64_t one{static_cast<std::int64_t>(1) << (UNUSED_BITS + FRACTIONAL_BITS)};
 };
 
 struct my_filter_state_t {
@@ -144,10 +144,10 @@ static void my_filter_setup(
     mf->a2 = fixed_t(a2);
     printf("   a0 = %14.6e a1 = %14.6e a2 = %14.6e (fixed_t %u)\n",
             mf->a0.to_double(), mf->a1.to_double(), mf->a2.to_double(),
-            static_cast<unsigned>(FIXED_BITS));
+            static_cast<unsigned>(FRACTIONAL_BITS));
     printf("   b0 = %14.6e b1 = %14.6e b2 = %14.6e (fixed_t %u)\n",
             mf->b0.to_double(), mf->b1.to_double(), mf->b2.to_double(),
-            static_cast<unsigned>(FIXED_BITS));
+            static_cast<unsigned>(FRACTIONAL_BITS));
 }
 
 static void my_filter(
