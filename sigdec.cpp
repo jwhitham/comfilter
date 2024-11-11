@@ -34,12 +34,12 @@ public:
             fprintf(stderr, "Fixed point value out of range on construction: %1.3f\n", value);
             exit(1);
         }
-        value *= static_cast<double>(one);
+        value *= static_cast<double>(1 << FIXED_BITS);
         m_bits = static_cast<std::int64_t>(floor(value + 0.5));
+        m_bits = m_bits << UNUSED_BITS;
         if (negative) {
             m_bits = -m_bits;
         }
-        m_bits = (m_bits >> UNUSED_BITS) << UNUSED_BITS;
     }
 
     fixed_t(const fixed_t&) = default;
