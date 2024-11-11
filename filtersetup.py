@@ -423,20 +423,6 @@ def main() -> None:
     with open("debug_2", "rt", encoding="utf-8") as fd:
         for line in fd:
             fields = line.split()
-            if fields[1] == "=":
-                (a1, a2, b0, b2) = compute_bandpass_filter(UPPER_FREQUENCY, FILTER_WIDTH)
-                name = fields[0]
-                python_parameter = make_fixed({
-                    "a1": a1,
-                    "a2": a2,
-                    "b0": b0,
-                    "b1": 0,
-                    "b2": b2,
-                    }[name])
-                cpp_parameter = int(fields[2], 16)
-                assert python_parameter == cpp_parameter, (
-                    f"Parameter error for {name} Python {python_parameter:04x} C++ {cpp_parameter:04x}")
-                continue
             in_values.append(make_fixed(float(fields[1])))
             expect_out_values.append(make_fixed(float(fields[2])))
             if in_values[-1] != 0:

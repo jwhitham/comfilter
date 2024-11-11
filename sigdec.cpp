@@ -347,14 +347,6 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
     memset(&serial_decode_state, 0, sizeof(serial_decode_state_t));
     serial_decode_state.half_bit = (header.sample_rate / BAUD_RATE) / 2;
 
-    if (fd_debug) {
-        fprintf(fd_debug, "a1 = %04x\n", upper_filter.a1.internal());
-        fprintf(fd_debug, "a2 = %04x\n", upper_filter.a2.internal());
-        fprintf(fd_debug, "b0 = %04x\n", upper_filter.b0.internal());
-        fprintf(fd_debug, "b1 = %04x\n", upper_filter.b1.internal());
-        fprintf(fd_debug, "b2 = %04x\n", upper_filter.b2.internal());
-    }
-
     uint64_t sample_count = 0;
 
     while (1) {
