@@ -8,7 +8,7 @@ UPPER_FREQUENCY = 1270
 LOWER_FREQUENCY = 1070
 FILTER_WIDTH = 100
 
-import enum, math, typing
+import enum, math, typing, random
 
 class Register(enum.Enum):
     I0 = enum.auto()
@@ -191,6 +191,30 @@ def bandpass_filter(ops: OperationList, frequency: float, width: float) -> None:
 
     ops.append(Operation.SEND_O0_TO_OUTPUT)
 
+def single_multiply(ops: OperationList, test_value: float) -> None:
+    ops.append(Operation.ASSERT_R_ZERO)
+    ops.append(Operation.LOAD_I0_FROM_INPUT)
+
+    fixed_multiply(ops, Register.I0, test_value)
+    # Discard low bits of R
+    for i in range(FRACTIONAL_BITS):
+        ops.append(Operation.SHIFT_R_RIGHT)
+
+    # Move result bits of R to O0
+    ops.append(Operation.SET_REG_OUT_TO_R)
+    for i in range(ALL_BITS):
+        ops.append(Operation.SHIFT_O0_RIGHT)
+        ops.append(Operation.SHIFT_R_RIGHT)
+
+    # Discard high bits of R
+    for i in range(ALL_BITS - FRACTIONAL_BITS):
+        ops.append(Operation.SHIFT_R_RIGHT)
+
+    # R should be zero again here!
+    ops.append(Operation.ASSERT_R_ZERO)
+
+    ops.append(Operation.SEND_O0_TO_OUTPUT)
+
 def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
     reg_select = Register.I0
     a_value = 0
@@ -294,6 +318,22 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
     return out_values
         
 def main() -> None:
+    r = random.Random(1)
+    for i in range(100):
+        v0 = r.randrange(0, 1 << FRACTIONAL_BITS)
+        if r.randrange(0, 2) == 0:
+            v0 = (1 << ALL_BITS) - 1 - v0
+        ops: OperationList = []
+        v1 = make_float(make_fixed((r.random() * 3.8) - 1.9))
+        single_multiply(ops, v1)
+        out_values = run_ops(ops, [v0], False)
+        expect = make_float(v0) * v1
+        assert len(out_values) == 1
+        print(f"{make_float(v0):1.6f} * {v1:1.6f} = {expect:1.6f} got {make_float(out_values[0]):1.6f}")
+        error = abs(make_float(out_values[0]) - expect)
+        assert error < (1.0 / (1 << FRACTIONAL_BITS))
+
+def main1() -> None:
     ops: OperationList = []
     bandpass_filter(ops, UPPER_FREQUENCY, FILTER_WIDTH)
     in_values = []
