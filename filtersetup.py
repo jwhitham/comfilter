@@ -328,36 +328,27 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
             elif op == Operation.ASSERT_R_ZERO:
                 assert r_value == 0
             elif op == Operation.SETUP_ABSO_INPUT:
-                if (r_value >> (R_BITS - 1) & 1:
-                    abso_setting = ABSOSetting.NEGATE
-                else:
-                    abso_setting = ABSOSetting.PASSTHROUGH
+                pass
+                #if (r_value >> (R_BITS - 1) & 1:
+                #    abso_setting = ABSOSetting.NEGATE
+                #else:
+                #    abso_setting = ABSOSetting.PASSTHROUGH
             elif op == Operation.SHIFT_ABSO_RIGHT:
-                if abso_setting == ABSOSetting.PASSTHROUGH:
-                    abso_in = reg_out
-                elif abso_setting == ABSOSetting.NEGATE:
-                    abso_in = 4 - reg_out
-                    if abso_in & 2:
-                        abso_setting = ABSOSetting.BORROW
-                elif abso_setting == ABSOSetting.BORROW:
-                    abso_in = 3 - reg_out
-                    if not (abso_in & 2):
-                        abso_setting = ABSOSetting.NEGATE
-                abso_value |= (abso_in & 1) << ALL_BITS
-                abso_value = abso_value >> 1
-    copy = in_value
-    out_value = 0
-    b = 0
-    for i in range(num_bits):
-        a = copy & 1
-        c = 4 - b - a
-
-        out_value = out_value >> 1
-        out_value |= (c & 1) << (num_bits - 1)
-        b = (c & 2) >> 1
-        copy = copy >> 1
+                #if abso_setting == ABSOSetting.PASSTHROUGH:
+                #    abso_in = reg_out
+                #elif abso_setting == ABSOSetting.NEGATE:
+                #    abso_in = 4 - reg_out
+                #    if abso_in & 2:
+                #        abso_setting = ABSOSetting.BORROW
+                #elif abso_setting == ABSOSetting.BORROW:
+                #    abso_in = 3 - reg_out
+                #    if not (abso_in & 2):
+                #        abso_setting = ABSOSetting.NEGATE
+                #abso_value |= (abso_in & 1) << ALL_BITS
+                #abso_value = abso_value >> 1
+                pass
             else:
-                assert False
+                assert False, op.name
 
     return out_values
         
@@ -372,13 +363,13 @@ def main() -> None:
         expect = 0.0
         v1f_list: typing.List[float] = []
         v0i_list: typing.List[int] = []
-        for j in [1]: # range(r.randrange(1, 4)):
+        for j in range(r.randrange(1, 4)):
             if r.randrange(0, 2) == 0:
                 v0s, v1s = 1.99, 1.0
             else:
                 v0s, v1s = 1.0, 1.99
-            v0i = make_fixed(0.9) # (r.random() * 2.0 * v0s) - v0s)
-            v1i = make_fixed(-1.0) # (r.random() * 2.0 * v1s) - v1s)
+            v0i = make_fixed((r.random() * 2.0 * v0s) - v0s)
+            v1i = make_fixed((r.random() * 2.0 * v1s) - v1s)
             v0f = make_float(v0i)
             v1f = make_float(v1i)
             if abs(expect + (v0f * v1f)) < 2.0:
