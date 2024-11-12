@@ -71,6 +71,22 @@ def make_float(ivalue: int) -> float:
         ivalue -= 1 << ALL_BITS
     return ivalue / float(1 << FRACTIONAL_BITS)
 
+def set_output_register(ops: OperationList, source: Register) -> None:
+    ops.append({
+        Register.I0: Operation.SET_REG_OUT_TO_I0,
+        Register.I2: Operation.SET_REG_OUT_TO_I2,
+        Register.O1: Operation.SET_REG_OUT_TO_O1,
+        Register.O2: Operation.SET_REG_OUT_TO_O2,
+        }[source])
+
+def shift_register(ops: OperationList, source: Register) -> None:
+    ops.append({
+        Register.I0: Operation.SHIFT_I0_RIGHT,
+        Register.I2: Operation.SHIFT_I2_RIGHT,
+        Register.O1: Operation.SHIFT_O1_RIGHT,
+        Register.O2: Operation.SHIFT_O2_RIGHT,
+        }[source])
+
 def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
     ivalue = make_fixed(value)
     negative = ivalue & (1 << (ALL_BITS - 1))
@@ -91,12 +107,7 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
         ops.append(Operation.ASSERT_A_LOW_ZERO)
 
     # Configure source
-    ops.append({
-        Register.I0: Operation.SET_REG_OUT_TO_I0,
-        Register.I2: Operation.SET_REG_OUT_TO_I2,
-        Register.O1: Operation.SET_REG_OUT_TO_O1,
-        Register.O2: Operation.SET_REG_OUT_TO_O2,
-        }[source])
+    set_output_register(ops, source)
 
     # Do multiplication
     for i in range(A_BITS):
@@ -106,12 +117,7 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
             ops.append(Operation.ADD_A_TO_R)
             
         if i < ALL_BITS:
-            ops.append({
-                Register.I0: Operation.SHIFT_I0_RIGHT,
-                Register.I2: Operation.SHIFT_I2_RIGHT,
-                Register.O1: Operation.SHIFT_O1_RIGHT,
-                Register.O2: Operation.SHIFT_O2_RIGHT,
-                }[source])
+            shift_register(ops, source)
 
         if i == (ALL_BITS - 1):
             ops.append(Operation.SET_REG_OUT_TO_A_SIGN)
@@ -123,13 +129,13 @@ def move_R_to_O1_and_ABSO(ops: OperationList) -> None:
 
     # Setup ABSO register by looking at the sign of R
     # If R is negative, input for ABSO is negated
-    #ops.append(Operation.SETUP_ABSO_INPUT)
+    ops.append(Operation.SETUP_ABSO_INPUT)
 
     # Move result bits of R to O1 and ABSO
     ops.append(Operation.SET_REG_OUT_TO_R)
     for i in range(ALL_BITS):
         ops.append(Operation.SHIFT_O1_RIGHT)
-        #ops.append(Operation.SHIFT_ABSO_RIGHT)
+        ops.append(Operation.SHIFT_ABSO_RIGHT)
         ops.append(Operation.SHIFT_R_RIGHT)
 
     # Discard high bits of R (if any)
@@ -321,6 +327,35 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 assert (a_value & ((1 << ALL_BITS) - 1)) == 0
             elif op == Operation.ASSERT_R_ZERO:
                 assert r_value == 0
+            elif op == Operation.SETUP_ABSO_INPUT:
+                if (r_value >> (R_BITS - 1) & 1:
+                    abso_setting = ABSOSetting.NEGATE
+                else:
+                    abso_setting = ABSOSetting.PASSTHROUGH
+            elif op == Operation.SHIFT_ABSO_RIGHT:
+                if abso_setting == ABSOSetting.PASSTHROUGH:
+                    abso_in = reg_out
+                elif abso_setting == ABSOSetting.NEGATE:
+                    abso_in = 4 - reg_out
+                    if abso_in & 2:
+                        abso_setting = ABSOSetting.BORROW
+                elif abso_setting == ABSOSetting.BORROW:
+                    abso_in = 3 - reg_out
+                    if not (abso_in & 2):
+                        abso_setting = ABSOSetting.NEGATE
+                abso_value |= (abso_in & 1) << ALL_BITS
+                abso_value = abso_value >> 1
+    copy = in_value
+    out_value = 0
+    b = 0
+    for i in range(num_bits):
+        a = copy & 1
+        c = 4 - b - a
+
+        out_value = out_value >> 1
+        out_value |= (c & 1) << (num_bits - 1)
+        b = (c & 2) >> 1
+        copy = copy >> 1
             else:
                 assert False
 
