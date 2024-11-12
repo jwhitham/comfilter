@@ -22,13 +22,18 @@ class Register(enum.Enum):
     A_SIGN = enum.auto()
     R = enum.auto()
     ZERO = enum.auto()
-    ABSO = enum.auto()
+    ABSR = enum.auto()
 
 class Constant(enum.Enum):
     A1 = enum.auto()
     A2 = enum.auto()
     B0 = enum.auto()
     B2 = enum.auto()
+
+class ABSRSelect(enum.Enum):
+    PASSTHROUGH = enum.auto()
+    NEGATE = enum.auto()
+    BORROW = enum.auto()
 
 class Operation(enum.Enum):
     ADD_A_TO_R = enum.auto()
@@ -47,13 +52,14 @@ class Operation(enum.Enum):
     SHIFT_I2_RIGHT = enum.auto()
     SHIFT_O1_RIGHT = enum.auto()
     SHIFT_O2_RIGHT = enum.auto()
-    SHIFT_ABSO_RIGHT = enum.auto()
-    SETUP_ABSO_INPUT = enum.auto()
+    SHIFT_ABSR_RIGHT = enum.auto()
+    SETUP_ABSR_INPUT = enum.auto()
     LOAD_I0_FROM_INPUT = enum.auto()
     SEND_O1_TO_OUTPUT = enum.auto()
     ASSERT_A_HIGH_ZERO = enum.auto()
     ASSERT_A_LOW_ZERO = enum.auto()
     ASSERT_R_ZERO = enum.auto()
+    ASSERT_ABSR_IS_ABS_O1 = enum.auto()
    
 OperationList = typing.List[Operation]
 
@@ -122,20 +128,20 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
         if i == (ALL_BITS - 1):
             ops.append(Operation.SET_REG_OUT_TO_A_SIGN)
 
-def move_R_to_O1_and_ABSO(ops: OperationList) -> None:
+def move_R_to_O1_and_ABSR(ops: OperationList) -> None:
+    # Setup ABSR register by looking at the sign of R
+    # If R is negative, input for ABSR is negated
+    ops.append(Operation.SETUP_ABSR_INPUT)
+
     # Discard low bits of R
     for i in range(FRACTIONAL_BITS):
         ops.append(Operation.SHIFT_R_RIGHT)
 
-    # Setup ABSO register by looking at the sign of R
-    # If R is negative, input for ABSO is negated
-    ops.append(Operation.SETUP_ABSO_INPUT)
-
-    # Move result bits of R to O1 and ABSO
+    # Move result bits of R to O1 and ABSR
     ops.append(Operation.SET_REG_OUT_TO_R)
     for i in range(ALL_BITS):
         ops.append(Operation.SHIFT_O1_RIGHT)
-        ops.append(Operation.SHIFT_ABSO_RIGHT)
+        ops.append(Operation.SHIFT_ABSR_RIGHT)
         ops.append(Operation.SHIFT_R_RIGHT)
 
     # Discard high bits of R (if any)
@@ -144,6 +150,7 @@ def move_R_to_O1_and_ABSO(ops: OperationList) -> None:
 
     # R should be zero again here!
     ops.append(Operation.ASSERT_R_ZERO)
+    ops.append(Operation.ASSERT_ABSR_IS_ABS_O1)
 
 def move_O1_to_O2(ops: OperationList) -> None:
     ops.append(Operation.SET_REG_OUT_TO_O1)
@@ -181,7 +188,7 @@ def filter_step(ops: OperationList, a1: float, a2: float, b0: float, b2: float) 
     move_O1_to_O2(ops)
     move_I1_to_I2(ops)
     move_I0_to_I1(ops)
-    move_R_to_O1_and_ABSO(ops)
+    move_R_to_O1_and_ABSR(ops)
 
     ops.append(Operation.SEND_O1_TO_OUTPUT)
 
@@ -212,7 +219,7 @@ def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> 
         ops.append(Operation.LOAD_I0_FROM_INPUT)
         fixed_multiply(ops, Register.I0, test_value)
 
-    move_R_to_O1_and_ABSO(ops)
+    move_R_to_O1_and_ABSR(ops)
 
     # One output
     ops.append(Operation.SEND_O1_TO_OUTPUT)
@@ -229,7 +236,7 @@ def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[fl
         move_I1_to_I2(ops)
         fixed_multiply(ops, Register.I2, test_value)
         # move out of R then back into it, via O registers
-        move_R_to_O1_and_ABSO(ops)
+        move_R_to_O1_and_ABSR(ops)
         move_O1_to_O2(ops)
         fixed_multiply(ops, Register.O2, 1.0)
 
@@ -237,6 +244,7 @@ def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[fl
     ops.append(Operation.SEND_O1_TO_OUTPUT)
 
 def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
+    out_values = []
     reg_select = Register.I0
     a_value = 0
     r_value = 0
@@ -246,8 +254,9 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
     o1_value = 0
     o2_value = 0
     neg_value = 0
-    out_values = []
     in_index = 0
+    absr_select = ABSRSelect.PASSTHROUGH
+    absr_value = 0
     while in_index < len(in_values):
         for op in ops:
             if debug:
@@ -262,10 +271,10 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                             ("I2", i2_value),
                             ("O1", o1_value),
                             ("O2", o2_value),
+                            ("ABSR", absr_value),
                         ]:
                     print(f"{name} {value:04x} ", end="")
-                print(f"neg {neg_value:x} ", end="")
-                print(f"op: {op.name}")
+                print(f"op {op.name}")
                 
             reg_out = {
                     Register.I0: i0_value,
@@ -327,26 +336,26 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 assert (a_value & ((1 << ALL_BITS) - 1)) == 0
             elif op == Operation.ASSERT_R_ZERO:
                 assert r_value == 0
-            elif op == Operation.SETUP_ABSO_INPUT:
-                pass
-                #if (r_value >> (R_BITS - 1) & 1:
-                #    abso_setting = ABSOSetting.NEGATE
-                #else:
-                #    abso_setting = ABSOSetting.PASSTHROUGH
-            elif op == Operation.SHIFT_ABSO_RIGHT:
-                #if abso_setting == ABSOSetting.PASSTHROUGH:
-                #    abso_in = reg_out
-                #elif abso_setting == ABSOSetting.NEGATE:
-                #    abso_in = 4 - reg_out
-                #    if abso_in & 2:
-                #        abso_setting = ABSOSetting.BORROW
-                #elif abso_setting == ABSOSetting.BORROW:
-                #    abso_in = 3 - reg_out
-                #    if not (abso_in & 2):
-                #        abso_setting = ABSOSetting.NEGATE
-                #abso_value |= (abso_in & 1) << ALL_BITS
-                #abso_value = abso_value >> 1
-                pass
+            elif op == Operation.ASSERT_ABSR_IS_ABS_O1:
+                assert abs(make_float(o1_value)) == make_float(absr_value)
+            elif op == Operation.SETUP_ABSR_INPUT:
+                if r_value >> (R_BITS - 1) & 1:
+                    absr_select = ABSRSelect.NEGATE
+                else:
+                    absr_select = ABSRSelect.PASSTHROUGH
+            elif op == Operation.SHIFT_ABSR_RIGHT:
+                if absr_select == ABSRSelect.PASSTHROUGH:
+                    absr_in = reg_out
+                elif absr_select == ABSRSelect.NEGATE:
+                    absr_in = 4 - reg_out
+                    if absr_in & 2:
+                        absr_select = ABSRSelect.BORROW
+                elif absr_select == ABSRSelect.BORROW:
+                    absr_in = 3 - reg_out
+                    if not (absr_in & 2):
+                        absr_select = ABSRSelect.NEGATE
+                absr_value |= (absr_in & 1) << ALL_BITS
+                absr_value = absr_value >> 1
             else:
                 assert False, op.name
 
