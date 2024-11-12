@@ -4,6 +4,8 @@ SAMPLE_RATE = 48000
 FRACTIONAL_BITS = 14
 NON_FRACTIONAL_BITS = 2
 ALL_BITS = FRACTIONAL_BITS + NON_FRACTIONAL_BITS
+A_BITS = ALL_BITS * 2
+R_BITS = (FRACTIONAL_BITS * 2) + NON_FRACTIONAL_BITS
 UPPER_FREQUENCY = 1270
 LOWER_FREQUENCY = 1070
 FILTER_WIDTH = 100
@@ -18,8 +20,10 @@ class Register(enum.Enum):
     I2 = enum.auto()
     O1 = enum.auto()
     O2 = enum.auto()
+    A_SIGN = enum.auto()
     R = enum.auto()
     ZERO = enum.auto()
+    ABSO = enum.auto()
 
 class Constant(enum.Enum):
     A1 = enum.auto()
@@ -29,21 +33,23 @@ class Constant(enum.Enum):
 
 class Operation(enum.Enum):
     ADD_A_TO_R = enum.auto()
-    SHIFT_A_LEFT = enum.auto()
-    SHIFT_R_LEFT = enum.auto()
+    SHIFT_A_RIGHT = enum.auto()
+    SHIFT_R_RIGHT = enum.auto()
     SET_REG_OUT_TO_I0 = enum.auto()
     SET_REG_OUT_TO_I1 = enum.auto()
     SET_REG_OUT_TO_I2 = enum.auto()
     SET_REG_OUT_TO_O1 = enum.auto()
     SET_REG_OUT_TO_O2 = enum.auto()
     SET_REG_OUT_TO_ZERO = enum.auto()
-    # SET_REG_OUT_TO_A_SIGN = enum.auto()
+    SET_REG_OUT_TO_A_SIGN = enum.auto()
     SET_REG_OUT_TO_R = enum.auto()
-    SHIFT_I0_LEFT = enum.auto()
-    SHIFT_I1_LEFT = enum.auto()
-    SHIFT_I2_LEFT = enum.auto()
-    SHIFT_O1_LEFT = enum.auto()
-    SHIFT_O2_LEFT = enum.auto()
+    SHIFT_I0_RIGHT = enum.auto()
+    SHIFT_I1_RIGHT = enum.auto()
+    SHIFT_I2_RIGHT = enum.auto()
+    SHIFT_O1_RIGHT = enum.auto()
+    SHIFT_O2_RIGHT = enum.auto()
+    SHIFT_ABSO_RIGHT = enum.auto()
+    SETUP_ABSO_INPUT = enum.auto()
     LOAD_I0_FROM_INPUT = enum.auto()
     SEND_O1_TO_OUTPUT = enum.auto()
     ASSERT_A_HIGH_ZERO = enum.auto()
@@ -71,6 +77,17 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
     negative = ivalue & (1 << (ALL_BITS - 1))
     # print(f"Multiplication with value {value:1.6f} fixed encoding {ivalue:04x}")
 
+    # Clear high A bits
+    ops.append(Operation.SET_REG_OUT_TO_ZERO)
+    for i in range(ALL_BITS):
+        ops.append(Operation.SHIFT_A_RIGHT)
+    ops.append(Operation.ASSERT_A_HIGH_ZERO)
+
+    # If negative, also clear the low bits, as these will be added during shift-in
+    if negative:
+        for i in range(ALL_BITS):
+            ops.append(Operation.SHIFT_A_RIGHT)
+        ops.append(Operation.ASSERT_A_LOW_ZERO)
 
     # Configure source
     ops.append({
@@ -80,49 +97,47 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
         Register.O2: Operation.SET_REG_OUT_TO_O2,
         }[source])
 
-    # Fill top half of A with the top bit of the register value
+    # Fill the high bits of A with the register value
     for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_A_LEFT)
-
-    # Fill bottom half of A with the register value
-    for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_A_LEFT)
+        ops.append(Operation.SHIFT_A_RIGHT)
+        if negative:
+            ops.append(Operation.ADD_A_TO_R)
         ops.append({
-            Register.I0: Operation.SHIFT_I0_LEFT,
-            Register.I2: Operation.SHIFT_I2_LEFT,
-            Register.O1: Operation.SHIFT_O1_LEFT,
-            Register.O2: Operation.SHIFT_O2_LEFT,
+            Register.I0: Operation.SHIFT_I0_RIGHT,
+            Register.I2: Operation.SHIFT_I2_RIGHT,
+            Register.O1: Operation.SHIFT_O1_RIGHT,
+            Register.O2: Operation.SHIFT_O2_RIGHT,
             }[source])
 
+    ops.append(Operation.ASSERT_A_LOW_ZERO)
+
     # Do multiplication
-    ops.append(Operation.SET_REG_OUT_TO_ZERO)
+    ops.append(Operation.SET_REG_OUT_TO_A_SIGN)
     for i in range(ALL_BITS):
-        if ivalue & 1:
+        ops.append(Operation.SHIFT_A_RIGHT)
+        ivalue = ivalue << 1
+        if ivalue & (1 << ALL_BITS):
             ops.append(Operation.ADD_A_TO_R)
-        ivalue = ivalue >> 1
-        ops.append(Operation.SHIFT_A_LEFT)
 
-    # Continue to multiply the -1 part when negative
-    if negative:
-        for i in range(ALL_BITS - 1):
-            ops.append(Operation.ADD_A_TO_R)
-            ops.append(Operation.SHIFT_A_LEFT)
-
-
-def move_R_to_O1(ops: OperationList) -> None:
-    # Discard high bits of R
-    for i in range(ALL_BITS - FRACTIONAL_BITS):
-        ops.append(Operation.SHIFT_R_LEFT)
-
-    # Move result bits of R to O1
-    ops.append(Operation.SET_REG_OUT_TO_R)
-    for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_O1_LEFT)
-        ops.append(Operation.SHIFT_R_LEFT)
-
+def move_R_to_O1_and_ABSO(ops: OperationList) -> None:
     # Discard low bits of R
     for i in range(FRACTIONAL_BITS):
-        ops.append(Operation.SHIFT_R_LEFT)
+        ops.append(Operation.SHIFT_R_RIGHT)
+
+    # Setup ABSO register by looking at the sign of R
+    # If R is negative, input for ABSO is negated
+    #ops.append(Operation.SETUP_ABSO_INPUT)
+
+    # Move result bits of R to O1 and ABSO
+    ops.append(Operation.SET_REG_OUT_TO_R)
+    for i in range(ALL_BITS):
+        ops.append(Operation.SHIFT_O1_RIGHT)
+        #ops.append(Operation.SHIFT_ABSO_RIGHT)
+        ops.append(Operation.SHIFT_R_RIGHT)
+
+    # Discard high bits of R (if any)
+    for i in range(R_BITS - (FRACTIONAL_BITS + ALL_BITS)):
+        ops.append(Operation.SHIFT_R_RIGHT)
 
     # R should be zero again here!
     ops.append(Operation.ASSERT_R_ZERO)
@@ -130,20 +145,20 @@ def move_R_to_O1(ops: OperationList) -> None:
 def move_O1_to_O2(ops: OperationList) -> None:
     ops.append(Operation.SET_REG_OUT_TO_O1)
     for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_O2_LEFT)
-        ops.append(Operation.SHIFT_O1_LEFT)
+        ops.append(Operation.SHIFT_O2_RIGHT)
+        ops.append(Operation.SHIFT_O1_RIGHT)
 
 def move_I1_to_I2(ops: OperationList) -> None:
     ops.append(Operation.SET_REG_OUT_TO_I1)
     for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_I2_LEFT)
-        ops.append(Operation.SHIFT_I1_LEFT)
+        ops.append(Operation.SHIFT_I2_RIGHT)
+        ops.append(Operation.SHIFT_I1_RIGHT)
 
 def move_I0_to_I1(ops: OperationList) -> None:
     ops.append(Operation.SET_REG_OUT_TO_I0)
     for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_I1_LEFT)
-        ops.append(Operation.SHIFT_I0_LEFT)
+        ops.append(Operation.SHIFT_I1_RIGHT)
+        ops.append(Operation.SHIFT_I0_RIGHT)
 
 def filter_step(ops: OperationList, a1: float, a2: float, b0: float, b2: float) -> None:
     # R should be zero here!
@@ -163,7 +178,7 @@ def filter_step(ops: OperationList, a1: float, a2: float, b0: float, b2: float) 
     move_O1_to_O2(ops)
     move_I1_to_I2(ops)
     move_I0_to_I1(ops)
-    move_R_to_O1(ops)
+    move_R_to_O1_and_ABSO(ops)
 
     ops.append(Operation.SEND_O1_TO_OUTPUT)
 
@@ -194,7 +209,7 @@ def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> 
         ops.append(Operation.LOAD_I0_FROM_INPUT)
         fixed_multiply(ops, Register.I0, test_value)
 
-    move_R_to_O1(ops)
+    move_R_to_O1_and_ABSO(ops)
 
     # One output
     ops.append(Operation.SEND_O1_TO_OUTPUT)
@@ -211,7 +226,7 @@ def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[fl
         move_I1_to_I2(ops)
         fixed_multiply(ops, Register.I2, test_value)
         # move out of R then back into it, via O registers
-        move_R_to_O1(ops)
+        move_R_to_O1_and_ABSO(ops)
         move_O1_to_O2(ops)
         fixed_multiply(ops, Register.O2, 1.0)
 
@@ -247,29 +262,26 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                         ]:
                     print(f"{name} {value:04x} ", end="")
                 print(f"neg {neg_value:x} ", end="")
-                print(f"op: {op.name} ", end="")
+                print(f"op: {op.name}")
                 
             reg_out = {
-                    Register.I0: i0_value >> (ALL_BITS - 1),
-                    Register.I1: i1_value >> (ALL_BITS - 1),
-                    Register.I2: i2_value >> (ALL_BITS - 1),
-                    Register.O1: o1_value >> (ALL_BITS - 1),
-                    Register.O2: o2_value >> (ALL_BITS - 1),
-                    Register.R: r_value >> ((ALL_BITS * 2) - 1),
+                    Register.I0: i0_value,
+                    Register.I1: i1_value,
+                    Register.I2: i2_value,
+                    Register.O1: o1_value,
+                    Register.O2: o2_value,
+                    Register.A_SIGN: a_value >> (A_BITS - 1),
+                    Register.R: r_value,
                     Register.ZERO: 0,
-                    }[reg_select]
-            if debug:
-                print(f"reg_out {reg_out}")
+                    }[reg_select] & 1
             if op == Operation.ADD_A_TO_R:
                 r_value += a_value
-                r_value &= (1 << (ALL_BITS * 2)) - 1
-            elif op == Operation.SHIFT_A_LEFT:
-                a_value = a_value << 1
-                a_value &= (1 << (ALL_BITS * 2)) - 1
-                a_value |= reg_out
-            elif op == Operation.SHIFT_R_LEFT:
-                r_value = r_value << 1
-                r_value &= (1 << (ALL_BITS * 2)) - 1
+                r_value &= (1 << R_BITS) - 1
+            elif op == Operation.SHIFT_A_RIGHT:
+                a_value |= reg_out << A_BITS
+                a_value = a_value >> 1
+            elif op == Operation.SHIFT_R_RIGHT:
+                r_value = r_value >> 1
             elif op == Operation.SET_REG_OUT_TO_I0:
                 reg_select = Register.I0
             elif op == Operation.SET_REG_OUT_TO_I1:
@@ -282,28 +294,25 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 reg_select = Register.O2
             elif op == Operation.SET_REG_OUT_TO_ZERO:
                 reg_select = Register.ZERO
+            elif op == Operation.SET_REG_OUT_TO_A_SIGN:
+                reg_select = Register.A_SIGN
             elif op == Operation.SET_REG_OUT_TO_R:
                 reg_select = Register.R
-            elif op == Operation.SHIFT_I0_LEFT:
-                i0_value = i0_value << 1
-                i0_value |= reg_out
-                i0_value &= (1 << ALL_BITS) - 1
-            elif op == Operation.SHIFT_I1_LEFT:
-                i1_value = i1_value << 1
-                i1_value |= reg_out
-                i1_value &= (1 << ALL_BITS) - 1
-            elif op == Operation.SHIFT_I2_LEFT:
-                i2_value = i2_value << 1
-                i2_value |= reg_out
-                i2_value &= (1 << ALL_BITS) - 1
-            elif op == Operation.SHIFT_O1_LEFT:
-                o1_value = o1_value << 1
-                o1_value |= reg_out
-                o1_value &= (1 << ALL_BITS) - 1
-            elif op == Operation.SHIFT_O2_LEFT:
-                o2_value = o2_value << 1
-                o2_value |= reg_out
-                o2_value &= (1 << ALL_BITS) - 1
+            elif op == Operation.SHIFT_I0_RIGHT:
+                i0_value |= reg_out << ALL_BITS
+                i0_value = i0_value >> 1
+            elif op == Operation.SHIFT_I1_RIGHT:
+                i1_value |= reg_out << ALL_BITS
+                i1_value = i1_value >> 1
+            elif op == Operation.SHIFT_I2_RIGHT:
+                i2_value |= reg_out << ALL_BITS
+                i2_value = i2_value >> 1
+            elif op == Operation.SHIFT_O1_RIGHT:
+                o1_value |= reg_out << ALL_BITS
+                o1_value = o1_value >> 1
+            elif op == Operation.SHIFT_O2_RIGHT:
+                o2_value |= reg_out << ALL_BITS
+                o2_value = o2_value >> 1
             elif op == Operation.LOAD_I0_FROM_INPUT:
                 i0_value = in_values[in_index]
                 in_index += 1
@@ -343,7 +352,7 @@ def main() -> None:
             if abs(expect + (v0f * v1f)) < 2.0:
                 expect += v0f * v1f
                 if debug > 0:
-                    print(f" + {v0f:1.6f} * {v1f:1.6f} = {v0i:04x} * {v1i:04x} = {expect:1.6f}")
+                    print(f" + {v0f:1.6f} * {v1f:1.6f} = {expect:1.6f}")
                 v1f_list.append(v1f)
                 v0i_list.append(v0i)
 
