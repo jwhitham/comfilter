@@ -75,7 +75,7 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
     ivalue = make_fixed(value)
     negative = ivalue & (1 << (ALL_BITS - 1))
     if negative:
-        ivalue |= (1 << (ALL_BITS - 1)) << ALL_BITS
+        ivalue |= ((1 << ALL_BITS) - 1) << ALL_BITS
     # print(f"Multiplication with value {value:1.6f} fixed encoding {ivalue:04x}")
 
     # Clear high A bits
@@ -328,7 +328,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
         
 def main() -> None:
     r = random.Random(1)
-    debug = 2
+    debug = 0
     ops: OperationList = []
     for i in range(100):
         if debug > 0:
@@ -370,7 +370,6 @@ def main() -> None:
             assert error < ACCEPTABLE_ERROR
         else:
             assert error < VERY_SMALL_ERROR
-        assert False
 
     for i in range(100):
         if debug > 0:
