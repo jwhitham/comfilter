@@ -4,8 +4,7 @@ SAMPLE_RATE = 48000
 FRACTIONAL_BITS = 14
 NON_FRACTIONAL_BITS = 2
 ALL_BITS = FRACTIONAL_BITS + NON_FRACTIONAL_BITS
-A_BITS = ALL_BITS * 2
-R_BITS = (FRACTIONAL_BITS * 2) + NON_FRACTIONAL_BITS
+A_BITS = R_BITS = (FRACTIONAL_BITS * 2) + NON_FRACTIONAL_BITS
 UPPER_FREQUENCY = 1270
 LOWER_FREQUENCY = 1070
 FILTER_WIDTH = 100
@@ -75,6 +74,8 @@ def make_float(ivalue: int) -> float:
 def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
     ivalue = make_fixed(value)
     negative = ivalue & (1 << (ALL_BITS - 1))
+    if negative:
+        ivalue |= (1 << (ALL_BITS - 1)) << ALL_BITS
     # print(f"Multiplication with value {value:1.6f} fixed encoding {ivalue:04x}")
 
     # Clear high A bits
@@ -85,7 +86,7 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
 
     # If negative, also clear the low bits, as these will be added during shift-in
     if negative:
-        for i in range(ALL_BITS):
+        for i in range(A_BITS - ALL_BITS):
             ops.append(Operation.SHIFT_A_RIGHT)
         ops.append(Operation.ASSERT_A_LOW_ZERO)
 
@@ -97,27 +98,23 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
         Register.O2: Operation.SET_REG_OUT_TO_O2,
         }[source])
 
-    # Fill the high bits of A with the register value
-    for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_A_RIGHT)
-        if negative:
-            ops.append(Operation.ADD_A_TO_R)
-        ops.append({
-            Register.I0: Operation.SHIFT_I0_RIGHT,
-            Register.I2: Operation.SHIFT_I2_RIGHT,
-            Register.O1: Operation.SHIFT_O1_RIGHT,
-            Register.O2: Operation.SHIFT_O2_RIGHT,
-            }[source])
-
-    ops.append(Operation.ASSERT_A_LOW_ZERO)
-
     # Do multiplication
-    ops.append(Operation.SET_REG_OUT_TO_A_SIGN)
-    for i in range(ALL_BITS):
+    for i in range(A_BITS):
         ops.append(Operation.SHIFT_A_RIGHT)
         ivalue = ivalue << 1
-        if ivalue & (1 << ALL_BITS):
+        if ivalue & (1 << A_BITS):
             ops.append(Operation.ADD_A_TO_R)
+            
+        if i < ALL_BITS:
+            ops.append({
+                Register.I0: Operation.SHIFT_I0_RIGHT,
+                Register.I2: Operation.SHIFT_I2_RIGHT,
+                Register.O1: Operation.SHIFT_O1_RIGHT,
+                Register.O2: Operation.SHIFT_O2_RIGHT,
+                }[source])
+
+        if i == (ALL_BITS - 1):
+            ops.append(Operation.SET_REG_OUT_TO_A_SIGN)
 
 def move_R_to_O1_and_ABSO(ops: OperationList) -> None:
     # Discard low bits of R
@@ -331,7 +328,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
         
 def main() -> None:
     r = random.Random(1)
-    debug = 0
+    debug = 2
     ops: OperationList = []
     for i in range(100):
         if debug > 0:
@@ -340,19 +337,20 @@ def main() -> None:
         expect = 0.0
         v1f_list: typing.List[float] = []
         v0i_list: typing.List[int] = []
-        for j in range(r.randrange(1, 4)):
+        for j in [1]: # range(r.randrange(1, 4)):
             if r.randrange(0, 2) == 0:
                 v0s, v1s = 1.99, 1.0
             else:
                 v0s, v1s = 1.0, 1.99
-            v0i = make_fixed((r.random() * 2.0 * v0s) - v0s)
-            v1i = make_fixed((r.random() * 2.0 * v1s) - v1s)
+            v0i = make_fixed(0.9) # (r.random() * 2.0 * v0s) - v0s)
+            v1i = make_fixed(-1.0) # (r.random() * 2.0 * v1s) - v1s)
             v0f = make_float(v0i)
             v1f = make_float(v1i)
             if abs(expect + (v0f * v1f)) < 2.0:
                 expect += v0f * v1f
                 if debug > 0:
-                    print(f" + {v0f:1.6f} * {v1f:1.6f} = {expect:1.6f}")
+                    print(f" + {v0f:1.6f} * {v1f:1.6f} = {v0i:04x} * {v1i:04x} = {expect:1.6f}")
+
                 v1f_list.append(v1f)
                 v0i_list.append(v0i)
 
@@ -372,6 +370,7 @@ def main() -> None:
             assert error < ACCEPTABLE_ERROR
         else:
             assert error < VERY_SMALL_ERROR
+        assert False
 
     for i in range(100):
         if debug > 0:
