@@ -8,6 +8,8 @@ A_BITS = R_BITS = (FRACTIONAL_BITS * 2) + NON_FRACTIONAL_BITS
 UPPER_FREQUENCY = 1270
 LOWER_FREQUENCY = 1070
 FILTER_WIDTH = 100
+BAUD_RATE = 300
+RC_DECAY_PER_BIT = 0.1
 ACCEPTABLE_ERROR = (1.0 / (1 << (FRACTIONAL_BITS - 3)))
 VERY_SMALL_ERROR = (1.0 / (1 << FRACTIONAL_BITS))
 
@@ -23,6 +25,7 @@ class Register(enum.Enum):
     R = enum.auto()
     ZERO = enum.auto()
     ABSR = enum.auto()
+    L = enum.auto()
 
 class Constant(enum.Enum):
     A1 = enum.auto()
@@ -209,6 +212,36 @@ def compute_bandpass_filter(frequency: float, width: float) -> typing.Tuple[floa
 
 def bandpass_filter(ops: OperationList, frequency: float, width: float) -> None:
     filter_step(ops, *compute_bandpass_filter(frequency, width))
+
+def rc_filter(ops: OperationList, frequency: float, width: float) -> None:
+    bit_samples = SAMPLE_RATE / BAUD_RATE
+    # This is the time constant, like k = 1 / RC for a capacitor discharging
+    # Note: Level is y = exp(-kt) at time t, assuming level was 1.0 at time 0
+    # The level should be reduced from 1.0 to RC_DECAY_PER_BIT during each bit
+    time_constant = math.log(RC_DECAY_PER_BIT) / -bit_samples
+    # Each transition from t to t+1 is a multiplication by exp(-k)
+    decay = make_fixed(math.exp(-time_constant))
+
+    # decay L register
+    ops.append(Operation.ASSERT_R_ZERO)
+    fixed_multiply(ops, Register.L, decay)
+    move_R_to_L(ops)
+
+    # compare L and ABSR
+    ops.append(Operation.ASSERT_R_ZERO)
+    fixed_multiply(ops, Register.L, 1.0)
+    fixed_multiply(ops, Register.ABSR, -1.0)
+
+    # if R is negative, then ABSR > L: so, L = ABSR
+    # if R is non-negative, then ABSR <= L: so, L = L
+    ops.append(Operation.SET_REG_OUT_TO_L_OR_ABSR)
+    for i in range(ALL_BITS):
+        ops.append(Operation.SHIFT_ABSR_RIGHT)
+        ops.append(Operation.SHIFT_L_RIGHT)
+
+    # clear R
+    for i in range(R_BITS):
+        ops.append(Operation.SHIFT_R_RIGHT)
 
 def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> None:
     # For testing: multiply-accumulate
