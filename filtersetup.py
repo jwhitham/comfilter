@@ -57,6 +57,7 @@ class Operation(enum.Enum):
     SETUP_ABSR_INPUT = enum.auto()
     LOAD_I0_FROM_INPUT = enum.auto()
     SEND_O1_TO_OUTPUT = enum.auto()
+    SEND_L_TO_OUTPUT = enum.auto()
     ASSERT_A_HIGH_ZERO = enum.auto()
     ASSERT_A_LOW_ZERO = enum.auto()
     ASSERT_R_ZERO = enum.auto()
@@ -255,8 +256,8 @@ def rc_filter(ops: OperationList) -> None:
     # if R is non-negative, then ABSR <= L: so, L = L
     ops.append(Operation.SET_REG_OUT_TO_L_OR_ABSR)
     for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_ABSR_RIGHT)
         ops.append(Operation.SHIFT_L_RIGHT)
+        ops.append(Operation.SHIFT_ABSR_RIGHT)
 
     # clear R
     for i in range(R_BITS):
@@ -325,6 +326,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                             ("O1", o1_value),
                             ("O2", o2_value),
                             ("ABSR", absr_value),
+                            ("L", l_value),
                         ]:
                     print(f"{name} {value:04x} ", end="")
                 print(f"op {op.name}")
@@ -401,6 +403,8 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 in_index += 1
             elif op == Operation.SEND_O1_TO_OUTPUT:
                 out_values.append(o1_value)
+            elif op == Operation.SEND_L_TO_OUTPUT:
+                out_values.append(l_value)
             elif op == Operation.ASSERT_A_HIGH_ZERO:
                 assert (a_value >> ALL_BITS) == 0
             elif op == Operation.ASSERT_A_LOW_ZERO:
@@ -435,8 +439,11 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
 def main() -> None:
     r = random.Random(1)
     debug = 0
+    num_multiply_tests = 100
+    num_filter_tests = 100
+    num_compare_tests = 1000
     ops: OperationList = []
-    for i in range(100):
+    for i in range(num_multiply_tests):
         if debug > 0:
             print(f"Test multiply accumulate {i}")
         ops = []
@@ -477,7 +484,7 @@ def main() -> None:
         else:
             assert error < VERY_SMALL_ERROR
 
-    for i in range(100):
+    for i in range(num_filter_tests):
         if debug > 0:
             print(f"Test filter {i}")
         ops = []
@@ -534,39 +541,51 @@ def main() -> None:
     bandpass_filter(ops, UPPER_FREQUENCY, FILTER_WIDTH)
     rc_filter(ops)
     ops.append(Operation.SEND_O1_TO_OUTPUT)
+    ops.append(Operation.SEND_L_TO_OUTPUT)
     in_values = []
-    expect_out_values = []
+    expect_bandpass_out_values = []
+    expect_rc_out_values = []
     count = 0
     trigger = False
-    test_size = 1000
     with open("debug_2", "rt", encoding="utf-8") as fd:
         for line in fd:
             fields = line.split()
             in_values.append(make_fixed(float(fields[1])))
-            expect_out_values.append(make_fixed(float(fields[2])))
+            expect_bandpass_out_values.append(make_fixed(float(fields[2])))
+            expect_rc_out_values.append(make_fixed(float(fields[4])))
             if in_values[-1] != 0:
                 trigger = True
             if trigger:
                 count += 1
-                if count > test_size:
+                if count >= num_compare_tests:
                     break
 
     in_values = in_values[-count:]
-    expect_out_values = expect_out_values[-count:]
+    expect_bandpass_out_values = expect_bandpass_out_values[-count:]
+    expect_rc_out_values = expect_rc_out_values[-count:]
     out_values = run_ops(ops, in_values, debug > 1)
+    actual_bandpass_out_values = [out_values[i] for i in range(0, len(out_values), 2)]
+    actual_rc_out_values = [out_values[i] for i in range(1, len(out_values), 2)]
+
     for i in range(len(in_values)):
         if debug > 0:
             print(f"step {i}", end="")
             for (name, value) in [
                         ("in", in_values[i]),
-                        ("exp", expect_out_values[i]),
-                        ("out", out_values[i]),
+                        ("expb", expect_bandpass_out_values[i]),
+                        ("outb", actual_bandpass_out_values[i]),
+                        ("expr", expect_rc_out_values[i]),
+                        ("outr", actual_rc_out_values[i]),
                     ]:
                 fvalue = make_float(value)
                 print(f" {name} {value:04x} {fvalue:1.6f} ", end="")
-        error = abs(make_float(expect_out_values[i]) - make_float(out_values[i]))
+        error = abs(make_float(expect_bandpass_out_values[i]) - make_float(actual_bandpass_out_values[i]))
         if debug > 0:
-            print(f" error {error:1.6f}")
+            print(f" errb {error:1.6f}")
+        assert error < ACCEPTABLE_ERROR
+        error = abs(make_float(expect_rc_out_values[i]) - make_float(actual_rc_out_values[i]))
+        if debug > 0:
+            print(f" errr {error:1.6f}")
         assert error < ACCEPTABLE_ERROR
     print(f"Test: error {error:1.6f}")
 
