@@ -1,6 +1,7 @@
 
 
 SAMPLE_RATE = 48000
+SYSTEM_CLOCK_FREQUENCY = 96e6
 FRACTIONAL_BITS = 14
 NON_FRACTIONAL_BITS = 2
 ALL_BITS = FRACTIONAL_BITS + NON_FRACTIONAL_BITS
@@ -46,6 +47,7 @@ class Operation(enum.Enum):
     LOAD_I0_FROM_INPUT = enum.auto()
     SEND_O1_TO_OUTPUT = enum.auto()
     SEND_L_TO_OUTPUT = enum.auto()
+    SEND_R_SIGN_TO_OUTPUT = enum.auto()
     SET_REG_OUT_TO_I0 = enum.auto()
     SET_REG_OUT_TO_I1 = enum.auto()
     SET_REG_OUT_TO_I2 = enum.auto()
@@ -289,6 +291,28 @@ def rc_filter(ops: OperationList) -> None:
     for i in range(R_BITS):
         ops.append(Operation.SHIFT_R_RIGHT)
 
+def demodulator(ops: OperationList) -> None:
+    for frequency in [UPPER_FREQUENCY, LOWER_FREQUENCY]:
+        bandpass_filter(ops, frequency, FILTER_WIDTH)
+        rc_filter(ops)
+        ops.append(Operation.SEND_O1_TO_OUTPUT)
+        ops.append(Operation.SEND_L_TO_OUTPUT)
+        ops.append(Operation.BANK_SWITCH)
+
+    # compare L and LS
+    ops.append(Operation.ASSERT_R_ZERO)
+    fixed_multiply(ops, Register.L, -1.0)
+    ops.append(Operation.BANK_SWITCH)
+    fixed_multiply(ops, Register.L, 1.0)
+    ops.append(Operation.BANK_SWITCH)
+
+    # if r_sign is 1, then the upper frequency signal is stronger
+    ops.append(Operation.SEND_R_SIGN_TO_OUTPUT)
+
+    # clear R
+    for i in range(R_BITS):
+        ops.append(Operation.SHIFT_R_RIGHT)
+
 def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> None:
     # For testing: multiply-accumulate
     ops.append(Operation.ASSERT_R_ZERO)
@@ -397,6 +421,8 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 out_values.append(reg_file[Register.O1])
             elif op == Operation.SEND_L_TO_OUTPUT:
                 out_values.append(reg_file[Register.L])
+            elif op == Operation.SEND_R_SIGN_TO_OUTPUT:
+                out_values.append(r_sign)
 
             elif op == Operation.ASSERT_A_HIGH_ZERO:
                 assert (reg_file[Register.A] >> ALL_BITS) == 0
@@ -515,18 +541,13 @@ def main() -> None:
 
     ops = []
     ops.append(Operation.LOAD_I0_FROM_INPUT)
-    for frequency in [UPPER_FREQUENCY, LOWER_FREQUENCY]:
-        bandpass_filter(ops, frequency, FILTER_WIDTH)
-        rc_filter(ops)
-        ops.append(Operation.SEND_O1_TO_OUTPUT)
-        ops.append(Operation.SEND_L_TO_OUTPUT)
-        ops.append(Operation.BANK_SWITCH)
+    demodulator(ops)
     move_I1_to_I2(ops)
     move_I0_to_I1(ops)
 
     in_values = []
     expect_out_values = []
-    out_values_per_in_value = 4
+    out_values_per_in_value = 5
     count = 0
     trigger = False
     with open("debug_2", "rt", encoding="utf-8") as fd:
@@ -537,6 +558,7 @@ def main() -> None:
             expect_out_values.append(make_fixed(float(fields[4])))      # Upper RC
             expect_out_values.append(make_fixed(float(fields[3])))      # Lower bandpass
             expect_out_values.append(make_fixed(float(fields[5])))      # Lower RC
+            expect_out_values.append(float(fields[4]) > float(fields[5])) # Out bit
             if in_values[-1] != 0:
                 trigger = True
             if trigger:
@@ -548,17 +570,18 @@ def main() -> None:
     expect_out_values = expect_out_values[-count * out_values_per_in_value:]
     out_values = run_ops(ops, in_values, debug > 1)
     assert len(out_values) == len(expect_out_values)
-
     for i in range(len(in_values)):
         actual_upper_bandpass = out_values[(i * out_values_per_in_value) + 0]
         actual_upper_rc = out_values[(i * out_values_per_in_value) + 1]
         actual_lower_bandpass = out_values[(i * out_values_per_in_value) + 2]
         actual_lower_rc = out_values[(i * out_values_per_in_value) + 3]
+        actual_out_bit = out_values[(i * out_values_per_in_value) + 4]
 
         expect_upper_bandpass = expect_out_values[(i * out_values_per_in_value) + 0]
         expect_upper_rc = expect_out_values[(i * out_values_per_in_value) + 1]
         expect_lower_bandpass = expect_out_values[(i * out_values_per_in_value) + 2]
         expect_lower_rc = expect_out_values[(i * out_values_per_in_value) + 3]
+        expect_out_bit = expect_out_values[(i * out_values_per_in_value) + 4]
 
         if debug > 0:
             print(f"step {i}", end="")
@@ -577,7 +600,13 @@ def main() -> None:
             if debug > 0:
                 print(f" x{name} {error:1.6f}")
             assert error < ACCEPTABLE_ERROR
-    print(f"Test: error {error:1.6f}")
+        assert expect_out_bit == actual_out_bit
+    
+    filter_period = (1.0 / SYSTEM_CLOCK_FREQUENCY) * len(ops) * 1e6
+    print(f"Test ok - {len(ops)} ops, period will be {filter_period:1.2f} us")
+    sample_period = (1.0 / SAMPLE_RATE) * 1e6
+    print(f"sample period is {sample_period:1.2f} us per channel")
+    assert filter_period < sample_period
 
 if __name__ == "__main__":
     main()
