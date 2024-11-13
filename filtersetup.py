@@ -23,8 +23,11 @@ class Register(enum.Enum):
     I1 = enum.auto()
     I2 = enum.auto()
     L = enum.auto()
+    LS = enum.auto()
     O1 = enum.auto()
     O2 = enum.auto()
+    O1S = enum.auto()
+    O2S = enum.auto()
     R = enum.auto()
     ZERO = enum.auto()
 
@@ -35,8 +38,14 @@ class ABSRSelect(enum.Enum):
 
 class Operation(enum.Enum):
     ADD_A_TO_R = enum.auto()
-    SHIFT_A_RIGHT = enum.auto()
-    SHIFT_R_RIGHT = enum.auto()
+    ASSERT_ABSR_IS_ABS_O1 = enum.auto()
+    ASSERT_A_HIGH_ZERO = enum.auto()
+    ASSERT_A_LOW_ZERO = enum.auto()
+    ASSERT_R_ZERO = enum.auto()
+    BANK_SWITCH = enum.auto()
+    LOAD_I0_FROM_INPUT = enum.auto()
+    SEND_O1_TO_OUTPUT = enum.auto()
+    SEND_L_TO_OUTPUT = enum.auto()
     SET_REG_OUT_TO_I0 = enum.auto()
     SET_REG_OUT_TO_I1 = enum.auto()
     SET_REG_OUT_TO_I2 = enum.auto()
@@ -48,21 +57,16 @@ class Operation(enum.Enum):
     SET_REG_OUT_TO_L_OR_ABSR = enum.auto()
     SET_REG_OUT_TO_L = enum.auto()
     SET_REG_OUT_TO_ABSR = enum.auto()
+    SETUP_ABSR_INPUT = enum.auto()
+    SHIFT_A_RIGHT = enum.auto()
+    SHIFT_ABSR_RIGHT = enum.auto()
     SHIFT_I0_RIGHT = enum.auto()
     SHIFT_I1_RIGHT = enum.auto()
     SHIFT_I2_RIGHT = enum.auto()
     SHIFT_O1_RIGHT = enum.auto()
     SHIFT_O2_RIGHT = enum.auto()
-    SHIFT_ABSR_RIGHT = enum.auto()
     SHIFT_L_RIGHT = enum.auto()
-    SETUP_ABSR_INPUT = enum.auto()
-    LOAD_I0_FROM_INPUT = enum.auto()
-    SEND_O1_TO_OUTPUT = enum.auto()
-    SEND_L_TO_OUTPUT = enum.auto()
-    ASSERT_A_HIGH_ZERO = enum.auto()
-    ASSERT_A_LOW_ZERO = enum.auto()
-    ASSERT_R_ZERO = enum.auto()
-    ASSERT_ABSR_IS_ABS_O1 = enum.auto()
+    SHIFT_R_RIGHT = enum.auto()
 
 SET_REG_OUT_TABLE = {
     # Operation.SET_REG_OUT_TO_A : Register.A,
@@ -232,8 +236,6 @@ def filter_step(ops: OperationList, a1: float, a2: float, b0: float, b2: float) 
     fixed_multiply(ops, Register.O2, -a2)
 
     move_O1_to_O2(ops)
-    move_I1_to_I2(ops)
-    move_I0_to_I1(ops)
     move_R_to_O1_and_ABSR(ops)
 
 def compute_bandpass_filter(frequency: float, width: float) -> typing.Tuple[float, float, float, float]:
@@ -383,6 +385,11 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 reg_file[SHIFT_TABLE[op]] |= reg_out << ALL_BITS
                 reg_file[SHIFT_TABLE[op]] >>= 1
 
+            elif op == Operation.BANK_SWITCH:
+                reg_file[Register.L], reg_file[Register.LS] = reg_file[Register.LS], reg_file[Register.L]
+                reg_file[Register.O1], reg_file[Register.O1S] = reg_file[Register.O1S], reg_file[Register.O1]
+                reg_file[Register.O2], reg_file[Register.O2S] = reg_file[Register.O2S], reg_file[Register.O2]
+
             elif op == Operation.LOAD_I0_FROM_INPUT:
                 reg_file[Register.I0] = in_values[in_index]
                 in_index += 1
@@ -480,6 +487,8 @@ def main() -> None:
             assert abs(o0) < 2.0
             ops.append(Operation.LOAD_I0_FROM_INPUT)
             filter_step(ops, a1, a2, b0, b2)
+            move_I1_to_I2(ops)
+            move_I0_to_I1(ops)
             ops.append(Operation.SEND_O1_TO_OUTPUT)
             expect.append(o0)
             o2 = o1
@@ -504,24 +513,30 @@ def main() -> None:
                 print(f" step {j} input {i0:1.6f} result {rf:1.6f} expected {expect[j]:1.6f} error {error:1.6f}")
             assert error < ACCEPTABLE_ERROR
 
-    print(f"filter for {UPPER_FREQUENCY} Hz")
     ops = []
     ops.append(Operation.LOAD_I0_FROM_INPUT)
-    bandpass_filter(ops, UPPER_FREQUENCY, FILTER_WIDTH)
-    rc_filter(ops)
-    ops.append(Operation.SEND_O1_TO_OUTPUT)
-    ops.append(Operation.SEND_L_TO_OUTPUT)
+    for frequency in [UPPER_FREQUENCY, LOWER_FREQUENCY]:
+        bandpass_filter(ops, frequency, FILTER_WIDTH)
+        rc_filter(ops)
+        ops.append(Operation.SEND_O1_TO_OUTPUT)
+        ops.append(Operation.SEND_L_TO_OUTPUT)
+        ops.append(Operation.BANK_SWITCH)
+    move_I1_to_I2(ops)
+    move_I0_to_I1(ops)
+
     in_values = []
-    expect_bandpass_out_values = []
-    expect_rc_out_values = []
+    expect_out_values = []
+    out_values_per_in_value = 4
     count = 0
     trigger = False
     with open("debug_2", "rt", encoding="utf-8") as fd:
         for line in fd:
             fields = line.split()
             in_values.append(make_fixed(float(fields[1])))
-            expect_bandpass_out_values.append(make_fixed(float(fields[2])))
-            expect_rc_out_values.append(make_fixed(float(fields[4])))
+            expect_out_values.append(make_fixed(float(fields[2])))      # Upper bandpass
+            expect_out_values.append(make_fixed(float(fields[4])))      # Upper RC
+            expect_out_values.append(make_fixed(float(fields[3])))      # Lower bandpass
+            expect_out_values.append(make_fixed(float(fields[5])))      # Lower RC
             if in_values[-1] != 0:
                 trigger = True
             if trigger:
@@ -530,32 +545,38 @@ def main() -> None:
                     break
 
     in_values = in_values[-count:]
-    expect_bandpass_out_values = expect_bandpass_out_values[-count:]
-    expect_rc_out_values = expect_rc_out_values[-count:]
+    expect_out_values = expect_out_values[-count * out_values_per_in_value:]
     out_values = run_ops(ops, in_values, debug > 1)
-    actual_bandpass_out_values = [out_values[i] for i in range(0, len(out_values), 2)]
-    actual_rc_out_values = [out_values[i] for i in range(1, len(out_values), 2)]
+    assert len(out_values) == len(expect_out_values)
 
     for i in range(len(in_values)):
+        actual_upper_bandpass = out_values[(i * out_values_per_in_value) + 0]
+        actual_upper_rc = out_values[(i * out_values_per_in_value) + 1]
+        actual_lower_bandpass = out_values[(i * out_values_per_in_value) + 2]
+        actual_lower_rc = out_values[(i * out_values_per_in_value) + 3]
+
+        expect_upper_bandpass = expect_out_values[(i * out_values_per_in_value) + 0]
+        expect_upper_rc = expect_out_values[(i * out_values_per_in_value) + 1]
+        expect_lower_bandpass = expect_out_values[(i * out_values_per_in_value) + 2]
+        expect_lower_rc = expect_out_values[(i * out_values_per_in_value) + 3]
+
         if debug > 0:
             print(f"step {i}", end="")
-            for (name, value) in [
-                        ("in", in_values[i]),
-                        ("expb", expect_bandpass_out_values[i]),
-                        ("outb", actual_bandpass_out_values[i]),
-                        ("expr", expect_rc_out_values[i]),
-                        ("outr", actual_rc_out_values[i]),
-                    ]:
-                fvalue = make_float(value)
-                print(f" {name} {value:04x} {fvalue:1.6f} ", end="")
-        error = abs(make_float(expect_bandpass_out_values[i]) - make_float(actual_bandpass_out_values[i]))
-        if debug > 0:
-            print(f" errb {error:1.6f}")
-        assert error < ACCEPTABLE_ERROR
-        error = abs(make_float(expect_rc_out_values[i]) - make_float(actual_rc_out_values[i]))
-        if debug > 0:
-            print(f" errr {error:1.6f}")
-        assert error < ACCEPTABLE_ERROR
+            print(f" in {in_values[i]:04x}", end="")
+        for (name, expect, actual) in [
+                    ("bh", expect_upper_bandpass, actual_upper_bandpass),
+                    ("rh", expect_upper_rc, actual_upper_rc),
+                    ("bl", expect_lower_bandpass, actual_lower_bandpass),
+                    ("rl", expect_lower_rc, actual_lower_rc),
+                ]:
+            fexpect = make_float(expect)
+            factual = make_float(actual)
+            if debug > 0:
+                print(f" e{name} {expect:04x} {fexpect:1.6f} a{name} {actual:04x} {factual:1.6f}", end="")
+            error = abs(fexpect - factual)
+            if debug > 0:
+                print(f" x{name} {error:1.6f}")
+            assert error < ACCEPTABLE_ERROR
     print(f"Test: error {error:1.6f}")
 
 if __name__ == "__main__":
