@@ -27,12 +27,6 @@ class Register(enum.Enum):
     ABSR = enum.auto()
     L = enum.auto()
 
-class Constant(enum.Enum):
-    A1 = enum.auto()
-    A2 = enum.auto()
-    B0 = enum.auto()
-    B2 = enum.auto()
-
 class ABSRSelect(enum.Enum):
     PASSTHROUGH = enum.auto()
     NEGATE = enum.auto()
@@ -50,12 +44,16 @@ class Operation(enum.Enum):
     SET_REG_OUT_TO_ZERO = enum.auto()
     SET_REG_OUT_TO_A_SIGN = enum.auto()
     SET_REG_OUT_TO_R = enum.auto()
+    SET_REG_OUT_TO_L_OR_ABSR = enum.auto()
+    SET_REG_OUT_TO_L = enum.auto()
+    SET_REG_OUT_TO_ABSR = enum.auto()
     SHIFT_I0_RIGHT = enum.auto()
     SHIFT_I1_RIGHT = enum.auto()
     SHIFT_I2_RIGHT = enum.auto()
     SHIFT_O1_RIGHT = enum.auto()
     SHIFT_O2_RIGHT = enum.auto()
     SHIFT_ABSR_RIGHT = enum.auto()
+    SHIFT_L_RIGHT = enum.auto()
     SETUP_ABSR_INPUT = enum.auto()
     LOAD_I0_FROM_INPUT = enum.auto()
     SEND_O1_TO_OUTPUT = enum.auto()
@@ -86,6 +84,8 @@ def set_output_register(ops: OperationList, source: Register) -> None:
         Register.I2: Operation.SET_REG_OUT_TO_I2,
         Register.O1: Operation.SET_REG_OUT_TO_O1,
         Register.O2: Operation.SET_REG_OUT_TO_O2,
+        Register.L: Operation.SET_REG_OUT_TO_L,
+        Register.ABSR: Operation.SET_REG_OUT_TO_ABSR,
         }[source])
 
 def shift_register(ops: OperationList, source: Register) -> None:
@@ -94,6 +94,8 @@ def shift_register(ops: OperationList, source: Register) -> None:
         Register.I2: Operation.SHIFT_I2_RIGHT,
         Register.O1: Operation.SHIFT_O1_RIGHT,
         Register.O2: Operation.SHIFT_O2_RIGHT,
+        Register.L: Operation.SHIFT_L_RIGHT,
+        Register.ABSR: Operation.SHIFT_ABSR_RIGHT,
         }[source])
 
 def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
@@ -155,6 +157,24 @@ def move_R_to_O1_and_ABSR(ops: OperationList) -> None:
     ops.append(Operation.ASSERT_R_ZERO)
     ops.append(Operation.ASSERT_ABSR_IS_ABS_O1)
 
+def move_R_to_L(ops: OperationList) -> None:
+    # Discard low bits of R
+    for i in range(FRACTIONAL_BITS):
+        ops.append(Operation.SHIFT_R_RIGHT)
+
+    # Move result bits of R to L
+    ops.append(Operation.SET_REG_OUT_TO_R)
+    for i in range(ALL_BITS):
+        ops.append(Operation.SHIFT_L_RIGHT)
+        ops.append(Operation.SHIFT_R_RIGHT)
+
+    # Discard high bits of R (if any)
+    for i in range(R_BITS - (FRACTIONAL_BITS + ALL_BITS)):
+        ops.append(Operation.SHIFT_R_RIGHT)
+
+    # R should be zero again here!
+    ops.append(Operation.ASSERT_R_ZERO)
+
 def move_O1_to_O2(ops: OperationList) -> None:
     ops.append(Operation.SET_REG_OUT_TO_O1)
     for i in range(ALL_BITS):
@@ -177,8 +197,6 @@ def filter_step(ops: OperationList, a1: float, a2: float, b0: float, b2: float) 
     # R should be zero here!
     ops.append(Operation.ASSERT_R_ZERO)
 
-    ops.append(Operation.LOAD_I0_FROM_INPUT)
-
     # R += i0 * b0
     fixed_multiply(ops, Register.I0, b0)
     # R += i2 * b2
@@ -192,8 +210,6 @@ def filter_step(ops: OperationList, a1: float, a2: float, b0: float, b2: float) 
     move_I1_to_I2(ops)
     move_I0_to_I1(ops)
     move_R_to_O1_and_ABSR(ops)
-
-    ops.append(Operation.SEND_O1_TO_OUTPUT)
 
 def compute_bandpass_filter(frequency: float, width: float) -> typing.Tuple[float, float, float, float]:
     # Compute filter parameters
@@ -213,22 +229,25 @@ def compute_bandpass_filter(frequency: float, width: float) -> typing.Tuple[floa
 def bandpass_filter(ops: OperationList, frequency: float, width: float) -> None:
     filter_step(ops, *compute_bandpass_filter(frequency, width))
 
-def rc_filter(ops: OperationList, frequency: float, width: float) -> None:
+def rc_filter(ops: OperationList) -> None:
     bit_samples = SAMPLE_RATE / BAUD_RATE
     # This is the time constant, like k = 1 / RC for a capacitor discharging
     # Note: Level is y = exp(-kt) at time t, assuming level was 1.0 at time 0
     # The level should be reduced from 1.0 to RC_DECAY_PER_BIT during each bit
     time_constant = math.log(RC_DECAY_PER_BIT) / -bit_samples
     # Each transition from t to t+1 is a multiplication by exp(-k)
-    decay = make_fixed(math.exp(-time_constant))
+    decay = math.exp(-time_constant)
 
     # decay L register
     ops.append(Operation.ASSERT_R_ZERO)
     fixed_multiply(ops, Register.L, decay)
     move_R_to_L(ops)
+    ops.append(Operation.ASSERT_R_ZERO)
+
+    # we'll be shifting back into ABSR, so make sure that there won't be any negation
+    ops.append(Operation.SETUP_ABSR_INPUT)
 
     # compare L and ABSR
-    ops.append(Operation.ASSERT_R_ZERO)
     fixed_multiply(ops, Register.L, 1.0)
     fixed_multiply(ops, Register.ABSR, -1.0)
 
@@ -286,6 +305,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
     i2_value = 0
     o1_value = 0
     o2_value = 0
+    l_value = 0
     neg_value = 0
     in_index = 0
     absr_select = ABSRSelect.PASSTHROUGH
@@ -309,14 +329,18 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                     print(f"{name} {value:04x} ", end="")
                 print(f"op {op.name}")
                 
+            r_sign = (r_value >> (R_BITS - 1)) & 1
+            a_sign = (a_value >> (A_BITS - 1)) & 1
             reg_out = {
                     Register.I0: i0_value,
                     Register.I1: i1_value,
                     Register.I2: i2_value,
                     Register.O1: o1_value,
                     Register.O2: o2_value,
-                    Register.A_SIGN: a_value >> (A_BITS - 1),
+                    Register.A_SIGN: a_sign,
                     Register.R: r_value,
+                    Register.L: l_value,
+                    Register.ABSR: absr_value,
                     Register.ZERO: 0,
                     }[reg_select] & 1
             if op == Operation.ADD_A_TO_R:
@@ -343,6 +367,17 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 reg_select = Register.A_SIGN
             elif op == Operation.SET_REG_OUT_TO_R:
                 reg_select = Register.R
+            elif op == Operation.SET_REG_OUT_TO_L:
+                reg_select = Register.L
+            elif op == Operation.SET_REG_OUT_TO_ABSR:
+                reg_select = Register.ABSR
+            elif op == Operation.SET_REG_OUT_TO_L_OR_ABSR:
+                # if R is negative, then ABSR > L: so, L = ABSR
+                # if R is non-negative, then ABSR <= L: so, L = L
+                if r_sign:
+                    reg_select = Register.ABSR
+                else:
+                    reg_select = Register.L
             elif op == Operation.SHIFT_I0_RIGHT:
                 i0_value |= reg_out << ALL_BITS
                 i0_value = i0_value >> 1
@@ -358,6 +393,9 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
             elif op == Operation.SHIFT_O2_RIGHT:
                 o2_value |= reg_out << ALL_BITS
                 o2_value = o2_value >> 1
+            elif op == Operation.SHIFT_L_RIGHT:
+                l_value |= reg_out << ALL_BITS
+                l_value = l_value >> 1
             elif op == Operation.LOAD_I0_FROM_INPUT:
                 i0_value = in_values[in_index]
                 in_index += 1
@@ -372,7 +410,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
             elif op == Operation.ASSERT_ABSR_IS_ABS_O1:
                 assert abs(make_float(o1_value)) == make_float(absr_value)
             elif op == Operation.SETUP_ABSR_INPUT:
-                if r_value >> (R_BITS - 1) & 1:
+                if r_sign:
                     absr_select = ABSRSelect.NEGATE
                 else:
                     absr_select = ABSRSelect.PASSTHROUGH
@@ -464,7 +502,9 @@ def main() -> None:
                 print(f" o2 = {make_fixed(o2):04x} * {make_fixed(-a2):04x}", end="")
                 print(f" -> o0 = {make_fixed(o0):04x}")
             assert abs(o0) < 2.0
+            ops.append(Operation.LOAD_I0_FROM_INPUT)
             filter_step(ops, a1, a2, b0, b2)
+            ops.append(Operation.SEND_O1_TO_OUTPUT)
             expect.append(o0)
             o2 = o1
             o1 = o0
@@ -490,7 +530,10 @@ def main() -> None:
 
     print(f"filter for {UPPER_FREQUENCY} Hz")
     ops = []
+    ops.append(Operation.LOAD_I0_FROM_INPUT)
     bandpass_filter(ops, UPPER_FREQUENCY, FILTER_WIDTH)
+    rc_filter(ops)
+    ops.append(Operation.SEND_O1_TO_OUTPUT)
     in_values = []
     expect_out_values = []
     count = 0
