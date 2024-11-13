@@ -16,16 +16,17 @@ VERY_SMALL_ERROR = (1.0 / (1 << FRACTIONAL_BITS))
 import enum, math, typing, random
 
 class Register(enum.Enum):
+    A = enum.auto()
+    A_SIGN = enum.auto()
+    ABSR = enum.auto()
     I0 = enum.auto()
     I1 = enum.auto()
     I2 = enum.auto()
+    L = enum.auto()
     O1 = enum.auto()
     O2 = enum.auto()
-    A_SIGN = enum.auto()
     R = enum.auto()
     ZERO = enum.auto()
-    ABSR = enum.auto()
-    L = enum.auto()
 
 class ABSRSelect(enum.Enum):
     PASSTHROUGH = enum.auto()
@@ -62,6 +63,33 @@ class Operation(enum.Enum):
     ASSERT_A_LOW_ZERO = enum.auto()
     ASSERT_R_ZERO = enum.auto()
     ASSERT_ABSR_IS_ABS_O1 = enum.auto()
+
+SET_REG_OUT_TABLE = {
+    # Operation.SET_REG_OUT_TO_A : Register.A,
+    Operation.SET_REG_OUT_TO_A_SIGN : Register.A_SIGN,
+    Operation.SET_REG_OUT_TO_ABSR : Register.ABSR,
+    Operation.SET_REG_OUT_TO_I0 : Register.I0,
+    Operation.SET_REG_OUT_TO_I1 : Register.I1,
+    Operation.SET_REG_OUT_TO_I2 : Register.I2,
+    Operation.SET_REG_OUT_TO_L : Register.L,
+    Operation.SET_REG_OUT_TO_O1 : Register.O1,
+    Operation.SET_REG_OUT_TO_O2 : Register.O2,
+    Operation.SET_REG_OUT_TO_R : Register.R,
+    Operation.SET_REG_OUT_TO_ZERO : Register.ZERO,
+}
+
+SHIFT_TABLE = {
+    Operation.SHIFT_A_RIGHT : Register.A,
+    Operation.SHIFT_ABSR_RIGHT : Register.ABSR,
+    Operation.SHIFT_I0_RIGHT : Register.I0,
+    Operation.SHIFT_I1_RIGHT : Register.I1,
+    Operation.SHIFT_I2_RIGHT : Register.I2,
+    Operation.SHIFT_L_RIGHT : Register.L,
+    Operation.SHIFT_O1_RIGHT : Register.O1,
+    Operation.SHIFT_O2_RIGHT : Register.O2,
+    Operation.SHIFT_R_RIGHT : Register.R,
+    # Operation.SHIFT_ZERO_RIGHT : Register.ZERO,
+}
    
 OperationList = typing.List[Operation]
 
@@ -80,24 +108,20 @@ def make_float(ivalue: int) -> float:
     return ivalue / float(1 << FRACTIONAL_BITS)
 
 def set_output_register(ops: OperationList, source: Register) -> None:
-    ops.append({
-        Register.I0: Operation.SET_REG_OUT_TO_I0,
-        Register.I2: Operation.SET_REG_OUT_TO_I2,
-        Register.O1: Operation.SET_REG_OUT_TO_O1,
-        Register.O2: Operation.SET_REG_OUT_TO_O2,
-        Register.L: Operation.SET_REG_OUT_TO_L,
-        Register.ABSR: Operation.SET_REG_OUT_TO_ABSR,
-        }[source])
+    for (op, reg) in SET_REG_OUT_TABLE.items():
+        if reg == source:
+            ops.append(op)
+            return
 
-def shift_register(ops: OperationList, source: Register) -> None:
-    ops.append({
-        Register.I0: Operation.SHIFT_I0_RIGHT,
-        Register.I2: Operation.SHIFT_I2_RIGHT,
-        Register.O1: Operation.SHIFT_O1_RIGHT,
-        Register.O2: Operation.SHIFT_O2_RIGHT,
-        Register.L: Operation.SHIFT_L_RIGHT,
-        Register.ABSR: Operation.SHIFT_ABSR_RIGHT,
-        }[source])
+    raise ValueError(f"Register {source.name} is not in SET_REG_OUT_TABLE")
+
+def shift_register(ops: OperationList, target: Register) -> None:
+    for (op, reg) in SHIFT_TABLE.items():
+        if reg == target:
+            ops.append(op)
+            return
+
+    raise ValueError(f"Register {target.name} is not in SHIFT_TABLE")
 
 def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
     ivalue = make_fixed(value)
@@ -297,82 +321,27 @@ def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[fl
     ops.append(Operation.SEND_O1_TO_OUTPUT)
 
 def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
-    out_values = []
-    reg_select = Register.I0
-    a_value = 0
-    r_value = 0
-    i0_value = 0
-    i1_value = 0
-    i2_value = 0
-    o1_value = 0
-    o2_value = 0
-    l_value = 0
-    neg_value = 0
+    out_values: typing.List[int] = []
+    reg_file: typing.Dict[Register, int] = {
+        register: 0 for register in Register
+    }
     in_index = 0
+    reg_select = Register.I0
     absr_select = ABSRSelect.PASSTHROUGH
-    absr_value = 0
     while in_index < len(in_values):
         for op in ops:
             if debug:
-                for (name, value) in [
-                            ("A", a_value),
-                            ("R", r_value),
-                        ]:
-                    print(f"{name} {value:08x} ", end="")
-                for (name, value) in [
-                            ("I0", i0_value),
-                            ("I1", i1_value),
-                            ("I2", i2_value),
-                            ("O1", o1_value),
-                            ("O2", o2_value),
-                            ("ABSR", absr_value),
-                            ("L", l_value),
-                        ]:
-                    print(f"{name} {value:04x} ", end="")
+                for (register, value) in reg_file.items():
+                    print(f"{register.name} {value:04x} ", end="")
                 print(f"op {op.name}")
                 
-            r_sign = (r_value >> (R_BITS - 1)) & 1
-            a_sign = (a_value >> (A_BITS - 1)) & 1
-            reg_out = {
-                    Register.I0: i0_value,
-                    Register.I1: i1_value,
-                    Register.I2: i2_value,
-                    Register.O1: o1_value,
-                    Register.O2: o2_value,
-                    Register.A_SIGN: a_sign,
-                    Register.R: r_value,
-                    Register.L: l_value,
-                    Register.ABSR: absr_value,
-                    Register.ZERO: 0,
-                    }[reg_select] & 1
-            if op == Operation.ADD_A_TO_R:
-                r_value += a_value
-                r_value &= (1 << R_BITS) - 1
-            elif op == Operation.SHIFT_A_RIGHT:
-                a_value |= reg_out << A_BITS
-                a_value = a_value >> 1
-            elif op == Operation.SHIFT_R_RIGHT:
-                r_value = r_value >> 1
-            elif op == Operation.SET_REG_OUT_TO_I0:
-                reg_select = Register.I0
-            elif op == Operation.SET_REG_OUT_TO_I1:
-                reg_select = Register.I1
-            elif op == Operation.SET_REG_OUT_TO_I2:
-                reg_select = Register.I2
-            elif op == Operation.SET_REG_OUT_TO_O1:
-                reg_select = Register.O1
-            elif op == Operation.SET_REG_OUT_TO_O2:
-                reg_select = Register.O2
-            elif op == Operation.SET_REG_OUT_TO_ZERO:
-                reg_select = Register.ZERO
-            elif op == Operation.SET_REG_OUT_TO_A_SIGN:
+            r_sign = (reg_file[Register.R] >> (R_BITS - 1)) & 1
+            a_sign = (reg_file[Register.A] >> (A_BITS - 1)) & 1
+            reg_file[Register.A_SIGN] = a_sign
+            reg_out = reg_file[reg_select] & 1
+
+            if op == Operation.SET_REG_OUT_TO_A_SIGN:
                 reg_select = Register.A_SIGN
-            elif op == Operation.SET_REG_OUT_TO_R:
-                reg_select = Register.R
-            elif op == Operation.SET_REG_OUT_TO_L:
-                reg_select = Register.L
-            elif op == Operation.SET_REG_OUT_TO_ABSR:
-                reg_select = Register.ABSR
             elif op == Operation.SET_REG_OUT_TO_L_OR_ABSR:
                 # if R is negative, then ABSR > L: so, L = ABSR
                 # if R is non-negative, then ABSR <= L: so, L = L
@@ -380,44 +349,23 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                     reg_select = Register.ABSR
                 else:
                     reg_select = Register.L
-            elif op == Operation.SHIFT_I0_RIGHT:
-                i0_value |= reg_out << ALL_BITS
-                i0_value = i0_value >> 1
-            elif op == Operation.SHIFT_I1_RIGHT:
-                i1_value |= reg_out << ALL_BITS
-                i1_value = i1_value >> 1
-            elif op == Operation.SHIFT_I2_RIGHT:
-                i2_value |= reg_out << ALL_BITS
-                i2_value = i2_value >> 1
-            elif op == Operation.SHIFT_O1_RIGHT:
-                o1_value |= reg_out << ALL_BITS
-                o1_value = o1_value >> 1
-            elif op == Operation.SHIFT_O2_RIGHT:
-                o2_value |= reg_out << ALL_BITS
-                o2_value = o2_value >> 1
-            elif op == Operation.SHIFT_L_RIGHT:
-                l_value |= reg_out << ALL_BITS
-                l_value = l_value >> 1
-            elif op == Operation.LOAD_I0_FROM_INPUT:
-                i0_value = in_values[in_index]
-                in_index += 1
-            elif op == Operation.SEND_O1_TO_OUTPUT:
-                out_values.append(o1_value)
-            elif op == Operation.SEND_L_TO_OUTPUT:
-                out_values.append(l_value)
-            elif op == Operation.ASSERT_A_HIGH_ZERO:
-                assert (a_value >> ALL_BITS) == 0
-            elif op == Operation.ASSERT_A_LOW_ZERO:
-                assert (a_value & ((1 << ALL_BITS) - 1)) == 0
-            elif op == Operation.ASSERT_R_ZERO:
-                assert r_value == 0
-            elif op == Operation.ASSERT_ABSR_IS_ABS_O1:
-                assert abs(make_float(o1_value)) == make_float(absr_value)
+            elif op in SET_REG_OUT_TABLE:
+                reg_select = SET_REG_OUT_TABLE[op]
+
+            elif op == Operation.ADD_A_TO_R:
+                reg_file[Register.R] += reg_file[Register.A]
+                reg_file[Register.R] &= (1 << R_BITS) - 1
             elif op == Operation.SETUP_ABSR_INPUT:
                 if r_sign:
                     absr_select = ABSRSelect.NEGATE
                 else:
                     absr_select = ABSRSelect.PASSTHROUGH
+
+            elif op == Operation.SHIFT_A_RIGHT:
+                reg_file[Register.A] |= reg_out << A_BITS
+                reg_file[Register.A] >>= 1
+            elif op == Operation.SHIFT_R_RIGHT:
+                reg_file[Register.R] >>= 1
             elif op == Operation.SHIFT_ABSR_RIGHT:
                 if absr_select == ABSRSelect.PASSTHROUGH:
                     absr_in = reg_out
@@ -429,8 +377,29 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                     absr_in = 3 - reg_out
                     if not (absr_in & 2):
                         absr_select = ABSRSelect.NEGATE
-                absr_value |= (absr_in & 1) << ALL_BITS
-                absr_value = absr_value >> 1
+                reg_file[Register.ABSR] |= (absr_in & 1) << ALL_BITS
+                reg_file[Register.ABSR] >>= 1
+            elif op in SHIFT_TABLE:
+                reg_file[SHIFT_TABLE[op]] |= reg_out << ALL_BITS
+                reg_file[SHIFT_TABLE[op]] >>= 1
+
+            elif op == Operation.LOAD_I0_FROM_INPUT:
+                reg_file[Register.I0] = in_values[in_index]
+                in_index += 1
+            elif op == Operation.SEND_O1_TO_OUTPUT:
+                out_values.append(reg_file[Register.O1])
+            elif op == Operation.SEND_L_TO_OUTPUT:
+                out_values.append(reg_file[Register.L])
+
+            elif op == Operation.ASSERT_A_HIGH_ZERO:
+                assert (reg_file[Register.A] >> ALL_BITS) == 0
+            elif op == Operation.ASSERT_A_LOW_ZERO:
+                assert (reg_file[Register.A] & ((1 << ALL_BITS) - 1)) == 0
+            elif op == Operation.ASSERT_R_ZERO:
+                assert reg_file[Register.R] == 0
+            elif op == Operation.ASSERT_ABSR_IS_ABS_O1:
+                assert abs(make_float(reg_file[Register.O1])) == make_float(abs(reg_file[Register.ABSR]))
+
             else:
                 assert False, op.name
 
