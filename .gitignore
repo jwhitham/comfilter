@@ -5,6 +5,7 @@ sox-14.4.2
 *.o
 debug_1
 debug_2
+demodulator
 output
 test_vector
 *.png
