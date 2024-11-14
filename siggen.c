@@ -15,7 +15,7 @@
 static void generate(FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_debug)
 {
     t_header        header;
-    const uint32_t  sample_rate = 48000;
+    const uint32_t  sample_rate = SAMPLE_RATE;
     const uint32_t  bits_per_byte = 8;
     const uint32_t  num_bits = (num_bytes + 1) * (bits_per_byte + 2);
     const uint32_t  samples_per_bit = sample_rate / BAUD_RATE;

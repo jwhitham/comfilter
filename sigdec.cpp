@@ -10,16 +10,12 @@
 
 #include "wave.h"
 #include "settings.h"
+#include "test_vector.h"
 
 static constexpr size_t BLOCK_SIZE = 1 << 14;
-static constexpr double RC_DECAY_PER_BIT = 0.1;
-static constexpr double FILTER_WIDTH = 100;
+static constexpr std::int32_t UNUSED_BITS = 32 - NON_FRACTIONAL_BITS - FRACTIONAL_BITS;
 
 namespace {
-
-static constexpr std::uint64_t NON_FRACTIONAL_BITS = 2;
-static constexpr std::uint64_t FRACTIONAL_BITS = 14;
-static constexpr std::uint64_t UNUSED_BITS = 64 - NON_FRACTIONAL_BITS - FRACTIONAL_BITS;
 
 struct fixed_t {
 public:
@@ -35,7 +31,7 @@ public:
             exit(1);
         }
         value *= static_cast<double>(1 << FRACTIONAL_BITS);
-        m_bits = static_cast<std::int64_t>(floor(value + 0.5));
+        m_bits = static_cast<std::int32_t>(floor(value + 0.5));
         m_bits = m_bits << UNUSED_BITS;
         if (negative) {
             m_bits = -m_bits;
@@ -46,7 +42,7 @@ public:
     fixed_t& operator=(const fixed_t&) = default;
 
     fixed_t(std::int16_t value) {
-        m_bits = static_cast<std::int64_t>(value) << 48;
+        m_bits = static_cast<std::int32_t>(value) << 16;
         m_bits = m_bits >> NON_FRACTIONAL_BITS;
         m_bits = (m_bits >> UNUSED_BITS) << UNUSED_BITS;
     }
@@ -91,19 +87,19 @@ public:
     }
 
     double to_double() const {
-        double value = static_cast<double>(abs().m_bits)/ static_cast<double>(one);
+        constexpr std::int32_t one{static_cast<std::int32_t>(1) << (UNUSED_BITS + FRACTIONAL_BITS)};
+        double value = static_cast<double>(abs().m_bits) / static_cast<double>(one);
         if (m_bits < 0) {
             value = -value;
         }
         return value;
     }
 
-    unsigned internal() const {
-        return static_cast<unsigned>(static_cast<std::uint64_t>(m_bits) >> UNUSED_BITS);
+    std::int32_t internal() const {
+        return m_bits;
     }
 private:
-    std::int64_t m_bits{0};
-    static constexpr std::int64_t one{static_cast<std::int64_t>(1) << (UNUSED_BITS + FRACTIONAL_BITS)};
+    std::int32_t m_bits{0};
 };
 
 struct my_filter_state_t {
@@ -302,7 +298,7 @@ static void serial_decode(
     }
 }
 
-static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
+static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_test_vector, FILE* fd_debug)
 {
     t_header        header;
 
@@ -386,6 +382,17 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_debug)
                       (size_t) num_samples,
                       fd_out);
 
+        // test vector
+        for (i = 0; fd_test_vector && (i < ((size_t) num_samples)); i++) {
+            test_vector_t test_vector;
+            test_vector.input = input[i].internal();
+            test_vector.upper_bandpass = upper_output[i].internal();
+            test_vector.lower_bandpass = lower_output[i].internal();
+            test_vector.upper_rc = upper_levels[i].internal();
+            test_vector.lower_rc = lower_levels[i].internal();
+            fwrite(&test_vector, sizeof(test_vector), 1, fd_test_vector);
+        }
+
         // Debug output shows filtering and detection
         for (i = 0; fd_debug && (i < ((size_t) num_samples)); i++) {
             fprintf(fd_debug, "%7.5f ", (double) sample_count / (double) header.sample_rate); // time
@@ -421,10 +428,11 @@ int main(int argc, char ** argv)
 {
     FILE *          fd_in = nullptr;
     FILE *          fd_out = nullptr;
+    FILE *          fd_test_vector = nullptr;
     FILE *          fd_debug = nullptr;
 
-    if ((argc < 3) || (argc > 4)) {
-        fprintf(stderr, "Usage: sigdec <signal.wav> <data output> [debug output]\n");
+    if ((argc < 3) || (argc > 5)) {
+        fprintf(stderr, "Usage: sigdec <signal.wav> <data output> [test vector output [debug output]]\n");
         return 1;
     }
 
@@ -439,13 +447,23 @@ int main(int argc, char ** argv)
         return 1;
     }
     if (argc > 3) {
-        fd_debug = fopen(argv[3], "wt");
+        fd_test_vector = fopen(argv[3], "wb");
+        if (!fd_test_vector) {
+            perror("open (write)");
+            return 1;
+        }
+    }
+    if (argc > 4) {
+        fd_debug = fopen(argv[4], "wt");
         if (!fd_debug) {
             perror("open (write)");
             return 1;
         }
     }
-    generate(fd_in, fd_out, fd_debug);
+    generate(fd_in, fd_out, fd_test_vector, fd_debug);
+    if (fd_test_vector) {
+        fclose(fd_test_vector);
+    }
     if (fd_debug) {
         fclose(fd_debug);
     }

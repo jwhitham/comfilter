@@ -6,6 +6,7 @@ sox-14.4.2
 debug_1
 debug_2
 output
+test_vector
 *.png
 fpga/test/generated/*
 work-obj93.cf
