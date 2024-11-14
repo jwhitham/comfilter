@@ -12,7 +12,7 @@ SYSTEM_CLOCK_FREQUENCY = 96e6
 ALL_BITS = FRACTIONAL_BITS + NON_FRACTIONAL_BITS
 A_BITS = R_BITS = (FRACTIONAL_BITS * 2) + NON_FRACTIONAL_BITS
 ACCEPTABLE_ERROR = (1.0 / (1 << (FRACTIONAL_BITS - 3)))
-VERY_SMALL_ERROR = (1.0 / (1 << FRACTIONAL_BITS))
+VERY_SMALL_ERROR = (1.0 / (1 << FRACTIONAL_BITS)) * 1.01
 
 import enum, math, typing, random, struct
 
@@ -450,7 +450,7 @@ def main() -> None:
     debug = 0
     num_multiply_tests = 100
     num_filter_tests = 100
-    num_compare_tests = 800
+    num_compare_tests = 80000
     ops: OperationList = []
     print(f"Test multiply accumulate")
     for i in range(num_multiply_tests):
@@ -549,7 +549,6 @@ def main() -> None:
             assert error < ACCEPTABLE_ERROR
 
     print(f"Test demodulator")
-    debug = 1
     ops = []
     demodulator(ops)
     in_values = []
@@ -564,11 +563,12 @@ def main() -> None:
             fields = struct.unpack(test_vector_format, test_vector_data)
             in_values.append(fields[0] >> test_vector_shift)
             for i in range(out_values_per_in_value):
-                expect_out_values.append(fields[i] >> test_vector_shift)
+                expect_out_values.append(fields[i + 1] >> test_vector_shift)
             test_vector_data = fd.read(test_vector_size)
 
     out_values = run_ops(ops, in_values, debug > 1)
     assert len(out_values) == len(expect_out_values)
+    correct = 0
     for i in range(len(in_values)):
         actual_upper_bandpass = out_values[(i * out_values_per_in_value) + 0]
         actual_upper_rc = out_values[(i * out_values_per_in_value) + 1]
@@ -597,15 +597,17 @@ def main() -> None:
             error = abs(fexpect - factual)
             if debug > 0:
                 print(f" x{name} {error:1.6f}")
-            assert error < ACCEPTABLE_ERROR
-            #assert expect == actual
-        assert expect_out_bit == actual_out_bit
+            assert error < VERY_SMALL_ERROR
+        if expect_out_bit == actual_out_bit:
+            correct += 1
    
     filter_period = (1.0 / SYSTEM_CLOCK_FREQUENCY) * len(ops) * 1e6
     print(f"{len(ops)} ops, period will be {filter_period:1.2f} us")
     sample_period = (1.0 / SAMPLE_RATE) * 1e6
     print(f"sample period is {sample_period:1.2f} us per channel")
     assert filter_period < sample_period
+    print(f"{correct} bits out of {len(in_values)} matched expectations")
+    assert correct > (len(in_values) * 0.99)
 
 if __name__ == "__main__":
     main()

@@ -10,3 +10,4 @@ test_vector
 *.png
 fpga/test/generated/*
 work-obj93.cf
+__pycache__
