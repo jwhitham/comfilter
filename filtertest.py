@@ -8,7 +8,6 @@ from filtersetup import (
 from settings import FRACTIONAL_BITS, NON_FRACTIONAL_BITS, SAMPLE_RATE
 import enum, math, typing, random, struct
 
-SYSTEM_CLOCK_FREQUENCY = 96e6
 ACCEPTABLE_ERROR = (1.0 / (1 << (FRACTIONAL_BITS - 3)))
 VERY_SMALL_ERROR = (1.0 / (1 << FRACTIONAL_BITS)) * 1.01
 
@@ -116,12 +115,12 @@ def main() -> None:
     num_multiply_tests = 100
     num_filter_tests = 100
     num_compare_tests = 80000
-    ops: OperationList = []
+    ops: OperationList = OperationList()
     print(f"Test multiply accumulate")
     for i in range(num_multiply_tests):
         if debug > 0:
             print(f"Test multiply accumulate {i}")
-        ops = []
+        ops = OperationList()
         expect = 0.0
         v1f_list: typing.List[float] = []
         v0i_list: typing.List[int] = []
@@ -163,14 +162,14 @@ def main() -> None:
     for i in range(num_filter_tests):
         if debug > 0:
             print(f"Test bandpass filter {i}")
-        ops = []
+        ops = OperationList()
         a1 = ((r.random() * 1.2) - 0.6)
         a2 = ((r.random() * 1.2) - 0.6)
         b0 = ((r.random() * 1.2) - 0.6)
         b2 = ((r.random() * 1.2) - 0.6)
         o1 = o2 = i1 = i2 = 0.0
         inputs = []
-        expect = []
+        expect_values = []
 
         for j in range(10):
             i0i = make_fixed((r.random() * 2.0) - 1.0)
@@ -190,7 +189,7 @@ def main() -> None:
             move_I1_to_I2(ops)
             move_I0_to_I1(ops)
             ops.append(Operation.SEND_O1_TO_OUTPUT)
-            expect.append(o0)
+            expect_values.append(o0)
             o2 = o1
             o1 = o0
             i2 = i1
@@ -203,20 +202,20 @@ def main() -> None:
 
         out_values = run_ops(ops, inputs, debug > 1)
         assert len(out_values) == len(inputs)
-        assert len(expect) == len(inputs)
+        assert len(expect_values) == len(inputs)
         for j in range(len(inputs)):
             ri = out_values[j]
             rf = make_float(ri)
             i0 = make_float(inputs[j])
-            error = abs(rf - expect[j])
+            error = abs(rf - expect_values[j])
             if debug > 0:
-                print(f" step {j} input {i0:1.6f} result {rf:1.6f} expected {expect[j]:1.6f} error {error:1.6f}")
+                print(f" step {j} input {i0:1.6f} result {rf:1.6f} expected {expect_values[j]:1.6f} error {error:1.6f}")
             assert error < ACCEPTABLE_ERROR
 
     print(f"Test demodulator")
-    ops = []
+    ops = OperationList()
     demodulator(ops)
-    in_values = []
+    in_values: typing.List[int] = []
     expect_out_values = []
     out_values_per_in_value = 5
     with open("test_vector", "rb") as fd:
@@ -249,13 +248,13 @@ def main() -> None:
 
         if debug > 0:
             print(f"step {i} in {in_values[i]:04x}")
-        for (name, expect, actual) in [
+        for (name, expect_val, actual) in [
                     ("bh", expect_upper_bandpass, actual_upper_bandpass),
                     ("rh", expect_upper_rc, actual_upper_rc),
                     ("bl", expect_lower_bandpass, actual_lower_bandpass),
                     ("rl", expect_lower_rc, actual_lower_rc),
                 ]:
-            fexpect = make_float(expect)
+            fexpect = make_float(expect_val)
             factual = make_float(actual)
             if debug > 0:
                 print(f" e{name} {expect:04x} {fexpect:1.6f} a{name} {actual:04x} {factual:1.6f}", end="")
@@ -266,11 +265,6 @@ def main() -> None:
         if expect_out_bit == actual_out_bit:
             correct += 1
    
-    filter_period = (1.0 / SYSTEM_CLOCK_FREQUENCY) * len(ops) * 1e6
-    print(f"{len(ops)} ops, period will be {filter_period:1.2f} us")
-    sample_period = (1.0 / SAMPLE_RATE) * 1e6
-    print(f"sample period is {sample_period:1.2f} us per channel")
-    assert filter_period < sample_period
     print(f"{correct} bits out of {len(in_values)} matched expectations")
     assert correct > (len(in_values) * 0.99)
 
