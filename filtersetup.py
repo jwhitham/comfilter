@@ -351,9 +351,14 @@ def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[fl
 def main() -> None:
     ops = []
     demodulator(ops)
+    counter = {op: 0 for op in Operation}
     with open("demodulator", "wt") as fd:
         for (address, op) in enumerate(ops):
             fd.write(f"{address:03x} {op.name}\n")
+            counter[op] += 1
+    for op in Operation:
+        print(f"{counter[op]:4d} {op.name}")
+    print(f"{len(ops):4d} total")
         
 if __name__ == "__main__":
     main()
