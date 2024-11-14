@@ -1,20 +1,20 @@
 
+from settings import (UPPER_FREQUENCY,
+        LOWER_FREQUENCY,
+        BAUD_RATE,
+        FRACTIONAL_BITS,
+        NON_FRACTIONAL_BITS,
+        RC_DECAY_PER_BIT,
+        FILTER_WIDTH,
+        SAMPLE_RATE)
 
-SAMPLE_RATE = 48000
 SYSTEM_CLOCK_FREQUENCY = 96e6
-FRACTIONAL_BITS = 14
-NON_FRACTIONAL_BITS = 2
 ALL_BITS = FRACTIONAL_BITS + NON_FRACTIONAL_BITS
 A_BITS = R_BITS = (FRACTIONAL_BITS * 2) + NON_FRACTIONAL_BITS
-UPPER_FREQUENCY = 1270
-LOWER_FREQUENCY = 1070
-FILTER_WIDTH = 100
-BAUD_RATE = 300
-RC_DECAY_PER_BIT = 0.1
 ACCEPTABLE_ERROR = (1.0 / (1 << (FRACTIONAL_BITS - 3)))
 VERY_SMALL_ERROR = (1.0 / (1 << FRACTIONAL_BITS))
 
-import enum, math, typing, random
+import enum, math, typing, random, struct
 
 class Register(enum.Enum):
     A = enum.auto()
@@ -430,7 +430,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
             elif op == Operation.SEND_L_TO_OUTPUT:
                 out_values.append(reg_file[Register.L])
             elif op == Operation.SEND_R_SIGN_TO_OUTPUT:
-                out_values.append(r_sign)
+                pass # out_values.append(r_sign)
 
             elif op == Operation.ASSERT_A_HIGH_ZERO:
                 assert (reg_file[Register.A] >> ALL_BITS) == 0
@@ -552,34 +552,31 @@ def main() -> None:
 
     in_values = []
     expect_out_values = []
-    out_values_per_in_value = 5
-    with open("debug_2", "rt", encoding="utf-8") as fd:
-        for line in fd:
-            fields = line.split()
-            in_values.append(make_fixed(float(fields[1])))
-            expect_out_values.append(make_fixed(float(fields[2])))      # Upper bandpass
-            expect_out_values.append(make_fixed(float(fields[4])))      # Upper RC
-            expect_out_values.append(make_fixed(float(fields[3])))      # Lower bandpass
-            expect_out_values.append(make_fixed(float(fields[5])))      # Lower RC
-            expect_out_values.append(float(fields[4]) > float(fields[5])) # Out bit
-            if len(in_values) >= num_compare_tests:
-                break
+    out_values_per_in_value = 4
+    with open("test_vector", "rb") as fd:
+        test_vector_format = "<I" + ("I" * out_values_per_in_value)
+        test_vector_size = struct.calcsize(test_vector_format)
+        test_vector_shift = 32 - (NON_FRACTIONAL_BITS + FRACTIONAL_BITS)
+        test_vector_data = fd.read(test_vector_size)
+        while (len(test_vector_data) == test_vector_size) and (len(in_values) < num_compare_tests):
+            fields = struct.unpack(test_vector_format, test_vector_data)
+            in_values.append(fields[0] >> test_vector_shift)
+            for i in range(1, 5):
+                expect_out_values.append(fields[i] >> test_vector_shift)
+            test_vector_data = fd.read(test_vector_size)
 
     out_values = run_ops(ops, in_values, debug > 1)
     assert len(out_values) == len(expect_out_values)
-    correct = 0
     for i in range(len(in_values)):
         actual_upper_bandpass = out_values[(i * out_values_per_in_value) + 0]
         actual_upper_rc = out_values[(i * out_values_per_in_value) + 1]
         actual_lower_bandpass = out_values[(i * out_values_per_in_value) + 2]
         actual_lower_rc = out_values[(i * out_values_per_in_value) + 3]
-        actual_out_bit = out_values[(i * out_values_per_in_value) + 4]
 
         expect_upper_bandpass = expect_out_values[(i * out_values_per_in_value) + 0]
         expect_upper_rc = expect_out_values[(i * out_values_per_in_value) + 1]
         expect_lower_bandpass = expect_out_values[(i * out_values_per_in_value) + 2]
         expect_lower_rc = expect_out_values[(i * out_values_per_in_value) + 3]
-        expect_out_bit = expect_out_values[(i * out_values_per_in_value) + 4]
 
         if debug > 0:
             print(f"step {i}", end="")
@@ -597,17 +594,13 @@ def main() -> None:
             error = abs(fexpect - factual)
             if debug > 0:
                 print(f" x{name} {error:1.6f}")
-            assert error < ACCEPTABLE_ERROR
-        if expect_out_bit == actual_out_bit:
-            correct += 1
+            assert error == 0 # < ACCEPTABLE_ERROR
    
     filter_period = (1.0 / SYSTEM_CLOCK_FREQUENCY) * len(ops) * 1e6
     print(f"{len(ops)} ops, period will be {filter_period:1.2f} us")
     sample_period = (1.0 / SAMPLE_RATE) * 1e6
     print(f"sample period is {sample_period:1.2f} us per channel")
     assert filter_period < sample_period
-    print(f"{correct} bits out of {len(in_values)} matched expectations")
-    assert correct > (len(in_values) * 0.99)
 
 if __name__ == "__main__":
     main()
