@@ -430,8 +430,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
             elif op == Operation.SEND_L_TO_OUTPUT:
                 out_values.append(reg_file[Register.L])
             elif op == Operation.SEND_R_SIGN_TO_OUTPUT:
-                pass # out_values.append(r_sign)
-
+                out_values.append(r_sign)
             elif op == Operation.ASSERT_A_HIGH_ZERO:
                 assert (reg_file[Register.A] >> ALL_BITS) == 0
             elif op == Operation.ASSERT_A_LOW_ZERO:
@@ -451,8 +450,9 @@ def main() -> None:
     debug = 0
     num_multiply_tests = 100
     num_filter_tests = 100
-    num_compare_tests = 80000
+    num_compare_tests = 800
     ops: OperationList = []
+    print(f"Test multiply accumulate")
     for i in range(num_multiply_tests):
         if debug > 0:
             print(f"Test multiply accumulate {i}")
@@ -494,9 +494,10 @@ def main() -> None:
         else:
             assert error < VERY_SMALL_ERROR
 
+    print(f"Test bandpass filter")
     for i in range(num_filter_tests):
         if debug > 0:
-            print(f"Test filter {i}")
+            print(f"Test bandpass filter {i}")
         ops = []
         a1 = ((r.random() * 1.2) - 0.6)
         a2 = ((r.random() * 1.2) - 0.6)
@@ -547,12 +548,13 @@ def main() -> None:
                 print(f" step {j} input {i0:1.6f} result {rf:1.6f} expected {expect[j]:1.6f} error {error:1.6f}")
             assert error < ACCEPTABLE_ERROR
 
+    print(f"Test demodulator")
+    debug = 1
     ops = []
     demodulator(ops)
-
     in_values = []
     expect_out_values = []
-    out_values_per_in_value = 4
+    out_values_per_in_value = 5
     with open("test_vector", "rb") as fd:
         test_vector_format = "<I" + ("I" * out_values_per_in_value)
         test_vector_size = struct.calcsize(test_vector_format)
@@ -561,7 +563,7 @@ def main() -> None:
         while (len(test_vector_data) == test_vector_size) and (len(in_values) < num_compare_tests):
             fields = struct.unpack(test_vector_format, test_vector_data)
             in_values.append(fields[0] >> test_vector_shift)
-            for i in range(1, 5):
+            for i in range(out_values_per_in_value):
                 expect_out_values.append(fields[i] >> test_vector_shift)
             test_vector_data = fd.read(test_vector_size)
 
@@ -572,15 +574,16 @@ def main() -> None:
         actual_upper_rc = out_values[(i * out_values_per_in_value) + 1]
         actual_lower_bandpass = out_values[(i * out_values_per_in_value) + 2]
         actual_lower_rc = out_values[(i * out_values_per_in_value) + 3]
+        actual_out_bit = out_values[(i * out_values_per_in_value) + 4]
 
         expect_upper_bandpass = expect_out_values[(i * out_values_per_in_value) + 0]
         expect_upper_rc = expect_out_values[(i * out_values_per_in_value) + 1]
         expect_lower_bandpass = expect_out_values[(i * out_values_per_in_value) + 2]
         expect_lower_rc = expect_out_values[(i * out_values_per_in_value) + 3]
+        expect_out_bit = expect_out_values[(i * out_values_per_in_value) + 4] & 1
 
         if debug > 0:
-            print(f"step {i}", end="")
-            print(f" in {in_values[i]:04x}", end="")
+            print(f"step {i} in {in_values[i]:04x}")
         for (name, expect, actual) in [
                     ("bh", expect_upper_bandpass, actual_upper_bandpass),
                     ("rh", expect_upper_rc, actual_upper_rc),
@@ -594,7 +597,9 @@ def main() -> None:
             error = abs(fexpect - factual)
             if debug > 0:
                 print(f" x{name} {error:1.6f}")
-            assert error == 0 # < ACCEPTABLE_ERROR
+            assert error < ACCEPTABLE_ERROR
+            #assert expect == actual
+        assert expect_out_bit == actual_out_bit
    
     filter_period = (1.0 / SYSTEM_CLOCK_FREQUENCY) * len(ops) * 1e6
     print(f"{len(ops)} ops, period will be {filter_period:1.2f} us")

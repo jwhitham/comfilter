@@ -390,6 +390,7 @@ static void generate(FILE* fd_in, FILE* fd_out, FILE* fd_test_vector, FILE* fd_d
             test_vector.lower_bandpass = lower_output[i].internal();
             test_vector.upper_rc = upper_levels[i].internal();
             test_vector.lower_rc = lower_levels[i].internal();
+            test_vector.out_bit = received_bit[i] ? (~0) : 0;
             fwrite(&test_vector, sizeof(test_vector), 1, fd_test_vector);
         }
 
