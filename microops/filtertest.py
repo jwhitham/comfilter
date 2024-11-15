@@ -218,7 +218,7 @@ def main() -> None:
     in_values: typing.List[int] = []
     expect_out_values = []
     out_values_per_in_value = 5
-    with open("test_vector", "rb") as fd:
+    with open("generated/test_vector", "rb") as fd:
         test_vector_format = "<I" + ("I" * out_values_per_in_value)
         test_vector_size = struct.calcsize(test_vector_format)
         test_vector_shift = 32 - (NON_FRACTIONAL_BITS + FRACTIONAL_BITS)

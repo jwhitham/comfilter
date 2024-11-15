@@ -1,14 +1,5 @@
-*.wav
-sox-14.4.2
-*.exe
-*.bin
-*.o
-debug_1
-debug_2
-demodulator
-output
-test_vector
-*.png
+generated/*
 fpga/test/generated/*
 work-obj93.cf
 __pycache__
+.mypy_cache

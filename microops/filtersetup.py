@@ -437,7 +437,7 @@ def main() -> None:
     counter = {op: 0 for op in Operation}
     for op in ops:
         counter[op] += 1
-    with open("demodulator", "wt") as fd:
+    with open("generated/demodulator", "wt") as fd:
         for val in ops.encoded:
             fd.write(f"{val:x}")
     for op in Operation:
