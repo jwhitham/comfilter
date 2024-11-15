@@ -47,7 +47,6 @@ class Operation(enum.Enum):
     SET_REG_OUT_TO_O1 = enum.auto()
     SET_REG_OUT_TO_O2 = enum.auto()
     SET_REG_OUT_TO_ZERO = enum.auto()
-    SET_REG_OUT_TO_A_SIGN = enum.auto()
     SET_REG_OUT_TO_R = enum.auto()
     SET_REG_OUT_TO_L_OR_ABSR = enum.auto()
     SET_REG_OUT_TO_L = enum.auto()
@@ -68,7 +67,6 @@ class Operation(enum.Enum):
 
 SET_REG_OUT_TABLE = {
     # Operation.SET_REG_OUT_TO_A : Register.A,
-    Operation.SET_REG_OUT_TO_A_SIGN : Register.A_SIGN,
     Operation.SET_REG_OUT_TO_ABSR : Register.ABSR,
     Operation.SET_REG_OUT_TO_I0 : Register.I0,
     Operation.SET_REG_OUT_TO_I1 : Register.I1,
@@ -104,7 +102,6 @@ NO_PREFIX_ENCODING_TABLE = {
     Operation.ADD_A_TO_R: 7,
     Operation.SHIFT_R_RIGHT: 8,
     Operation.SHIFT_A_RIGHT: 9,
-    Operation.SET_REG_OUT_TO_A_SIGN: 10,
     Operation.SET_REG_OUT_TO_ZERO : 11,
     Operation.SETUP_ABSR_INPUT: 12,
     Operation.SET_REG_OUT_TO_L: 13,
@@ -233,12 +230,13 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
         ivalue = ivalue << 1
         if ivalue & (1 << A_BITS):
             ops.append(Operation.ADD_A_TO_R)
-            
-        if i < ALL_BITS:
+        
+        # Don't shift ALL_BITS - leave the input register at the last bit (the sign)
+        if i < (ALL_BITS - 1):
             shift_register(ops, source)
 
-        if i == (ALL_BITS - 1):
-            ops.append(Operation.SET_REG_OUT_TO_A_SIGN)
+    # Final bit shifted
+    shift_register(ops, source)
 
 def move_R_to_O1_and_ABSR(ops: OperationList) -> None:
     # Setup ABSR register by looking at the sign of R

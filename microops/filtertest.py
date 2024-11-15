@@ -34,12 +34,9 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 
             r_sign = (reg_file[Register.R] >> (R_BITS - 1)) & 1
             a_sign = (reg_file[Register.A] >> (A_BITS - 1)) & 1
-            reg_file[Register.A_SIGN] = a_sign
             reg_out = reg_file[reg_select] & 1
 
-            if op == Operation.SET_REG_OUT_TO_A_SIGN:
-                reg_select = Register.A_SIGN
-            elif op == Operation.SET_REG_OUT_TO_L_OR_ABSR:
+            if op == Operation.SET_REG_OUT_TO_L_OR_ABSR:
                 # if R is negative, then ABSR > L: so, L = ABSR
                 # if R is non-negative, then ABSR <= L: so, L = L
                 if r_sign:
