@@ -329,6 +329,11 @@ def rc_filter(ops: OperationList) -> None:
     move_R_to_reg(ops, Register.L)
     ops.append(Operation.ASSERT_R_ZERO)
 
+    set_X_to_abs_O1(ops)
+    set_Y_to_X_minus_L(ops)
+    move_X_to_L_if_Y_is_not_negative(ops)
+
+def set_X_to_abs_O1(ops: OperationList) -> None:
     # Operation: X = abs(O1)
     ops.append(Operation.SET_REG_OUT_TO_O1)
     ops.append(Operation.SET_X_IN_TO_ABS_REG_OUT)
@@ -338,6 +343,7 @@ def rc_filter(ops: OperationList) -> None:
 
     ops.append(Operation.ASSERT_X_IS_ABS_O1)
 
+def set_Y_to_X_minus_L(ops: OperationList) -> None:
     # Operation: Y = X - L
     ops.append(Operation.SET_REG_OUT_TO_L)
     ops.append(Operation.SET_X_IN_TO_X)
@@ -350,6 +356,7 @@ def rc_filter(ops: OperationList) -> None:
     ops.append(Operation.ASSERT_X_IS_ABS_O1)
     ops.append(Operation.ASSERT_Y_IS_X_MINUS_L)
 
+def move_X_to_L_if_Y_is_not_negative(ops: OperationList) -> None:
     # if Y is non-negative, then X >= L: so, set L = X = abs(O1)
     # if Y is negative, then X < L: so, set L = X = L
     ops.append(Operation.SET_REG_OUT_TO_L_OR_X)

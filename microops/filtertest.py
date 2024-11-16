@@ -4,6 +4,7 @@ from filtersetup import (
         ALL_BITS, A_BITS, R_BITS, make_fixed, make_float,
         multiply_accumulate, filter_step, demodulator,
         multiply_accumulate_via_regs, move_I1_to_I2, move_I0_to_I1,
+        set_X_to_abs_O1, set_Y_to_X_minus_L, move_X_to_L_if_Y_is_not_negative,
     )
 from settings import FRACTIONAL_BITS, NON_FRACTIONAL_BITS, SAMPLE_RATE
 import enum, math, typing, random, struct
@@ -134,9 +135,9 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
 def main() -> None:
     r = random.Random(1)
     debug = 0
-    num_multiply_tests = 1
-    num_filter_tests = 1
-    num_compare_tests = 80000
+    num_multiply_tests = 100
+    num_filter_tests = 100
+    num_compare_tests = 100
     ops: OperationList = OperationList()
     print(f"Test multiply accumulate")
     for i in range(num_multiply_tests):
@@ -233,6 +234,9 @@ def main() -> None:
             if debug > 0:
                 print(f" step {j} input {i0:1.6f} result {rf:1.6f} expected {expect_values[j]:1.6f} error {error:1.6f}")
             assert error < ACCEPTABLE_ERROR
+    #set_X_to_abs_O1
+    #set_Y_to_X_minus_L
+    #move_X_to_L_if_Y_is_not_negative
 
     print(f"Test demodulator")
     ops = OperationList()
