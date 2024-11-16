@@ -354,8 +354,10 @@ def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: in
         result = out_values[0]
         if yf < 0.0:
             assert result == 1
+            assert (expect >> (ALL_BITS - 1)) == 1
         else:
             assert result == 0
+            assert (expect >> (ALL_BITS - 1)) == 0
 
         result = out_values[1]
         assert result == expect
@@ -389,7 +391,8 @@ def test_demodulator(debug: int, num_compare_tests: int) -> None:
         actual_upper_rc = out_values[(i * out_values_per_in_value) + 1]
         actual_lower_bandpass = out_values[(i * out_values_per_in_value) + 2]
         actual_lower_rc = out_values[(i * out_values_per_in_value) + 3]
-        actual_out_bit = out_values[(i * out_values_per_in_value) + 4]
+        actual_y = out_values[(i * out_values_per_in_value) + 4]
+        actual_out_bit = actual_y >> (ALL_BITS - 1)
 
         expect_upper_bandpass = expect_out_values[(i * out_values_per_in_value) + 0]
         expect_upper_rc = expect_out_values[(i * out_values_per_in_value) + 1]
@@ -400,19 +403,23 @@ def test_demodulator(debug: int, num_compare_tests: int) -> None:
         if debug > 0:
             print(f"step {i} in {in_values[i]:04x}")
         for (name, expect, actual) in [
-                    ("bh", expect_upper_bandpass, actual_upper_bandpass),
-                    ("rh", expect_upper_rc, actual_upper_rc),
-                    ("bl", expect_lower_bandpass, actual_lower_bandpass),
-                    ("rl", expect_lower_rc, actual_lower_rc),
+                    ("upper_bp", expect_upper_bandpass, actual_upper_bandpass),
+                    ("upper_rc", expect_upper_rc, actual_upper_rc),
+                    ("lower_bp", expect_lower_bandpass, actual_lower_bandpass),
+                    ("lower_rc", expect_lower_rc, actual_lower_rc),
                 ]:
             fexpect = make_float(expect)
             factual = make_float(actual)
             if debug > 0:
-                print(f" e{name} {expect:04x} {fexpect:1.6f} a{name} {actual:04x} {factual:1.6f}", end="")
+                print(f" {name} expect {expect:04x} {fexpect:8.5f}", end="")
+                print(f" actual {actual:04x} {factual:8.5f} ", end="")
             error = abs(fexpect - factual)
             if debug > 0:
-                print(f" x{name} {error:1.6f}")
+                print(f" error {error:1.6f}")
             assert error < VERY_SMALL_ERROR
+        if debug > 0:
+            error = expect_out_bit ^ actual_out_bit
+            print(f" out bit  expect {expect_out_bit} actual {actual_out_bit} error {error} Y {actual_y:04x}")
         if expect_out_bit == actual_out_bit:
             correct += 1
    
@@ -420,13 +427,13 @@ def test_demodulator(debug: int, num_compare_tests: int) -> None:
     assert correct > (len(in_values) * 0.99)
 
 def main() -> None:
-    debug = 0
+    debug = 2
     r = random.Random(2)
-    test_multiply_accumulate(r, debug, 100)
-    test_bandpass_filter(r, debug, 100)
-    test_move_X_to_L_if_Y_is_not_negative(r, debug, 100)
-    test_set_Y_to_X_minus_reg(r, debug, 100)
-    test_demodulator(debug, 100)
+    #test_multiply_accumulate(r, debug, 100)
+    #test_bandpass_filter(r, debug, 100)
+    #test_move_X_to_L_if_Y_is_not_negative(r, debug, 100)
+    #test_set_Y_to_X_minus_reg(r, debug, 100)
+    test_demodulator(debug, 21)
 
 if __name__ == "__main__":
     main()
