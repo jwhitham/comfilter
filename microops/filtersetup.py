@@ -17,6 +17,7 @@ import enum, math, typing
 class Register(enum.Enum):
     A = enum.auto()
     X = enum.auto()
+    Y = enum.auto()
     I0 = enum.auto()
     I1 = enum.auto()
     I2 = enum.auto()
@@ -52,6 +53,7 @@ class Operation(enum.Enum):
     SET_REG_OUT_TO_L_OR_X = enum.auto()
     SET_X_IN_TO_X = enum.auto()
     SET_X_IN_TO_ABS_REG_OUT = enum.auto()
+    SET_Y_IN_TO_X_MINUS_REG_OUT = enum.auto()
     SHIFT_A_RIGHT = enum.auto()
     SHIFT_X_RIGHT = enum.auto()
     SHIFT_I0_RIGHT = enum.auto()
@@ -134,6 +136,7 @@ EXTENDED_PREFIX_ENCODING_TABLE = {
     Operation.RESTART: 12,
     Operation.BANK_SWITCH: 13,
     Operation.SET_REG_OUT_TO_L_OR_X: 14,
+    Operation.SET_Y_IN_TO_X_MINUS_REG_OUT: 15,
 }
   
 class OperationList:
@@ -338,6 +341,7 @@ def rc_filter(ops: OperationList) -> None:
     # Operation: Y = X - L
     ops.append(Operation.SET_REG_OUT_TO_L)
     ops.append(Operation.SET_X_IN_TO_X)
+    ops.append(Operation.SET_Y_IN_TO_X_MINUS_REG_OUT)
     for i in range(ALL_BITS):
         ops.append(Operation.SHIFT_Y_RIGHT)
         ops.append(Operation.SHIFT_X_RIGHT)
@@ -386,6 +390,7 @@ def demodulator(ops: OperationList) -> None:
     ops.append(Operation.BANK_SWITCH)
     ops.append(Operation.SET_REG_OUT_TO_L)
     ops.append(Operation.SET_X_IN_TO_X)
+    ops.append(Operation.SET_Y_IN_TO_X_MINUS_REG_OUT)
     for i in range(ALL_BITS):
         ops.append(Operation.SHIFT_Y_RIGHT)
         ops.append(Operation.SHIFT_X_RIGHT)

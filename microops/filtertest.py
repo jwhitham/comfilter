@@ -11,11 +11,15 @@ import enum, math, typing, random, struct
 ACCEPTABLE_ERROR = (1.0 / (1 << (FRACTIONAL_BITS - 3)))
 VERY_SMALL_ERROR = (1.0 / (1 << FRACTIONAL_BITS)) * 1.01
 
-class ABSRSelect(enum.Enum):
-    PASSTHROUGH = enum.auto()
-    NEGATE = enum.auto()
-    BORROW = enum.auto()
+class XSelect(enum.Enum):
+    PASSTHROUGH_X = enum.auto()
+    PASSTHROUGH_REG_OUT = enum.auto()
+    NEGATE_REG_OUT = enum.auto()
+    BORROW_REG_OUT = enum.auto()
 
+class YSelect(enum.Enum):
+    X_MINUS_REG_OUT = enum.auto()
+    BORROW_X_MINUS_REG_OUT = enum.auto()
 
 def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
     out_values: typing.List[int] = []
@@ -24,7 +28,8 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
     }
     in_index = 0
     reg_select = Register.I0
-    absr_select = ABSRSelect.PASSTHROUGH
+    x_select = XSelect.PASSTHROUGH_X
+    y_select = YSelect.X_MINUS_REG_OUT
     while in_index < len(in_values):
         for op in ops:
             if debug:
@@ -36,43 +41,47 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
             a_sign = (reg_file[Register.A] >> (A_BITS - 1)) & 1
             reg_out = reg_file[reg_select] & 1
 
-            if op == Operation.SET_REG_OUT_TO_L_OR_ABSR:
-                # if R is negative, then ABSR > L: so, L = ABSR
-                # if R is non-negative, then ABSR <= L: so, L = L
-                if r_sign:
-                    reg_select = Register.ABSR
-                else:
-                    reg_select = Register.L
-            elif op in SET_REG_OUT_TABLE:
+            if op in SET_REG_OUT_TABLE:
                 reg_select = SET_REG_OUT_TABLE[op]
 
             elif op == Operation.ADD_A_TO_R:
                 reg_file[Register.R] += reg_file[Register.A]
                 reg_file[Register.R] &= (1 << R_BITS) - 1
-            elif op == Operation.SETUP_ABSR_INPUT:
-                if r_sign:
-                    absr_select = ABSRSelect.NEGATE
-                else:
-                    absr_select = ABSRSelect.PASSTHROUGH
-
             elif op == Operation.SHIFT_A_RIGHT:
                 reg_file[Register.A] |= reg_out << A_BITS
                 reg_file[Register.A] >>= 1
             elif op == Operation.SHIFT_R_RIGHT:
                 reg_file[Register.R] >>= 1
-            elif op == Operation.SHIFT_ABSR_RIGHT:
-                if absr_select == ABSRSelect.PASSTHROUGH:
-                    absr_in = reg_out
-                elif absr_select == ABSRSelect.NEGATE:
-                    absr_in = 4 - reg_out
-                    if absr_in & 2:
-                        absr_select = ABSRSelect.BORROW
-                elif absr_select == ABSRSelect.BORROW:
-                    absr_in = 3 - reg_out
-                    if not (absr_in & 2):
-                        absr_select = ABSRSelect.NEGATE
-                reg_file[Register.ABSR] |= (absr_in & 1) << ALL_BITS
-                reg_file[Register.ABSR] >>= 1
+            elif op == Operation.SHIFT_X_RIGHT:
+                if x_select == XSelect.PASSTHROUGH_REG_OUT:
+                    x_in = reg_out
+                elif x_select == XSelect.PASSTHROUGH_X:
+                    x_in = reg_file[Register.X] & 1
+                elif x_select == XSelect.NEGATE_REG_OUT:
+                    x_in = 4 - reg_out
+                    if x_in & 2:
+                        x_select = XSelect.BORROW_REG_OUT
+                elif x_select == XSelect.BORROW_REG_OUT:
+                    x_in = 3 - reg_out
+                    if not (x_in & 2):
+                        x_select = XSelect.NEGATE_REG_OUT
+                else:
+                    assert False
+                reg_file[Register.X] |= (x_in & 1) << ALL_BITS
+                reg_file[Register.X] >>= 1
+            elif op == Operation.SHIFT_Y_RIGHT:
+                if y_select == YSelect.BORROW_X_MINUS_REG_OUT:
+                    y_in = 5 + (reg_file[Register.X] & 1) - reg_out
+                    if not (y_in & 2):
+                        y_select = YSelect.X_MINUS_REG_OUT
+                elif y_select == YSelect.X_MINUS_REG_OUT:
+                    y_in = 4 + (reg_file[Register.X] & 1) - reg_out
+                    if (y_in & 2):
+                        y_select = YSelect.BORROW_X_MINUS_REG_OUT
+                else:
+                    assert False
+                reg_file[Register.Y] |= (y_in & 1) << ALL_BITS
+                reg_file[Register.Y] >>= 1
             elif op in SHIFT_TABLE:
                 reg_file[SHIFT_TABLE[op]] |= reg_out << ALL_BITS
                 reg_file[SHIFT_TABLE[op]] >>= 1
@@ -89,16 +98,32 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 out_values.append(reg_file[Register.O1])
             elif op == Operation.SEND_L_TO_OUTPUT:
                 out_values.append(reg_file[Register.L])
-            elif op == Operation.SEND_R_SIGN_TO_OUTPUT:
-                out_values.append(r_sign)
+            elif op == Operation.SEND_Y_SIGN_TO_OUTPUT:
+                out_values.append(reg_file[Register.Y] >> (ALL_BITS - 1))
+            elif op == Operation.SET_REG_OUT_TO_L_OR_X:
+                if reg_file[Register.Y] >> (ALL_BITS - 1):
+                    reg_select = Register.L # Y negative, use L
+                else:
+                    reg_select = Register.X # Y non-negative, use X
+            elif op == Operation.SET_X_IN_TO_ABS_REG_OUT:
+                if reg_file[Register.O1] >> (ALL_BITS - 1):
+                    x_select = XSelect.NEGATE_REG_OUT
+                else:
+                    x_select = XSelect.PASSTHROUGH_REG_OUT
+            elif op == Operation.SET_X_IN_TO_X:
+                x_select = XSelect.PASSTHROUGH_X
+            elif op == Operation.SET_Y_IN_TO_X_MINUS_REG_OUT:
+                y_select = YSelect.X_MINUS_REG_OUT
             elif op == Operation.ASSERT_A_HIGH_ZERO:
                 assert (reg_file[Register.A] >> ALL_BITS) == 0
             elif op == Operation.ASSERT_A_LOW_ZERO:
                 assert (reg_file[Register.A] & ((1 << ALL_BITS) - 1)) == 0
             elif op == Operation.ASSERT_R_ZERO:
                 assert reg_file[Register.R] == 0
-            elif op == Operation.ASSERT_ABSR_IS_ABS_O1:
-                assert abs(make_float(reg_file[Register.O1])) == make_float(abs(reg_file[Register.ABSR]))
+            elif op == Operation.ASSERT_X_IS_ABS_O1:
+                assert abs(make_float(reg_file[Register.O1])) == make_float(abs(reg_file[Register.X]))
+            elif op == Operation.ASSERT_Y_IS_X_MINUS_L:
+                assert reg_file[Register.Y] == ((reg_file[Register.X] - reg_file[Register.L]) & ((1 << ALL_BITS) - 1))
             elif op == Operation.RESTART:
                 break
             else:
@@ -108,9 +133,9 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
         
 def main() -> None:
     r = random.Random(1)
-    debug = 0
-    num_multiply_tests = 100
-    num_filter_tests = 100
+    debug = 2
+    num_multiply_tests = 1
+    num_filter_tests = 1
     num_compare_tests = 80000
     ops: OperationList = OperationList()
     print(f"Test multiply accumulate")

@@ -115,7 +115,8 @@ static void my_filter_setup(
                 t_header* header,
                 double frequency,
                 double width) {
-    const double w0 = 2 * M_PI * frequency / (double) header->sample_rate;
+    const double pi = atan(1.0) * 4.0;
+    const double w0 = 2 * pi * frequency / (double) header->sample_rate;
     const double alpha = sin(w0)/(2*frequency/width);
     double b0 =   alpha;
     double b1 =   0;
