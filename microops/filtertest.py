@@ -276,10 +276,12 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
             expect_li = xi
             expect_xi = li
             if debug > 0:
-                print(f" use abs(O1) = {expect_li:04x}", end="")
+                print(f" use abs(O1) =", end="")
         else:
             if debug > 0:
-                print(f" use L       = {expect_li:04x}", end="")
+                print(f" use L       =", end="")
+        if debug > 0:
+            print(f" {expect_li:04x} X = {expect_xi:04x}", end="")
 
         # Load input 
         inputs.append(o1i)
@@ -306,7 +308,7 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
         result_o1i = out_values[1]
         result_xi = out_values[2]
         if debug > 0:
-            print(f" result = {result_li:04x}")
+            print(f" result L = {result_li:04x} result X = {result_xi:04x}")
         assert expect_li == result_li
         assert expect_o1i == result_o1i
         assert expect_xi == result_xi
