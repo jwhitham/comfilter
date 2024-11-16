@@ -3,7 +3,7 @@ from filtersetup import (
         OperationList, Register, Operation, SET_REG_OUT_TABLE, SHIFT_TABLE,
         ALL_BITS, A_BITS, R_BITS, make_fixed, make_float,
         multiply_accumulate, filter_step, demodulator,
-        multiply_accumulate_via_regs, move_I1_to_I2, move_I0_to_I1,
+        multiply_accumulate_via_regs, move_reg_to_reg,
         set_X_to_abs_O1, set_Y_to_X_minus_L, move_X_to_L_if_Y_is_not_negative,
     )
 from settings import FRACTIONAL_BITS, NON_FRACTIONAL_BITS, SAMPLE_RATE
@@ -132,13 +132,9 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
 
     return out_values
         
-def main() -> None:
+def test_multiply_accumulate(debug: int, num_multiply_tests: int) -> None:
     r = random.Random(1)
     debug = 0
-    num_multiply_tests = 100
-    num_filter_tests = 100
-    num_compare_tests = 100
-    ops: OperationList = OperationList()
     print(f"Test multiply accumulate")
     for i in range(num_multiply_tests):
         if debug > 0:
@@ -181,6 +177,8 @@ def main() -> None:
         else:
             assert error < VERY_SMALL_ERROR
 
+def test_bandpass_filter(debug: int, num_filter_tests: int) -> None:
+    r = random.Random(1)
     print(f"Test bandpass filter")
     for i in range(num_filter_tests):
         if debug > 0:
@@ -195,10 +193,17 @@ def main() -> None:
         expect_values = []
 
         for j in range(10):
-            i0i = make_fixed((r.random() * 2.0) - 1.0)
-            i0 = make_float(i0i)
+            # Find suitable i0 value that keeps o0 in range
+            o0 = 99.0
+            attempts_left = 5
+            while abs(o0) >= 1.99:
+                assert attempts_left > 0
+                i0i = make_fixed((r.random() * 2.0) - 1.0)
+                i0 = make_float(i0i)
+                o0 = i0*b0 + i2*b2 - o1*a1 - o2*a2
+                attempts_left -= 1
+                
             inputs.append(i0i)
-            o0 = i0*b0 + i2*b2 - o1*a1 - o2*a2
             if debug > 1:
                 print(f" step {j} i0 = {make_fixed(i0):04x} * {make_fixed(b0):04x}", end="")
                 print(f" i1 = {make_fixed(i1):04x} ", end="")
@@ -209,8 +214,8 @@ def main() -> None:
             assert abs(o0) < 2.0
             ops.append(Operation.LOAD_I0_FROM_INPUT)
             filter_step(ops, a1, a2, b0, b2)
-            move_I1_to_I2(ops)
-            move_I0_to_I1(ops)
+            move_reg_to_reg(ops, Register.I1, Register.I2)
+            move_reg_to_reg(ops, Register.I0, Register.I1)
             ops.append(Operation.SEND_O1_TO_OUTPUT)
             expect_values.append(o0)
             o2 = o1
@@ -234,10 +239,31 @@ def main() -> None:
             if debug > 0:
                 print(f" step {j} input {i0:1.6f} result {rf:1.6f} expected {expect_values[j]:1.6f} error {error:1.6f}")
             assert error < ACCEPTABLE_ERROR
+
+def test_update_of_L(debug: int, num_update_tests: int) -> None:
+    print(f"Test update of L")
+    r = random.Random(1)
     #set_X_to_abs_O1
     #set_Y_to_X_minus_L
     #move_X_to_L_if_Y_is_not_negative
+    for i in range(num_update_tests):
+        if debug > 0:
+            print(f"Test update of L {i}")
+        ops = OperationList()
+        o1i = make_fixed((r.random() * 3.8) - 1.9)
+        li = make_fixed((r.random() * 3.8) - 1.9)
+        inputs = []
+        expect_values = []
 
+        # Load values
+        inputs.append(o1i)
+        ops.append(Operation.LOAD_I0_FROM_INPUT)
+        move_reg_to_reg(ops, Register.I0, Register.O1)
+        inputs.append(li)
+        ops.append(Operation.LOAD_I0_FROM_INPUT)
+        move_reg_to_reg(ops, Register.I0, Register.L)
+
+def test_demodulator(debug: int, num_compare_tests: int) -> None:
     print(f"Test demodulator")
     ops = OperationList()
     demodulator(ops)
@@ -293,6 +319,13 @@ def main() -> None:
    
     print(f"{correct} bits out of {len(in_values)} matched expectations")
     assert correct > (len(in_values) * 0.99)
+
+def main() -> None:
+    debug = 0
+    test_multiply_accumulate(debug, 100)
+    test_bandpass_filter(debug, 100)
+    test_update_of_L(debug, 100)
+    test_demodulator(debug, 100)
 
 if __name__ == "__main__":
     main()

@@ -262,23 +262,15 @@ def move_R_to_reg(ops: OperationList, target: Register) -> None:
     # R should be zero again here!
     ops.append(Operation.ASSERT_R_ZERO)
 
-def move_O1_to_O2(ops: OperationList) -> None:
-    ops.append(Operation.SET_REG_OUT_TO_O1)
-    for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_O2_RIGHT)
-        ops.append(Operation.SHIFT_O1_RIGHT)
+def move_reg_to_reg(ops: OperationList, source: Register, target: Register) -> None:
+    if source == Register.R:
+        move_R_to_reg(ops, target)
+        return
 
-def move_I1_to_I2(ops: OperationList) -> None:
-    ops.append(Operation.SET_REG_OUT_TO_I1)
+    set_output_register(ops, source)
     for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_I2_RIGHT)
-        ops.append(Operation.SHIFT_I1_RIGHT)
-
-def move_I0_to_I1(ops: OperationList) -> None:
-    ops.append(Operation.SET_REG_OUT_TO_I0)
-    for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_I1_RIGHT)
-        ops.append(Operation.SHIFT_I0_RIGHT)
+        shift_register(ops, target)
+        shift_register(ops, source)
 
 def filter_step(ops: OperationList, a1: float, a2: float, b0: float, b2: float) -> None:
     # R should be zero here!
@@ -293,8 +285,8 @@ def filter_step(ops: OperationList, a1: float, a2: float, b0: float, b2: float) 
     # R -= o2 * a2
     fixed_multiply(ops, Register.O2, -a2)
 
-    move_O1_to_O2(ops)
-    move_R_to_reg(ops, Register.O1)
+    move_reg_to_reg(ops, Register.O1, Register.O2)
+    move_reg_to_reg(ops, Register.R, Register.O1)
 
 def compute_bandpass_filter(frequency: float, width: float) -> typing.Tuple[float, float, float, float]:
     # Compute filter parameters
@@ -326,7 +318,7 @@ def rc_filter(ops: OperationList) -> None:
     # decay L register
     ops.append(Operation.ASSERT_R_ZERO)
     fixed_multiply(ops, Register.L, decay)
-    move_R_to_reg(ops, Register.L)
+    move_reg_to_reg(ops, Register.R, Register.L)
     ops.append(Operation.ASSERT_R_ZERO)
 
     set_X_to_abs_O1(ops)
@@ -408,8 +400,8 @@ def demodulator(ops: OperationList) -> None:
     ops.append(Operation.SEND_Y_SIGN_TO_OUTPUT)
 
     # ready for next input
-    move_I1_to_I2(ops)
-    move_I0_to_I1(ops)
+    move_reg_to_reg(ops, Register.I1, Register.I2)
+    move_reg_to_reg(ops, Register.I0, Register.I1)
     ops.append(Operation.RESTART)
 
 def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> None:
@@ -421,7 +413,7 @@ def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> 
         ops.append(Operation.LOAD_I0_FROM_INPUT)
         fixed_multiply(ops, Register.I0, test_value)
 
-    move_R_to_reg(ops, Register.O1)
+    move_reg_to_reg(ops, Register.R, Register.O1)
 
     # One output
     ops.append(Operation.SEND_O1_TO_OUTPUT)
@@ -434,12 +426,12 @@ def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[fl
     for test_value in test_values:
         ops.append(Operation.LOAD_I0_FROM_INPUT)
         # multiply from I2, via I1
-        move_I0_to_I1(ops)
-        move_I1_to_I2(ops)
+        move_reg_to_reg(ops, Register.I0, Register.I1)
+        move_reg_to_reg(ops, Register.I1, Register.I2)
         fixed_multiply(ops, Register.I2, test_value)
         # move out of R then back into it, via O registers
-        move_R_to_reg(ops, Register.O1)
-        move_O1_to_O2(ops)
+        move_reg_to_reg(ops, Register.R, Register.O1)
+        move_reg_to_reg(ops, Register.O1, Register.O2)
         fixed_multiply(ops, Register.O2, 1.0)
 
     # One output
