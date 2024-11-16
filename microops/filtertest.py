@@ -101,6 +101,8 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 out_values.append(reg_file[Register.L])
             elif op == Operation.SEND_Y_SIGN_TO_OUTPUT:
                 out_values.append(reg_file[Register.Y] >> (ALL_BITS - 1))
+            elif op == Operation.SEND_Y_TO_OUTPUT:
+                out_values.append(reg_file[Register.Y])
             elif op == Operation.SET_REG_OUT_TO_L_OR_X:
                 if reg_file[Register.Y] >> (ALL_BITS - 1):
                     reg_select = Register.L # Y negative, use L
@@ -301,6 +303,55 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
         # O1 should not have changed
         assert o1i == out_values[1]
 
+def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: int) -> None:
+    print(f"Test update of Y")
+    for i in range(num_update_tests):
+        ops = OperationList()
+        inputs = []
+        expect_values = []
+
+        # Generate test values - must keep yf in range
+        # X, L should be 0.0 .. 1.0 but might be slightly outside
+        yf = 99.0
+        attempts_left = 5
+        while abs(yf) >= 1.99:
+            assert attempts_left > 0
+            xi = make_fixed(r.random() * 1.1)
+            li = make_fixed(r.random() * 1.1)
+
+            # Calculate expected result
+            xf = make_float(xi)
+            lf = make_float(li)
+            yf = xf - lf
+            attempts_left -= 1
+
+        # Load input 
+        expect = make_fixed(yf)
+        inputs.append(xi)
+        ops.append(Operation.LOAD_I0_FROM_INPUT)
+        move_reg_to_reg(ops, Register.I0, Register.X)
+        inputs.append(li)
+        ops.append(Operation.LOAD_I0_FROM_INPUT)
+
+        # Operation: Y = X - I0
+        set_Y_to_X_minus_reg(ops, Register.I0)
+        ops.append(Operation.SEND_Y_SIGN_TO_OUTPUT)
+        ops.append(Operation.SEND_Y_TO_OUTPUT)
+
+        # run
+        out_values = run_ops(ops, inputs, debug > 1)
+        assert len(out_values) == 2
+
+        result = out_values[0]
+        if yf < 0.0:
+            assert result == 1
+        else:
+            assert result == 0
+
+        result = out_values[1]
+        assert result == expect
+
+
 
 def test_demodulator(debug: int, num_compare_tests: int) -> None:
     print(f"Test demodulator")
@@ -365,6 +416,7 @@ def main() -> None:
     test_multiply_accumulate(r, debug, 100)
     test_bandpass_filter(r, debug, 100)
     test_move_X_to_L_if_Y_is_not_negative(r, debug, 100)
+    test_set_Y_to_X_minus_reg(r, debug, 100)
     test_demodulator(debug, 100)
 
 if __name__ == "__main__":
