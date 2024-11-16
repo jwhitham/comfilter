@@ -132,8 +132,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
 
     return out_values
         
-def test_multiply_accumulate(debug: int, num_multiply_tests: int) -> None:
-    r = random.Random(1)
+def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: int) -> None:
     debug = 0
     print(f"Test multiply accumulate")
     for i in range(num_multiply_tests):
@@ -177,8 +176,7 @@ def test_multiply_accumulate(debug: int, num_multiply_tests: int) -> None:
         else:
             assert error < VERY_SMALL_ERROR
 
-def test_bandpass_filter(debug: int, num_filter_tests: int) -> None:
-    r = random.Random(1)
+def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int) -> None:
     print(f"Test bandpass filter")
     for i in range(num_filter_tests):
         if debug > 0:
@@ -240,28 +238,61 @@ def test_bandpass_filter(debug: int, num_filter_tests: int) -> None:
                 print(f" step {j} input {i0:1.6f} result {rf:1.6f} expected {expect_values[j]:1.6f} error {error:1.6f}")
             assert error < ACCEPTABLE_ERROR
 
-def test_update_of_L(debug: int, num_update_tests: int) -> None:
+def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_update_tests: int) -> None:
     print(f"Test update of L")
-    r = random.Random(1)
-    #set_X_to_abs_O1
-    #set_Y_to_X_minus_L
-    #move_X_to_L_if_Y_is_not_negative
     for i in range(num_update_tests):
-        if debug > 0:
-            print(f"Test update of L {i}")
         ops = OperationList()
-        o1i = make_fixed((r.random() * 3.8) - 1.9)
-        li = make_fixed((r.random() * 3.8) - 1.9)
         inputs = []
         expect_values = []
 
-        # Load values
+        # Generate test values
+        o1i = make_fixed((r.random() * 2.0) - 1.0)
+        li = make_fixed((r.random() * 2.0) - 1.0)
+
+        # Calculate expected result
+        xf = abs(make_float(o1i))
+        yf = xf - make_float(li)
+        xi = make_fixed(xf)
+        yi = make_fixed(yf)
+        if debug > 0:
+            print(f" O1 = {o1i:04x} L = {li:04x} X = {xi:04x} Y = {yi:04x}", end="")
+
+        if yf >= 0.0:
+            expect = xi
+            if debug > 0:
+                print(f" use abs(O1) = {expect:04x}", end="")
+        else:
+            expect = li
+            if debug > 0:
+                print(f" use L       = {expect:04x}", end="")
+
+        # Load input 
         inputs.append(o1i)
         ops.append(Operation.LOAD_I0_FROM_INPUT)
         move_reg_to_reg(ops, Register.I0, Register.O1)
         inputs.append(li)
         ops.append(Operation.LOAD_I0_FROM_INPUT)
         move_reg_to_reg(ops, Register.I0, Register.L)
+
+        # do it
+        set_X_to_abs_O1(ops)
+        set_Y_to_X_minus_L(ops)
+        move_X_to_L_if_Y_is_not_negative(ops)
+        ops.append(Operation.SEND_L_TO_OUTPUT)
+        ops.append(Operation.SEND_O1_TO_OUTPUT)
+
+        # run
+        out_values = run_ops(ops, inputs, debug > 1)
+        assert len(out_values) == 2
+
+        result = out_values[0]
+        if debug > 0:
+            print(f" result = {result:04x}")
+        assert result == expect
+
+        # O1 should not have changed
+        assert o1i == out_values[1]
+
 
 def test_demodulator(debug: int, num_compare_tests: int) -> None:
     print(f"Test demodulator")
@@ -300,13 +331,13 @@ def test_demodulator(debug: int, num_compare_tests: int) -> None:
 
         if debug > 0:
             print(f"step {i} in {in_values[i]:04x}")
-        for (name, expect_val, actual) in [
+        for (name, expect, actual) in [
                     ("bh", expect_upper_bandpass, actual_upper_bandpass),
                     ("rh", expect_upper_rc, actual_upper_rc),
                     ("bl", expect_lower_bandpass, actual_lower_bandpass),
                     ("rl", expect_lower_rc, actual_lower_rc),
                 ]:
-            fexpect = make_float(expect_val)
+            fexpect = make_float(expect)
             factual = make_float(actual)
             if debug > 0:
                 print(f" e{name} {expect:04x} {fexpect:1.6f} a{name} {actual:04x} {factual:1.6f}", end="")
@@ -322,9 +353,10 @@ def test_demodulator(debug: int, num_compare_tests: int) -> None:
 
 def main() -> None:
     debug = 0
-    test_multiply_accumulate(debug, 100)
-    test_bandpass_filter(debug, 100)
-    test_update_of_L(debug, 100)
+    r = random.Random(2)
+    test_multiply_accumulate(r, debug, 100)
+    test_bandpass_filter(r, debug, 100)
+    test_move_X_to_L_if_Y_is_not_negative(r, debug, 100)
     test_demodulator(debug, 100)
 
 if __name__ == "__main__":
