@@ -4,7 +4,7 @@ from filtersetup import (
         ALL_BITS, A_BITS, R_BITS, make_fixed, make_float,
         multiply_accumulate, filter_step, demodulator,
         multiply_accumulate_via_regs, move_reg_to_reg,
-        set_X_to_abs_O1, set_Y_to_X_minus_L, move_X_to_L_if_Y_is_not_negative,
+        set_X_to_abs_O1, set_Y_to_X_minus_reg, move_X_to_L_if_Y_is_not_negative,
     )
 from settings import FRACTIONAL_BITS, NON_FRACTIONAL_BITS, SAMPLE_RATE
 import enum, math, typing, random, struct
@@ -284,7 +284,7 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
 
         # do it
         set_X_to_abs_O1(ops)
-        set_Y_to_X_minus_L(ops)
+        set_Y_to_X_minus_reg(ops, Register.L)
         move_X_to_L_if_Y_is_not_negative(ops)
         ops.append(Operation.SEND_L_TO_OUTPUT)
         ops.append(Operation.SEND_O1_TO_OUTPUT)

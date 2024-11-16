@@ -83,6 +83,7 @@ SET_REG_OUT_TABLE = {
 SHIFT_TABLE = {
     Operation.SHIFT_A_RIGHT : Register.A,
     Operation.SHIFT_X_RIGHT : Register.X,
+    Operation.SHIFT_Y_RIGHT : Register.Y,
     Operation.SHIFT_I0_RIGHT : Register.I0,
     Operation.SHIFT_I1_RIGHT : Register.I1,
     Operation.SHIFT_I2_RIGHT : Register.I2,
@@ -262,9 +263,19 @@ def move_R_to_reg(ops: OperationList, target: Register) -> None:
     # R should be zero again here!
     ops.append(Operation.ASSERT_R_ZERO)
 
+def move_reg_to_X(ops: OperationList, source: Register) -> None:
+    set_output_register(ops, source)
+    ops.append(Operation.SET_X_IN_TO_ABS_REG_OUT)
+    for i in range(ALL_BITS):
+        shift_register(ops, Register.X)
+        shift_register(ops, source)
+
 def move_reg_to_reg(ops: OperationList, source: Register, target: Register) -> None:
     if source == Register.R:
         move_R_to_reg(ops, target)
+        return
+    if target == Register.X:
+        move_reg_to_X(ops, source)
         return
 
     set_output_register(ops, source)
@@ -321,9 +332,15 @@ def rc_filter(ops: OperationList) -> None:
     move_reg_to_reg(ops, Register.R, Register.L)
     ops.append(Operation.ASSERT_R_ZERO)
 
+    # do:
+    #   if abs(O1) >= L: L = abs(O1)
     set_X_to_abs_O1(ops)
-    set_Y_to_X_minus_L(ops)
+    set_Y_to_X_minus_reg(ops, Register.L)
+    ops.append(Operation.ASSERT_X_IS_ABS_O1)
+    ops.append(Operation.ASSERT_Y_IS_X_MINUS_L)
+
     move_X_to_L_if_Y_is_not_negative(ops)
+    ops.append(Operation.ASSERT_X_IS_ABS_O1)
 
 def set_X_to_abs_O1(ops: OperationList) -> None:
     # Operation: X = abs(O1)
@@ -335,18 +352,15 @@ def set_X_to_abs_O1(ops: OperationList) -> None:
 
     ops.append(Operation.ASSERT_X_IS_ABS_O1)
 
-def set_Y_to_X_minus_L(ops: OperationList) -> None:
-    # Operation: Y = X - L
-    ops.append(Operation.SET_REG_OUT_TO_L)
+def set_Y_to_X_minus_reg(ops: OperationList, source: Register) -> None:
+    # Operation: Y = X - reg
+    set_output_register(ops, source)
     ops.append(Operation.SET_X_IN_TO_X)
     ops.append(Operation.SET_Y_IN_TO_X_MINUS_REG_OUT)
     for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_Y_RIGHT)
-        ops.append(Operation.SHIFT_X_RIGHT)
-        ops.append(Operation.SHIFT_L_RIGHT)
-
-    ops.append(Operation.ASSERT_X_IS_ABS_O1)
-    ops.append(Operation.ASSERT_Y_IS_X_MINUS_L)
+        shift_register(ops, Register.Y)
+        shift_register(ops, Register.X)
+        shift_register(ops, source)
 
 def move_X_to_L_if_Y_is_not_negative(ops: OperationList) -> None:
     # if Y is non-negative, then X >= L: so, set L = X = abs(O1)
@@ -354,8 +368,8 @@ def move_X_to_L_if_Y_is_not_negative(ops: OperationList) -> None:
     ops.append(Operation.SET_REG_OUT_TO_L_OR_X)
     ops.append(Operation.SET_X_IN_TO_ABS_REG_OUT)
     for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_L_RIGHT)
-        ops.append(Operation.SHIFT_X_RIGHT)
+        shift_register(ops, Register.L)
+        shift_register(ops, Register.X)
 
     ops.append(Operation.ASSERT_R_ZERO)
 
@@ -378,22 +392,14 @@ def demodulator(ops: OperationList) -> None:
     ops.append(Operation.SEND_L_TO_OUTPUT)
 
     # Operation: X = LS
-    ops.append(Operation.SET_REG_OUT_TO_L)
-    ops.append(Operation.SET_X_IN_TO_ABS_REG_OUT)
-    for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_X_RIGHT)
-        ops.append(Operation.SHIFT_L_RIGHT)
+    move_reg_to_reg(ops, Register.L, Register.X)
 
     # Back to first bank
-    # Operation: Y = X - L
     ops.append(Operation.BANK_SWITCH)
-    ops.append(Operation.SET_REG_OUT_TO_L)
-    ops.append(Operation.SET_X_IN_TO_X)
-    ops.append(Operation.SET_Y_IN_TO_X_MINUS_REG_OUT)
-    for i in range(ALL_BITS):
-        ops.append(Operation.SHIFT_Y_RIGHT)
-        ops.append(Operation.SHIFT_X_RIGHT)
-        ops.append(Operation.SHIFT_L_RIGHT)
+
+    # Operation: Y = X - L
+    set_Y_to_X_minus_reg(ops, Register.L)
+    ops.append(Operation.ASSERT_Y_IS_X_MINUS_L)
 
     # if Y is non-negative, then LS >= L: so, lower frequency signal is stronger
     # if Y is negative, then LS < L: so, upper frequency signal is stronger
