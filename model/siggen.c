@@ -27,7 +27,7 @@ static void generate(FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_deb
     const uint32_t  bytes_per_sample = 2;
     const uint32_t  num_active_blocks = (uint32_t) ceil((sample_rate * active_time) / BLOCK_SIZE);
     const uint32_t  num_silent_blocks = (uint32_t) ceil((sample_rate * silent_time) / BLOCK_SIZE);
-    const uint32_t  num_samples = (num_active_blocks + (num_silent_blocks * 2)) * BLOCK_SIZE;
+    const uint32_t  num_samples = (num_active_blocks + num_silent_blocks) * BLOCK_SIZE;
     uint32_t        i = 0;
     uint32_t        j = 0;
     double          angle = 0.0;
@@ -50,7 +50,7 @@ static void generate(FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_deb
     header.bytes_per_period = bytes_per_sample * header.number_of_channels; // applies to all channels
     header.bits_per_sample = bytes_per_sample * 8; // applies to 1 channel
     memcpy(header.fixed_data, "data", 4);
-    header.data_size = num_samples * bytes_per_sample * 2;
+    header.data_size = num_samples * bytes_per_sample * header.number_of_channels;
     header.file_size = header.data_size + sizeof(t_header);
     fwrite(&header, 1, sizeof(header), fd_out);
 
@@ -60,20 +60,10 @@ static void generate(FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_deb
         exit(1);
     }
 
-    // Generate silent blocks
+    // Samples
     int16_t samples[BLOCK_SIZE];
     memset(&samples, 0, sizeof(samples));
     uint64_t sample_count = 0;
-
-    for (j = 0; j < num_silent_blocks; j++) {
-        fwrite(&samples, 1, sizeof(samples), fd_out);
-        for (i = 0; fd_debug && (i < BLOCK_SIZE); i++) {
-            fprintf(fd_debug, "%7.5f ", (double) sample_count / (double) header.sample_rate); // time
-            fprintf(fd_debug, "- 0 - ");
-            fprintf(fd_debug, "\n");
-            sample_count++;
-        }
-    }
 
     // Initial setup time - no data
     byte = 1;
@@ -129,13 +119,24 @@ static void generate(FILE* fd_in, uint32_t num_bytes, FILE* fd_out, FILE* fd_deb
         fwrite(&samples, 1, sizeof(samples), fd_out);
     }
 
-    // Further silence at the end
+    // Silence at the end
     memset(&samples, 0, sizeof(samples));
 
     for (j = 0; j < num_silent_blocks; j++) {
         fwrite(&samples, 1, sizeof(samples), fd_out);
+        sample_count += BLOCK_SIZE;
     }
 
+    if (num_samples != sample_count) {
+        fprintf(stderr, "Error: should have generated %u samples, actually %u\n",
+            (unsigned) num_samples, (unsigned) sample_count);
+        exit(1);
+    }
+    if (ftell(fd_out) != header.file_size) {
+        fprintf(stderr, "Error: file size should be %u, actually %u\n",
+            (unsigned) header.file_size, (unsigned) ftell(fd_out));
+        exit(1);
+    }
 }
 
 int main(int argc, char ** argv)
