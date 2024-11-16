@@ -5,7 +5,7 @@ from filtersetup import (
         multiply_accumulate, filter_step, demodulator,
         multiply_accumulate_via_regs, move_reg_to_reg,
         set_X_to_abs_O1, set_Y_to_X_minus_reg,
-        move_X_to_L_if_Y_is_not_negative, move_abs_reg_to_X,
+        move_X_to_L_if_Y_is_not_negative,
     )
 from settings import FRACTIONAL_BITS, NON_FRACTIONAL_BITS, SAMPLE_RATE
 import enum, math, typing, random, struct
@@ -109,7 +109,9 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                     reg_select = Register.L # Y negative, use L
                 else:
                     reg_select = Register.X # Y non-negative, use X
-            elif op == Operation.SET_X_IN_TO_ABS_REG_OUT:
+            elif op == Operation.SET_X_IN_TO_REG_OUT:
+                x_select = XSelect.PASSTHROUGH_REG_OUT
+            elif op == Operation.SET_X_IN_TO_ABS_O1_REG_OUT:
                 if reg_file[Register.O1] >> (ALL_BITS - 1):
                     x_select = XSelect.NEGATE_REG_OUT
                 else:
@@ -319,27 +321,19 @@ def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: in
         inputs = []
         expect_values = []
 
-        # Generate test values - must keep yf in range
-        # X, L should be 0.0 .. 1.0 but might be slightly outside
-        yf = 99.0
-        attempts_left = 5
-        while abs(yf) >= 1.99:
-            assert attempts_left > 0
-            xi = make_fixed(r.random() * 1.1)
-            li = make_fixed(r.random() * 1.1)
+        # Generate test values
+        xi = r.randrange(0, 1 << ALL_BITS)
+        i0i = r.randrange(0, 1 << ALL_BITS)
 
-            # Calculate expected result
-            xf = make_float(xi)
-            lf = make_float(li)
-            yf = xf - lf
-            attempts_left -= 1
+        # Calculate expected result
+        expect_yi = (xi - i0i) & ((1 << ALL_BITS) - 1)
+        expect_bit = (expect_yi >> (ALL_BITS - 1))
 
         # Load input 
-        expect = make_fixed(yf)
         inputs.append(xi)
         ops.append(Operation.LOAD_I0_FROM_INPUT)
-        move_abs_reg_to_X(ops, Register.I0)
-        inputs.append(li)
+        move_reg_to_reg(ops, Register.I0, Register.X)
+        inputs.append(i0i)
         ops.append(Operation.LOAD_I0_FROM_INPUT)
 
         # Operation: Y = X - I0
@@ -351,16 +345,10 @@ def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: in
         out_values = run_ops(ops, inputs, debug > 1)
         assert len(out_values) == 2
 
-        result = out_values[0]
-        if yf < 0.0:
-            assert result == 1
-            assert (expect >> (ALL_BITS - 1)) == 1
-        else:
-            assert result == 0
-            assert (expect >> (ALL_BITS - 1)) == 0
-
-        result = out_values[1]
-        assert result == expect
+        result_bit = out_values[0]
+        result_yi = out_values[1]
+        assert result_bit == expect_bit
+        assert result_yi == expect_yi
 
 
 
@@ -427,13 +415,13 @@ def test_demodulator(debug: int, num_compare_tests: int) -> None:
     assert correct > (len(in_values) * 0.99)
 
 def main() -> None:
-    debug = 2
+    debug = 0
     r = random.Random(2)
-    #test_multiply_accumulate(r, debug, 100)
-    #test_bandpass_filter(r, debug, 100)
-    #test_move_X_to_L_if_Y_is_not_negative(r, debug, 100)
-    #test_set_Y_to_X_minus_reg(r, debug, 100)
-    test_demodulator(debug, 21)
+    test_multiply_accumulate(r, debug, 100)
+    test_bandpass_filter(r, debug, 100)
+    test_move_X_to_L_if_Y_is_not_negative(r, debug, 100)
+    test_set_Y_to_X_minus_reg(r, debug, 100)
+    test_demodulator(debug, 1000)
 
 if __name__ == "__main__":
     main()
