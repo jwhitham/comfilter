@@ -245,13 +245,21 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
         inputs = []
         expect_values = []
 
-        # Generate test values
-        o1i = make_fixed((r.random() * 2.0) - 1.0)
-        li = make_fixed((r.random() * 2.0) - 1.0)
+        # Generate test values - must keep yf in range
+        # O1 should be -1.0 .. 1.0 but might be slightly outside
+        # L should be 0.0 .. 1.0 but might be slightly greater
+        yf = 99.0
+        attempts_left = 5
+        while abs(yf) >= 1.99:
+            assert attempts_left > 0
+            o1i = make_fixed((r.random() * 2.2) - 1.1)
+            li = make_fixed(r.random() * 1.1)
 
-        # Calculate expected result
-        xf = abs(make_float(o1i))
-        yf = xf - make_float(li)
+            # Calculate expected result
+            xf = abs(make_float(o1i))
+            yf = xf - make_float(li)
+            attempts_left -= 1
+
         xi = make_fixed(xf)
         yi = make_fixed(yf)
         if debug > 0:
