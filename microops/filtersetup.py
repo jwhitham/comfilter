@@ -272,9 +272,18 @@ def move_reg_to_X(ops: OperationList, source: Register) -> None:
         shift_register(ops, Register.X)
         shift_register(ops, source)
 
+def move_X_to_reg(ops: OperationList, target: Register) -> None:
+    ops.append(Operation.SET_X_IN_TO_X)
+    for i in range(ALL_BITS):
+        shift_register(ops, Register.X)
+        shift_register(ops, target)
+
 def move_reg_to_reg(ops: OperationList, source: Register, target: Register) -> None:
     if source == Register.R:
         move_R_to_reg(ops, target)
+        return
+    if source == Register.X:
+        move_X_to_reg(ops, target)
         return
     if target == Register.X:
         move_reg_to_X(ops, source)
@@ -340,9 +349,10 @@ def rc_filter(ops: OperationList) -> None:
     set_Y_to_X_minus_reg(ops, Register.L)
     ops.append(Operation.ASSERT_X_IS_ABS_O1)
     ops.append(Operation.ASSERT_Y_IS_X_MINUS_L)
+    move_X_to_L_if_Y_is_not_negative_else_move_L_to_X(ops)
 
-    move_X_to_L_if_Y_is_not_negative(ops)
     ops.append(Operation.ASSERT_X_IS_ABS_O1)
+    ops.append(Operation.ASSERT_R_ZERO)
 
 def set_X_to_abs_O1(ops: OperationList) -> None:
     # Operation: X = abs(O1)
@@ -364,16 +374,14 @@ def set_Y_to_X_minus_reg(ops: OperationList, source: Register) -> None:
         shift_register(ops, Register.X)
         shift_register(ops, source)
 
-def move_X_to_L_if_Y_is_not_negative(ops: OperationList) -> None:
-    # if Y is non-negative, then X >= L: so, set L = X = abs(O1)
-    # if Y is negative, then X < L: so, set L = X = L
+def move_X_to_L_if_Y_is_not_negative_else_move_L_to_X(ops: OperationList) -> None:
+    # if Y is non-negative, then X >= L: so, set L = X
+    # if Y is negative, then X < L: so, set X = L
     ops.append(Operation.SET_REG_OUT_TO_L_OR_X)
     ops.append(Operation.SET_X_IN_TO_ABS_REG_OUT)
     for i in range(ALL_BITS):
         shift_register(ops, Register.L)
         shift_register(ops, Register.X)
-
-    ops.append(Operation.ASSERT_R_ZERO)
 
 def demodulator(ops: OperationList) -> None:
     # Load new input

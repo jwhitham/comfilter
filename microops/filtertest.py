@@ -4,7 +4,8 @@ from filtersetup import (
         ALL_BITS, A_BITS, R_BITS, make_fixed, make_float,
         multiply_accumulate, filter_step, demodulator,
         multiply_accumulate_via_regs, move_reg_to_reg,
-        set_X_to_abs_O1, set_Y_to_X_minus_reg, move_X_to_L_if_Y_is_not_negative,
+        set_X_to_abs_O1, set_Y_to_X_minus_reg,
+        move_X_to_L_if_Y_is_not_negative_else_move_L_to_X,
     )
 from settings import FRACTIONAL_BITS, NON_FRACTIONAL_BITS, SAMPLE_RATE
 import enum, math, typing, random, struct
@@ -267,14 +268,18 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
         if debug > 0:
             print(f" O1 = {o1i:04x} L = {li:04x} X = {xi:04x} Y = {yi:04x}", end="")
 
+        expect_li = li
+        expect_xi = xi
+        expect_o1i = o1i
+
         if yf >= 0.0:
-            expect = xi
+            expect_li = xi
+            expect_xi = li
             if debug > 0:
-                print(f" use abs(O1) = {expect:04x}", end="")
+                print(f" use abs(O1) = {expect_li:04x}", end="")
         else:
-            expect = li
             if debug > 0:
-                print(f" use L       = {expect:04x}", end="")
+                print(f" use L       = {expect_li:04x}", end="")
 
         # Load input 
         inputs.append(o1i)
@@ -287,21 +292,24 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
         # do it
         set_X_to_abs_O1(ops)
         set_Y_to_X_minus_reg(ops, Register.L)
-        move_X_to_L_if_Y_is_not_negative(ops)
+        move_X_to_L_if_Y_is_not_negative_else_move_L_to_X(ops)
         ops.append(Operation.SEND_L_TO_OUTPUT)
+        ops.append(Operation.SEND_O1_TO_OUTPUT)
+        move_reg_to_reg(ops, Register.X, Register.O1)
         ops.append(Operation.SEND_O1_TO_OUTPUT)
 
         # run
         out_values = run_ops(ops, inputs, debug > 1)
-        assert len(out_values) == 2
+        assert len(out_values) == 3
 
-        result = out_values[0]
+        result_li = out_values[0]
+        result_o1i = out_values[1]
+        result_xi = out_values[2]
         if debug > 0:
-            print(f" result = {result:04x}")
-        assert result == expect
-
-        # O1 should not have changed
-        assert o1i == out_values[1]
+            print(f" result = {result_li:04x}")
+        assert expect_li == result_li
+        assert expect_o1i == result_o1i
+        assert expect_xi == result_xi
 
 def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: int) -> None:
     print(f"Test update of Y")
