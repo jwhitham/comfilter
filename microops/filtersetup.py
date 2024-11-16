@@ -41,7 +41,6 @@ class Operation(enum.Enum):
     LOAD_I0_FROM_INPUT = enum.auto()
     SEND_O1_TO_OUTPUT = enum.auto()
     SEND_L_TO_OUTPUT = enum.auto()
-    SEND_Y_SIGN_TO_OUTPUT = enum.auto()
     SEND_Y_TO_OUTPUT = enum.auto()
     SET_REG_OUT_TO_I0 = enum.auto()
     SET_REG_OUT_TO_I1 = enum.auto()
@@ -124,7 +123,6 @@ DEBUG_PREFIX_ENCODING_TABLE = {
     Operation.ASSERT_R_ZERO: 4,
     Operation.ASSERT_A_LOW_ZERO: 5,
     Operation.ASSERT_Y_IS_X_MINUS_L: 6,
-    Operation.SEND_Y_TO_OUTPUT: 7,
     Operation.SET_REG_OUT_TO_X: 14,
 }
 
@@ -139,7 +137,7 @@ EXTENDED_PREFIX_ENCODING_TABLE = {
     Operation.SET_REG_OUT_TO_R: 8,
     Operation.SET_X_IN_TO_ABS_O1_REG_OUT: 9,
     Operation.LOAD_I0_FROM_INPUT: 10,
-    Operation.SEND_Y_SIGN_TO_OUTPUT: 11,
+    Operation.SEND_Y_TO_OUTPUT: 11,
     Operation.RESTART: 12,
     Operation.BANK_SWITCH: 13,
     Operation.SET_X_IN_TO_REG_OUT: 14,

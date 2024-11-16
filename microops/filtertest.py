@@ -100,8 +100,6 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 out_values.append(reg_file[Register.O1])
             elif op == Operation.SEND_L_TO_OUTPUT:
                 out_values.append(reg_file[Register.L])
-            elif op == Operation.SEND_Y_SIGN_TO_OUTPUT:
-                out_values.append(reg_file[Register.Y] >> (ALL_BITS - 1))
             elif op == Operation.SEND_Y_TO_OUTPUT:
                 out_values.append(reg_file[Register.Y])
             elif op == Operation.SET_REG_OUT_TO_L_OR_X:
@@ -338,17 +336,12 @@ def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: in
 
         # Operation: Y = X - I0
         set_Y_to_X_minus_reg(ops, Register.I0)
-        ops.append(Operation.SEND_Y_SIGN_TO_OUTPUT)
         ops.append(Operation.SEND_Y_TO_OUTPUT)
 
         # run
         out_values = run_ops(ops, inputs, debug > 1)
-        assert len(out_values) == 2
-
-        result_bit = out_values[0]
-        result_yi = out_values[1]
-        assert result_bit == expect_bit
-        assert result_yi == expect_yi
+        assert len(out_values) == 1
+        result_yi = out_values[0]
 
 
 
@@ -421,7 +414,7 @@ def main() -> None:
     test_bandpass_filter(r, debug, 100)
     test_move_X_to_L_if_Y_is_not_negative(r, debug, 100)
     test_set_Y_to_X_minus_reg(r, debug, 100)
-    test_demodulator(debug, 1000)
+    test_demodulator(debug, 100000)
 
 if __name__ == "__main__":
     main()
