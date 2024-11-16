@@ -8,7 +8,6 @@ from settings import (UPPER_FREQUENCY,
         FILTER_WIDTH,
         SAMPLE_RATE)
 
-SYSTEM_CLOCK_FREQUENCY = 96e6
 ALL_BITS = FRACTIONAL_BITS + NON_FRACTIONAL_BITS
 A_BITS = R_BITS = (FRACTIONAL_BITS * 2) + NON_FRACTIONAL_BITS
 
@@ -110,7 +109,7 @@ NO_PREFIX_ENCODING_TABLE = {
     Operation.SHIFT_A_RIGHT: 9,
     Operation.SHIFT_Y_RIGHT: 10,
     Operation.SET_REG_OUT_TO_ZERO : 11,
-    Operation.SET_REG_OUT_TO_L: 13,
+    Operation.SET_REG_OUT_TO_L: 12,
     Operation.DEBUG_PREFIX: 14,
     Operation.EXTENDED_PREFIX: 15
 }
@@ -150,16 +149,39 @@ class OperationList:
         self.no_prefix_decoder = { value: op for (op, value) in NO_PREFIX_ENCODING_TABLE.items() }
         self.debug_prefix_decoder = { value: op for (op, value) in DEBUG_PREFIX_ENCODING_TABLE.items() }
         self.extended_prefix_decoder = { value: op for (op, value) in EXTENDED_PREFIX_ENCODING_TABLE.items() }
-        self.op_count = 0
+        self.map: typing.Dict[int, typing.Tuple[Operation, str]] = {}
 
     def size(self) -> int:
         return len(self.encoded)
 
     def __len__(self) -> int:
-        return self.op_count
+        return len(self.map)
 
-    def append(self, op: Operation) -> None:
-        self.op_count += 1
+    def dump_code(self, fd: typing.IO) -> None:
+        for enc in self.encoded:
+            fd.write(f"{enc:x}")
+
+    def dump_map(self, fd: typing.IO) -> None:
+        for (i, enc) in enumerate(self.encoded):
+            if i in self.map:
+                (op, comment) = self.map[i]
+                if comment:
+                    fd.write(f"# {comment}\n")
+                fd.write(f"  {enc:x}  {op.name}\n")
+            else:
+                fd.write(f"  {enc:x}\n")
+
+    def dump_frequency(self, fd: typing.IO) -> None:
+        counter = {op: 0 for op in Operation}
+        for op in self:
+            counter[op] += 1
+        for op in Operation:
+            fd.write(f"{counter[op]:4d} {op.name}\n")
+        fd.write(f"{len(self.map):4d} total operations\n")
+        fd.write(f"{len(self.encoded):4d} when encoded\n")
+
+    def append(self, op: Operation, comment: str = "") -> None:
+        self.map[len(self.encoded)] = (op, comment)
         if op in NO_PREFIX_ENCODING_TABLE:
             self.encoded.append(NO_PREFIX_ENCODING_TABLE[op])
         elif op in DEBUG_PREFIX_ENCODING_TABLE:
@@ -221,15 +243,17 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
     # print(f"Multiplication with value {value:1.6f} fixed encoding {ivalue:04x}")
 
     # Clear high A bits
-    ops.append(Operation.SET_REG_OUT_TO_ZERO)
+    ops.append(Operation.SET_REG_OUT_TO_ZERO, f"Multiply {source.name} and {value:1.6f}")
     for i in range(ALL_BITS):
         ops.append(Operation.SHIFT_A_RIGHT)
-    ops.append(Operation.ASSERT_A_HIGH_ZERO)
 
     # If negative, also clear the low bits, as these will be added during shift-in
     if negative:
         for i in range(A_BITS - ALL_BITS):
             ops.append(Operation.SHIFT_A_RIGHT)
+
+    ops.append(Operation.ASSERT_A_HIGH_ZERO)
+    if negative:
         ops.append(Operation.ASSERT_A_LOW_ZERO)
 
     # Configure source
@@ -441,21 +465,12 @@ def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[fl
 def main() -> None:
     ops = OperationList()
     demodulator(ops)
-    counter = {op: 0 for op in Operation}
-    for op in ops:
-        counter[op] += 1
     with open("generated/demodulator", "wt") as fd:
-        for val in ops.encoded:
-            fd.write(f"{val:x}")
-    for op in Operation:
-        print(f"{counter[op]:4d} {op.name}")
-    print(f"{len(ops):4d} total")
-
-    filter_period = (1.0 / SYSTEM_CLOCK_FREQUENCY) * ops.size() * 1e6
-    print(f"{ops.size()} ops including prefixes, period will be {filter_period:1.2f} us")
-    sample_period = (1.0 / SAMPLE_RATE) * 1e6
-    print(f"sample period is {sample_period:1.2f} us per channel")
-    assert filter_period < sample_period
+        ops.dump_code(fd)
+    with open("generated/map", "wt") as fd:
+        ops.dump_map(fd)
+    with open("generated/frequency", "wt") as fd:
+        ops.dump_frequency(fd)
 
         
 if __name__ == "__main__":
