@@ -5,7 +5,7 @@ from filtersetup import (
         multiply_accumulate, filter_step, demodulator,
         multiply_accumulate_via_regs, move_reg_to_reg,
         set_X_to_abs_O1, set_Y_to_X_minus_reg,
-        move_X_to_L_if_Y_is_not_negative_else_move_L_to_X,
+        move_X_to_L_if_Y_is_not_negative, move_abs_reg_to_X,
     )
 from settings import FRACTIONAL_BITS, NON_FRACTIONAL_BITS, SAMPLE_RATE
 import enum, math, typing, random, struct
@@ -274,14 +274,13 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
 
         if yf >= 0.0:
             expect_li = xi
-            expect_xi = li
             if debug > 0:
                 print(f" use abs(O1) =", end="")
         else:
             if debug > 0:
                 print(f" use L       =", end="")
         if debug > 0:
-            print(f" {expect_li:04x} X = {expect_xi:04x}", end="")
+            print(f" {expect_li:04x} X = {expect_xi:04x}")
 
         # Load input 
         inputs.append(o1i)
@@ -294,7 +293,7 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
         # do it
         set_X_to_abs_O1(ops)
         set_Y_to_X_minus_reg(ops, Register.L)
-        move_X_to_L_if_Y_is_not_negative_else_move_L_to_X(ops)
+        move_X_to_L_if_Y_is_not_negative(ops)
         ops.append(Operation.SEND_L_TO_OUTPUT)
         ops.append(Operation.SEND_O1_TO_OUTPUT)
         move_reg_to_reg(ops, Register.X, Register.O1)
@@ -339,7 +338,7 @@ def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: in
         expect = make_fixed(yf)
         inputs.append(xi)
         ops.append(Operation.LOAD_I0_FROM_INPUT)
-        move_reg_to_reg(ops, Register.I0, Register.X)
+        move_abs_reg_to_X(ops, Register.I0)
         inputs.append(li)
         ops.append(Operation.LOAD_I0_FROM_INPUT)
 

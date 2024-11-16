@@ -52,6 +52,7 @@ class Operation(enum.Enum):
     SET_REG_OUT_TO_R = enum.auto()
     SET_REG_OUT_TO_L = enum.auto()
     SET_REG_OUT_TO_L_OR_X = enum.auto()
+    SET_REG_OUT_TO_X = enum.auto()
     SET_X_IN_TO_X = enum.auto()
     SET_X_IN_TO_ABS_REG_OUT = enum.auto()
     SET_Y_IN_TO_X_MINUS_REG_OUT = enum.auto()
@@ -79,6 +80,7 @@ SET_REG_OUT_TABLE = {
     Operation.SET_REG_OUT_TO_O2 : Register.O2,
     Operation.SET_REG_OUT_TO_R : Register.R,
     Operation.SET_REG_OUT_TO_ZERO : Register.ZERO,
+    Operation.SET_REG_OUT_TO_X : Register.X,
 }
 
 SHIFT_TABLE = {
@@ -122,6 +124,7 @@ DEBUG_PREFIX_ENCODING_TABLE = {
     Operation.ASSERT_A_LOW_ZERO: 5,
     Operation.ASSERT_Y_IS_X_MINUS_L: 6,
     Operation.SEND_Y_TO_OUTPUT: 7,
+    Operation.SET_REG_OUT_TO_X: 14,
 }
 
 EXTENDED_PREFIX_ENCODING_TABLE = {
@@ -138,7 +141,6 @@ EXTENDED_PREFIX_ENCODING_TABLE = {
     Operation.SEND_Y_SIGN_TO_OUTPUT: 11,
     Operation.RESTART: 12,
     Operation.BANK_SWITCH: 13,
-    Operation.SET_REG_OUT_TO_L_OR_X: 14,
     Operation.SET_Y_IN_TO_X_MINUS_REG_OUT: 15,
 }
   
@@ -265,28 +267,19 @@ def move_R_to_reg(ops: OperationList, target: Register) -> None:
     # R should be zero again here!
     ops.append(Operation.ASSERT_R_ZERO)
 
-def move_reg_to_X(ops: OperationList, source: Register) -> None:
+def move_abs_reg_to_X(ops: OperationList, source: Register) -> None:
     set_output_register(ops, source)
     ops.append(Operation.SET_X_IN_TO_ABS_REG_OUT)
     for i in range(ALL_BITS):
         shift_register(ops, Register.X)
         shift_register(ops, source)
 
-def move_X_to_reg(ops: OperationList, target: Register) -> None:
-    ops.append(Operation.SET_X_IN_TO_X)
-    for i in range(ALL_BITS):
-        shift_register(ops, Register.X)
-        shift_register(ops, target)
-
 def move_reg_to_reg(ops: OperationList, source: Register, target: Register) -> None:
+    assert target != Register.X
+    if source == Register.X:
+        ops.append(Operation.SET_X_IN_TO_X)
     if source == Register.R:
         move_R_to_reg(ops, target)
-        return
-    if source == Register.X:
-        move_X_to_reg(ops, target)
-        return
-    if target == Register.X:
-        move_reg_to_X(ops, source)
         return
 
     set_output_register(ops, source)
@@ -349,7 +342,7 @@ def rc_filter(ops: OperationList) -> None:
     set_Y_to_X_minus_reg(ops, Register.L)
     ops.append(Operation.ASSERT_X_IS_ABS_O1)
     ops.append(Operation.ASSERT_Y_IS_X_MINUS_L)
-    move_X_to_L_if_Y_is_not_negative_else_move_L_to_X(ops)
+    move_X_to_L_if_Y_is_not_negative(ops)
 
     ops.append(Operation.ASSERT_X_IS_ABS_O1)
     ops.append(Operation.ASSERT_R_ZERO)
@@ -374,11 +367,11 @@ def set_Y_to_X_minus_reg(ops: OperationList, source: Register) -> None:
         shift_register(ops, Register.X)
         shift_register(ops, source)
 
-def move_X_to_L_if_Y_is_not_negative_else_move_L_to_X(ops: OperationList) -> None:
+def move_X_to_L_if_Y_is_not_negative(ops: OperationList) -> None:
     # if Y is non-negative, then X >= L: so, set L = X
-    # if Y is negative, then X < L: so, set X = L
+    # if Y is negative, then X < L: so, set X = X
     ops.append(Operation.SET_REG_OUT_TO_L_OR_X)
-    ops.append(Operation.SET_X_IN_TO_ABS_REG_OUT)
+    ops.append(Operation.SET_X_IN_TO_X)
     for i in range(ALL_BITS):
         shift_register(ops, Register.L)
         shift_register(ops, Register.X)
@@ -402,7 +395,7 @@ def demodulator(ops: OperationList) -> None:
     ops.append(Operation.SEND_L_TO_OUTPUT)
 
     # Operation: X = LS
-    move_reg_to_reg(ops, Register.L, Register.X)
+    move_abs_reg_to_X(ops, Register.L)
 
     # Back to first bank
     ops.append(Operation.BANK_SWITCH)
