@@ -70,14 +70,14 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 reg_file[Register.X] |= (x_in & 1) << ALL_BITS
                 reg_file[Register.X] >>= 1
             elif op == Operation.SHIFT_Y_RIGHT:
-                if y_select == YSelect.BORROW_X_MINUS_REG_OUT:
-                    y_in = 5 + (reg_file[Register.X] & 1) - reg_out
+                if y_select == YSelect.X_MINUS_REG_OUT:
+                    y_in = 4 + (reg_file[Register.X] & 1) - reg_out
+                    if y_in & 2:
+                        y_select = YSelect.BORROW_X_MINUS_REG_OUT
+                elif y_select == YSelect.BORROW_X_MINUS_REG_OUT:
+                    y_in = 3 + (reg_file[Register.X] & 1) - reg_out
                     if not (y_in & 2):
                         y_select = YSelect.X_MINUS_REG_OUT
-                elif y_select == YSelect.X_MINUS_REG_OUT:
-                    y_in = 4 + (reg_file[Register.X] & 1) - reg_out
-                    if (y_in & 2):
-                        y_select = YSelect.BORROW_X_MINUS_REG_OUT
                 else:
                     assert False
                 reg_file[Register.Y] |= (y_in & 1) << ALL_BITS
@@ -133,7 +133,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
         
 def main() -> None:
     r = random.Random(1)
-    debug = 2
+    debug = 0
     num_multiply_tests = 1
     num_filter_tests = 1
     num_compare_tests = 80000
