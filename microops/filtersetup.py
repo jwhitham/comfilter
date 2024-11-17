@@ -197,8 +197,8 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
 
     # Clear high A bits
     ops.comment(f"Multiplication begins: {source.name} * {value:1.6f} ({ivalue:04x})")
-    ops.add(ControlLine.SHIFT_A_RIGHT, ControlLine.REPEAT_FOR_ALL_BITS,
-            get_mux_lines(Register.ZERO))
+    ops.add(get_mux_lines(Register.ZERO))
+    ops.add(ControlLine.SHIFT_A_RIGHT, ControlLine.REPEAT_FOR_ALL_BITS)
 
     # If negative, also clear the low bits, as these will be added during shift-in
     if negative:
@@ -231,11 +231,11 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
 def move_R_to_reg(ops: OperationList, target: Register) -> None:
     # Discard low bits of R
     for i in range(FRACTIONAL_BITS):
-        ops.add(ControlLine.SHIFT_R_RIGHT)
+        ops.add(ControlLine.SHIFT_R_RIGHT, get_mux_lines(Register.R))
 
     # Move result bits of R to target
     ops.add(ControlLine.SHIFT_R_RIGHT, get_shift_line(target),
-            get_mux_lines(Register.R), ControlLine.REPEAT_FOR_ALL_BITS)
+            ControlLine.REPEAT_FOR_ALL_BITS)
 
     # Discard high bits of R (if any)
     for i in range(R_BITS - (FRACTIONAL_BITS + ALL_BITS)):
@@ -251,8 +251,9 @@ def move_reg_to_reg(ops: OperationList, source: Register, target: Register) -> N
         move_R_to_reg(ops, target)
         return
 
+    ops.add(get_mux_lines(source))
     ops.add(get_shift_line(target), get_shift_line(source), ControlLine.REPEAT_FOR_ALL_BITS,
-            ControlLine.SET_X_IN_TO_REG_OUT, get_mux_lines(source))
+            ControlLine.SET_X_IN_TO_REG_OUT)
 
 def filter_step(ops: OperationList, a1: float, a2: float, b0: float, b2: float) -> None:
     # R should be zero here!
@@ -334,9 +335,9 @@ def set_Y_to_X_minus_reg(ops: OperationList, source: Register) -> None:
 def move_X_to_L_if_Y_is_not_negative(ops: OperationList) -> None:
     # if Y is non-negative, then X >= L: so, set L = X
     # if Y is negative, then X < L: so, set X = X
+    ops.add(get_mux_lines(Register.L_OR_X))
     ops.add(ControlLine.SHIFT_L_RIGHT, ControlLine.SHIFT_X_RIGHT,
-            ControlLine.REPEAT_FOR_ALL_BITS,
-            get_mux_lines(Register.L_OR_X), ControlLine.SET_X_IN_TO_X)
+            ControlLine.REPEAT_FOR_ALL_BITS, ControlLine.SET_X_IN_TO_X)
 
 def demodulator(ops: OperationList) -> None:
     # Load new input

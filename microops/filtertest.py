@@ -82,14 +82,48 @@ def execute(controls: ControlLines, inf: RegFile,
     if ControlLine.SEND_L_TO_OUTPUT in controls:
         out_values.append(inf[Register.L])
 
+    # Shift for generic registers
     for (reg, cl) in SHIFT_CONTROL_LINE.items():
         if cl in controls:
-            if reg == Register.R:
-                outf[reg] = inf[reg] >> 1
-            elif reg == Register.A:
-                outf[reg] = (inf[reg] | (reg_out << A_BITS)) >> 1
-            else:
-                outf[reg] = (inf[reg] | (reg_out << ALL_BITS)) >> 1
+            outf[reg] = (inf[reg] | (reg_out << ALL_BITS)) >> 1
+
+    # Shift for some registers is special
+    if ControlLine.SHIFT_R_RIGHT in controls:
+        # R register always shift in zero
+        outf[Register.R] = inf[Register.R] >> 1
+    if ControlLine.SHIFT_A_RIGHT in controls:
+        # A register is wider
+        outf[Register.A] = (inf[Register.A] | (reg_out << A_BITS)) >> 1
+    if ControlLine.SHIFT_X_RIGHT in controls:
+        # X register has a special function input (passthrough/abs)
+        if inf[SpecialRegister.X_SELECT] == XSelect.PASSTHROUGH_REG_OUT.value:
+            x_in = reg_out
+        elif inf[SpecialRegister.X_SELECT] == XSelect.PASSTHROUGH_X.value:
+            x_in = inf[Register.X] & 1
+        elif inf[SpecialRegister.X_SELECT] == XSelect.NEGATE_REG_OUT.value:
+            x_in = 4 - reg_out
+            if x_in & 2:
+                outf[SpecialRegister.X_SELECT] = XSelect.BORROW_REG_OUT.value
+        elif inf[SpecialRegister.X_SELECT] == XSelect.BORROW_REG_OUT.value:
+            x_in = 3 - reg_out
+            if not (x_in & 2):
+                outf[SpecialRegister.X_SELECT] = XSelect.NEGATE_REG_OUT.value
+        else:
+            assert False
+        outf[Register.X] = (inf[Register.X] | (x_in << ALL_BITS)) >> 1
+    if ControlLine.SHIFT_Y_RIGHT in controls:
+        # Y register has a special function input (subtract)
+        if inf[SpecialRegister.Y_SELECT] == YSelect.X_MINUS_REG_OUT.value:
+            y_in = 4 + (inf[Register.X] & 1) - reg_out
+            if y_in & 2:
+                outf[SpecialRegister.Y_SELECT] = YSelect.BORROW_X_MINUS_REG_OUT.value
+        elif inf[SpecialRegister.Y_SELECT] == YSelect.BORROW_X_MINUS_REG_OUT.value:
+            y_in = 3 + (inf[Register.X] & 1) - reg_out
+            if not (y_in & 2):
+                outf[SpecialRegister.Y_SELECT] = YSelect.X_MINUS_REG_OUT.value
+        else:
+            assert False
+        outf[Register.Y] = (inf[Register.Y] | (y_in << ALL_BITS)) >> 1
 
     if ((ControlLine.SET_MUX_BIT_1 in controls)
     or (ControlLine.SET_MUX_BIT_2 in controls)
@@ -127,13 +161,13 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
         op = ops[op_index]
         if isinstance(op, ControlOperation):
             if debug:
-                print(f"op: {op_index} {op}")
+                print(f"  op: {op_index} {op}")
             previous_reg_file = reg_file
             (next_step, reg_file) = execute(op.controls, previous_reg_file, reverse_in_values, out_values)
             if debug:
                 for r in reg_file.keys():
                     if reg_file[r] != previous_reg_file[r]:
-                        print(f" reg {r.name}: {previous_reg_file[r]:08x} -> {reg_file[r]:08x}")
+                        print(f"   reg {r.name}: {previous_reg_file[r]:08x} -> {reg_file[r]:08x}")
 
             if next_step == NextStep.RESTART:
                 if len(reverse_in_values) == 0:
@@ -144,7 +178,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 op_index += 1
         else:
             if debug:
-                print(str(op))
+                print(f"  {op}")
             op_index += 1
 
     # Gone over the end of the program
@@ -188,7 +222,8 @@ def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: i
         rf = make_float(ri)
         error = abs(rf - expect)
         if debug > 0:
-            print(f" result {rf:1.6f} error {error:1.6f} ops {len(ops)} via_regs {via_regs}")
+            print(f" result {rf:1.6f} {ri:04x} expect {expect:1.6f} {make_fixed(expect):04x}")
+            print(f" error {error:1.6f} ops {len(ops)} via_regs {via_regs}")
         if via_regs:
             assert error < ACCEPTABLE_ERROR
         else:
@@ -424,7 +459,7 @@ def test_demodulator(debug: int, num_compare_tests: int) -> None:
     assert correct > (len(in_values) * 0.99)
 
 def main() -> None:
-    debug = 2
+    debug = 0
     r = random.Random(2)
     test_multiply_accumulate(r, debug, 100)
     test_bandpass_filter(r, debug, 100)
