@@ -81,12 +81,15 @@ def execute(controls: ControlLines, inf: RegFile,
         out_values.append(inf[Register.O1])
     if ControlLine.SEND_L_TO_OUTPUT in controls:
         out_values.append(inf[Register.L])
-    if ControlLine.SHIFT_A_RIGHT in controls:
-        outf[Register.A] = (inf[Register.A] | (reg_out << A_BITS)) >> 1
 
     for (reg, cl) in SHIFT_CONTROL_LINE.items():
         if cl in controls:
-            outf[reg] = (inf[reg] | (reg_out << ALL_BITS)) >> 1
+            if reg == Register.R:
+                outf[reg] = inf[reg] >> 1
+            elif reg == Register.A:
+                outf[reg] = (inf[reg] | (reg_out << A_BITS)) >> 1
+            else:
+                outf[reg] = (inf[reg] | (reg_out << ALL_BITS)) >> 1
 
     if ((ControlLine.SET_MUX_BIT_1 in controls)
     or (ControlLine.SET_MUX_BIT_2 in controls)
@@ -131,8 +134,6 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 for r in reg_file.keys():
                     if reg_file[r] != previous_reg_file[r]:
                         print(f" reg {r.name}: {previous_reg_file[r]:08x} -> {reg_file[r]:08x}")
-                if next_step != NextStep.NEXT:
-                    print(f" next: {next_step.name}")
 
             if next_step == NextStep.RESTART:
                 if len(reverse_in_values) == 0:

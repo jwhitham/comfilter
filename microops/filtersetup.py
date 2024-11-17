@@ -108,7 +108,7 @@ class ControlOperation(Operation):
         self.controls = controls
 
     def __str__(self) -> str:
-        return ','.join([cl.name for cl in self.controls])
+        return ','.join(sorted([cl.name for cl in self.controls]))
 
     def dump_code(self, fd: typing.IO) -> None:
         fd.write(str(self))
@@ -196,7 +196,7 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
     # print(f"Multiplication with value {value:1.6f} fixed encoding {ivalue:04x}")
 
     # Clear high A bits
-    ops.comment(f"Multiply {source.name} and {value:1.6f}")
+    ops.comment(f"Multiplication begins: {source.name} * {value:1.6f} ({ivalue:04x})")
     ops.add(ControlLine.SHIFT_A_RIGHT, ControlLine.REPEAT_FOR_ALL_BITS,
             get_mux_lines(Register.ZERO))
 
@@ -226,15 +226,16 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
     # Final bit shifted
     ops.add(get_shift_line(source))
 
+    ops.comment(f"Multiplication complete: {source.name} * {value:1.6f}")
+
 def move_R_to_reg(ops: OperationList, target: Register) -> None:
     # Discard low bits of R
     for i in range(FRACTIONAL_BITS):
-        ops.add(ControlLine.SHIFT_R_RIGHT, ControlLine.REPEAT_FOR_ALL_BITS)
+        ops.add(ControlLine.SHIFT_R_RIGHT)
 
     # Move result bits of R to target
-    for i in range(ALL_BITS):
-        ops.add(ControlLine.SHIFT_R_RIGHT, get_shift_line(target),
-                get_mux_lines(Register.R))
+    ops.add(ControlLine.SHIFT_R_RIGHT, get_shift_line(target),
+            get_mux_lines(Register.R), ControlLine.REPEAT_FOR_ALL_BITS)
 
     # Discard high bits of R (if any)
     for i in range(R_BITS - (FRACTIONAL_BITS + ALL_BITS)):
@@ -374,6 +375,7 @@ def demodulator(ops: OperationList) -> None:
 
 def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> None:
     # For testing: multiply-accumulate
+    ops.comment(f"Begin multiply_accumulate with {test_values}")
     ops.add(ControlLine.ASSERT_R_ZERO)
 
     # Multiply and add repeatedly
@@ -381,6 +383,7 @@ def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> 
         ops.add(ControlLine.LOAD_I0_FROM_INPUT)
         fixed_multiply(ops, Register.I0, test_value)
 
+    ops.comment("Output from multiply_accumulate")
     move_reg_to_reg(ops, Register.R, Register.O1)
 
     # One output
