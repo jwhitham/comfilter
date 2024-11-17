@@ -1,11 +1,14 @@
 
-from filtersetup import (
+from hardware import (
         OperationList, Register, ControlLine,
+        ALL_BITS,
+    )
+from filtersetup import (
         make_fixed, make_float,
         multiply_accumulate, filter_step, demodulator,
         multiply_accumulate_via_regs, move_reg_to_reg,
         set_X_to_abs_O1, set_Y_to_X_minus_reg,
-        ALL_BITS, move_X_to_L_if_Y_is_not_negative,
+        move_X_to_L_if_Y_is_not_negative,
 #        multiply_accumulate, filter_step, demodulator,
 #        multiply_accumulate_via_regs, move_reg_to_reg,
     )

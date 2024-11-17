@@ -1,9 +1,11 @@
 
-from filtersetup import (
+from hardware import (
         ControlLine, ControlLines,
         OperationList, Register, ControlOperation,
-        ALL_BITS, A_BITS, R_BITS,
         SHIFT_CONTROL_LINE,
+        ALL_BITS, A_BITS, R_BITS,
+    )
+from filtersetup import (
         make_float,
     )
 import enum, typing
