@@ -1,5 +1,6 @@
-
+import filtersetup
 from filtersetup import (
+        ControlLine,
         OperationList, Register, Operation, SET_REG_OUT_TABLE, SHIFT_TABLE,
         ALL_BITS, A_BITS, R_BITS, make_fixed, make_float,
         multiply_accumulate, filter_step, demodulator,
@@ -23,7 +24,88 @@ class YSelect(enum.Enum):
     X_MINUS_REG_OUT = enum.auto()
     BORROW_X_MINUS_REG_OUT = enum.auto()
 
-def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
+class RegFile:
+    def __init__(self) -> None:
+        self.reg_file: typing.Dict[Register, int] = {
+            register: 0 for register in Register
+        }
+        self.reg_select = Register.I0
+        self.x_select = XSelect.PASSTHROUGH_X
+        self.y_select = YSelect.X_MINUS_REG_OUT
+
+class ExecutableControlOperation(filtersetup.ControlOperation):
+    def __init__(self, controls: typing.List[ControlLine]) -> None:
+        filtersetup.ControlOperation.__init__(self, controls)
+
+    def execute(self, inf: RegFile,
+            reverse_in_values: typing.List[int],
+            out_values: typing.List[int]) -> None:
+        outf = inf.copy()
+
+        if ControlLine.ADD_A_TO_R in self.controls:
+            outf[Register.R] += inf[Register.A]
+            outf[Register.R] &= (1 << R_BITS) - 1
+        if ControlLine.BANK_SWITCH in self.controls:
+            outf[Register.L], outf[Register.LS] = inf[Register.LS], inf[Register.L]
+            outf[Register.O1], outf[Register.O1S] = inf[Register.O1S], inf[Register.O1]
+            outf[Register.O2], outf[Register.O2S] = inf[Register.O2S], inf[Register.O2]
+        if ControlLine.LOAD_I0_FROM_INPUT in self.controls:
+            outf[Register.I0] = reverse_in_values.pop()
+        if ControlLine.SEND_Y_TO_OUTPUT in self.controls:
+            out_values.append(inf[Register.Y])
+        if ControlLine.SET_X_IN_TO_X in self.controls:
+            outf.x_select = XSelect.PASSTHROUGH_X
+        if ControlLine.SET_X_IN_TO_REG_OUT in self.controls:
+            outf.x_select = XSelect.PASSTHROUGH_REG_OUT
+        if ControlLine.SET_X_IN_TO_ABS_O1_REG_OUT in self.controls:
+            if inf[Register.O1] >> (ALL_BITS - 1):
+                outf.x_select = XSelect.NEGATE_REG_OUT
+            else:
+                outf.x_select = XSelect.PASSTHROUGH_REG_OUT
+        if ControlLine.SET_Y_IN_TO_X_MINUS_REG_OUT in self.controls:
+            outf.y_select = YSelect.X_MINUS_REG_OUT
+        if ControlLine.RESTART in self.controls:
+            raise RestartEvent()
+        if ControlLine.ASSERT_X_IS_ABS_O1 in self.controls:
+            assert abs(make_float(inf[Register.O1])) == make_float(abs(inf[Register.X]))
+        if ControlLine.ASSERT_A_HIGH_ZERO in self.controls:
+            assert (inf[Register.A] >> ALL_BITS) == 0
+        if ControlLine.ASSERT_A_LOW_ZERO in self.controls:
+            assert (inf[Register.A] & ((1 << ALL_BITS) - 1)) == 0
+        if ControlLine.ASSERT_R_ZERO in self.controls:
+        if ControlLine.ASSERT_Y_IS_X_MINUS_L in self.controls:
+        if ControlLine.SEND_O1_TO_OUTPUT in self.controls:
+        if ControlLine.SEND_L_TO_OUTPUT in self.controls:
+        if ControlLine.SHIFT_A_RIGHT in self.controls:
+        if ControlLine.SHIFT_X_RIGHT in self.controls:
+        if ControlLine.SHIFT_Y_RIGHT in self.controls:
+        if ControlLine.SHIFT_I0_RIGHT in self.controls:
+        if ControlLine.SHIFT_I1_RIGHT in self.controls:
+        if ControlLine.SHIFT_I2_RIGHT in self.controls:
+        if ControlLine.SHIFT_L_RIGHT in self.controls:
+        if ControlLine.SHIFT_O1_RIGHT in self.controls:
+        if ControlLine.SHIFT_O2_RIGHT in self.controls:
+        if ControlLine.SHIFT_R_RIGHT in self.controls:
+        if ControlLine.SET_REG_OUT_TO_I0 in self.controls:
+        if ControlLine.SET_REG_OUT_TO_I1 in self.controls:
+        if ControlLine.SET_REG_OUT_TO_I2 in self.controls:
+        if ControlLine.SET_REG_OUT_TO_L in self.controls:
+        if ControlLine.SET_REG_OUT_TO_O1 in self.controls:
+        if ControlLine.SET_REG_OUT_TO_O2 in self.controls:
+        if ControlLine.SET_REG_OUT_TO_R in self.controls:
+        if ControlLine.SET_REG_OUT_TO_ZERO in self.controls:
+        if ControlLine.SET_REG_OUT_TO_X in self.controls:
+        if ControlLine.SET_REG_OUT_TO_L_OR_X in self.controls:
+        if ControlLine.REPEAT_FOR_ALL_BITS in self.controls:
+
+    def dump_code(self, fd: typing.IO) -> None:
+        fd.write(','.join([cl.name for cl in self.controls]))
+        fd.write("\n")
+
+class ExecutableOperationList(filtersetup.OperationList):
+    
+
+def run_ops(ops: ExecutableOperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
     out_values: typing.List[int] = []
     reg_file: typing.Dict[Register, int] = {
         register: 0 for register in Register

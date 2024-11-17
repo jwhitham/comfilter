@@ -14,20 +14,24 @@ A_BITS = R_BITS = (FRACTIONAL_BITS * 2) + NON_FRACTIONAL_BITS
 import enum, math, typing
 
 class Register(enum.Enum):
-    A = enum.auto()
-    X = enum.auto()
-    Y = enum.auto()
-    I0 = enum.auto()
-    I1 = enum.auto()
-    I2 = enum.auto()
-    L = enum.auto()
-    LS = enum.auto()
-    O1 = enum.auto()
-    O2 = enum.auto()
-    O1S = enum.auto()
-    O2S = enum.auto()
-    R = enum.auto()
-    ZERO = enum.auto()
+    R = 1
+    A = 2
+    Y = 3
+    O1 = 4
+    O2 = 5
+    X = 6
+    L = 7
+    I0 = 8
+    I1 = 9
+    I2 = 10
+    ZERO = 11
+    # Special codes
+    L_OR_X = 15
+    UNCHANGED = 0
+    # Hidden registers
+    LS = -1
+    O1S = -2
+    O2S = -3
 
 class ControlLine(enum.Enum):
     ADD_A_TO_R = enum.auto()
@@ -56,29 +60,11 @@ class ControlLine(enum.Enum):
     SHIFT_O1_RIGHT = enum.auto()
     SHIFT_O2_RIGHT = enum.auto()
     SHIFT_R_RIGHT = enum.auto()
-    SET_REG_OUT_TO_I0 = enum.auto()
-    SET_REG_OUT_TO_I1 = enum.auto()
-    SET_REG_OUT_TO_I2 = enum.auto()
-    SET_REG_OUT_TO_L = enum.auto()
-    SET_REG_OUT_TO_O1 = enum.auto()
-    SET_REG_OUT_TO_O2 = enum.auto()
-    SET_REG_OUT_TO_R = enum.auto()
-    SET_REG_OUT_TO_ZERO = enum.auto()
-    SET_REG_OUT_TO_X = enum.auto()
-    SET_REG_OUT_TO_L_OR_X = enum.auto()
+    SET_MUX_BIT_1 = enum.auto()
+    SET_MUX_BIT_2 = enum.auto()
+    SET_MUX_BIT_4 = enum.auto()
+    SET_MUX_BIT_8 = enum.auto()
     REPEAT_FOR_ALL_BITS = enum.auto()
-
-MUX_CONTROL_LINE = {
-    Register.I0 : ControlLine.SET_REG_OUT_TO_I0,
-    Register.I1 : ControlLine.SET_REG_OUT_TO_I1,
-    Register.I2 : ControlLine.SET_REG_OUT_TO_I2,
-    Register.L : ControlLine.SET_REG_OUT_TO_L,
-    Register.O1 : ControlLine.SET_REG_OUT_TO_O1,
-    Register.O2 : ControlLine.SET_REG_OUT_TO_O2,
-    Register.R : ControlLine.SET_REG_OUT_TO_R,
-    Register.ZERO : ControlLine.SET_REG_OUT_TO_ZERO,
-    Register.X : ControlLine.SET_REG_OUT_TO_X,
-}
 
 SHIFT_CONTROL_LINE = {
     Register.A : ControlLine.SHIFT_A_RIGHT,
@@ -93,6 +79,9 @@ SHIFT_CONTROL_LINE = {
     Register.R : ControlLine.SHIFT_R_RIGHT,
 }
 
+ControlLines = typing.List[ControlLine]
+ControlLineTree = typing.Union[ControlLines, ControlLine, typing.Sequence]
+
 class Operation:
     def dump_code(self, fd: typing.IO) -> None:
         pass
@@ -106,7 +95,7 @@ class CommentOperation(Operation):
         fd.write(f"# {self.comment}\n")
 
 class ControlOperation(Operation):
-    def __init__(self, controls: typing.List[ControlLine]) -> None:
+    def __init__(self, controls: ControlLines) -> None:
         Operation.__init__(self)
         self.controls = controls
 
@@ -116,23 +105,35 @@ class ControlOperation(Operation):
 
 class OperationList:
     def __init__(self) -> None:
-        self.raw_operations: typing.List[Operation] = []
+        self.operations: typing.List[Operation] = []
 
     def __len__(self) -> int:
-        return len(self.raw_operations)
+        return len(self.operations)
 
-    def add(self, *controls: ControlLine) -> None:
-        self.raw_operations.append(ControlOperation(list(controls)))
+    def add(self, *controls_tree: ControlLineTree) -> None:
+        control_lines: ControlLines = []
+
+        def collector(cl: ControlLineTree) -> None:
+            if isinstance(cl, ControlLine):
+                control_lines.append(cl)
+            elif isinstance(cl, list) or isinstance(cl, tuple):
+                for cl2 in cl:
+                    collector(cl2)
+            else:
+                raise ValueError("Unknown ControlLine type")
+
+        collector(controls_tree)
+        self.operations.append(ControlOperation(control_lines))
    
     def comment(self, text: str) -> None:
-        self.raw_operations.append(CommentOperation(text))
+        self.operations.append(CommentOperation(text))
    
     def __iter__(self) -> typing.Iterator[Operation]:
-        for op in self.raw_operations:
+        for op in self.operations:
             yield op
 
     def dump_code(self, fd: typing.IO) -> None:
-        for op in self.raw_operations:
+        for op in self.operations:
             op.dump_code(fd)
    
 def make_fixed(value: float) -> int:
@@ -149,10 +150,28 @@ def make_float(ivalue: int) -> float:
         ivalue -= 1 << ALL_BITS
     return ivalue / float(1 << FRACTIONAL_BITS)
 
-def get_output_register(source: Register) -> ControlLine:
-    return MUX_CONTROL_LINE[source]
+def get_mux_lines(source: Register) -> typing.Sequence[ControlLine]:
+    if not isinstance(source, Register):
+        raise ValueError("Unknown Register type")
+   
+    value = source.value
+    if (value < 0) or (value > 15):
+        raise ValueError(f"Non-selectable register {source.name}")
+
+    control_lines = []
+    if value & 1:
+        control_lines.append(ControlLine.SET_MUX_BIT_1)
+    if value & 2:
+        control_lines.append(ControlLine.SET_MUX_BIT_2)
+    if value & 4:
+        control_lines.append(ControlLine.SET_MUX_BIT_4)
+    if value & 8:
+        control_lines.append(ControlLine.SET_MUX_BIT_8)
+    return control_lines
 
 def get_shift_line(target: Register) -> ControlLine:
+    if not isinstance(target, Register):
+        raise ValueError("Unknown Register type")
     return SHIFT_CONTROL_LINE[target]
 
 def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
@@ -164,8 +183,8 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
 
     # Clear high A bits
     ops.comment(f"Multiply {source.name} and {value:1.6f}")
-    ops.add(ControlLine.SET_REG_OUT_TO_ZERO)
-    ops.add(ControlLine.SHIFT_A_RIGHT, ControlLine.REPEAT_FOR_ALL_BITS)
+    ops.add(ControlLine.SHIFT_A_RIGHT, ControlLine.REPEAT_FOR_ALL_BITS,
+            get_mux_lines(Register.ZERO))
 
     # If negative, also clear the low bits, as these will be added during shift-in
     if negative:
@@ -176,7 +195,7 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
         ops.add(ControlLine.ASSERT_A_LOW_ZERO)
 
     # Configure source
-    ops.add(get_output_register(source))
+    ops.add(get_mux_lines(source))
 
     # Do multiplication
     for i in range(A_BITS):
@@ -199,9 +218,9 @@ def move_R_to_reg(ops: OperationList, target: Register) -> None:
         ops.add(ControlLine.SHIFT_R_RIGHT, ControlLine.REPEAT_FOR_ALL_BITS)
 
     # Move result bits of R to target
-    ops.add(ControlLine.SET_REG_OUT_TO_R)
     for i in range(ALL_BITS):
-        ops.add(ControlLine.SHIFT_R_RIGHT, get_shift_line(target))
+        ops.add(ControlLine.SHIFT_R_RIGHT, get_shift_line(target),
+                get_mux_lines(Register.R))
 
     # Discard high bits of R (if any)
     for i in range(R_BITS - (FRACTIONAL_BITS + ALL_BITS)):
@@ -213,14 +232,12 @@ def move_R_to_reg(ops: OperationList, target: Register) -> None:
 def move_reg_to_reg(ops: OperationList, source: Register, target: Register) -> None:
     ops.comment(f"Move {source.name} to {target.name}")
 
-    if source == Register.X or target == Register.X:
-        ops.add(ControlLine.SET_X_IN_TO_REG_OUT)
     if source == Register.R:
         move_R_to_reg(ops, target)
         return
 
-    ops.add(get_output_register(source))
-    ops.add(get_shift_line(target), get_shift_line(source), ControlLine.REPEAT_FOR_ALL_BITS)
+    ops.add(get_shift_line(target), get_shift_line(source), ControlLine.REPEAT_FOR_ALL_BITS,
+            ControlLine.SET_X_IN_TO_REG_OUT, get_mux_lines(source))
 
 def filter_step(ops: OperationList, a1: float, a2: float, b0: float, b2: float) -> None:
     # R should be zero here!
@@ -287,7 +304,7 @@ def rc_filter(ops: OperationList) -> None:
 
 def set_X_to_abs_O1(ops: OperationList) -> None:
     # Operation: X = abs(O1)
-    ops.add(ControlLine.SET_REG_OUT_TO_O1, ControlLine.SET_X_IN_TO_ABS_O1_REG_OUT)
+    ops.add(ControlLine.SET_X_IN_TO_ABS_O1_REG_OUT, get_mux_lines(Register.O1))
     ops.add(ControlLine.SHIFT_X_RIGHT, ControlLine.SHIFT_O1_RIGHT, ControlLine.REPEAT_FOR_ALL_BITS)
 
     ops.add(ControlLine.ASSERT_X_IS_ABS_O1)
@@ -295,16 +312,16 @@ def set_X_to_abs_O1(ops: OperationList) -> None:
 def set_Y_to_X_minus_reg(ops: OperationList, source: Register) -> None:
     # Operation: Y = X - reg
     ops.add(ControlLine.SET_X_IN_TO_X, ControlLine.SET_Y_IN_TO_X_MINUS_REG_OUT,
-            get_output_register(source))
+            get_mux_lines(source))
     ops.add(ControlLine.SHIFT_X_RIGHT, ControlLine.SHIFT_Y_RIGHT,
             get_shift_line(source), ControlLine.REPEAT_FOR_ALL_BITS)
 
 def move_X_to_L_if_Y_is_not_negative(ops: OperationList) -> None:
     # if Y is non-negative, then X >= L: so, set L = X
     # if Y is negative, then X < L: so, set X = X
-    ops.add(ControlLine.SET_REG_OUT_TO_L_OR_X, ControlLine.SET_X_IN_TO_X)
     ops.add(ControlLine.SHIFT_L_RIGHT, ControlLine.SHIFT_X_RIGHT,
-            ControlLine.REPEAT_FOR_ALL_BITS)
+            ControlLine.REPEAT_FOR_ALL_BITS,
+            get_mux_lines(Register.L_OR_X), ControlLine.SET_X_IN_TO_X)
 
 def demodulator(ops: OperationList) -> None:
     # Load new input
