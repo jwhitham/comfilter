@@ -110,7 +110,7 @@ def execute(controls: ControlLines, inf: RegFile,
                 outf[SpecialRegister.X_SELECT] = XSelect.NEGATE_REG_OUT.value
         else:
             assert False
-        outf[Register.X] = (inf[Register.X] | (x_in << ALL_BITS)) >> 1
+        outf[Register.X] = (inf[Register.X] | ((x_in & 1) << ALL_BITS)) >> 1
     if ControlLine.SHIFT_Y_RIGHT in controls:
         # Y register has a special function input (subtract)
         if inf[SpecialRegister.Y_SELECT] == YSelect.X_MINUS_REG_OUT.value:
@@ -123,7 +123,7 @@ def execute(controls: ControlLines, inf: RegFile,
                 outf[SpecialRegister.Y_SELECT] = YSelect.X_MINUS_REG_OUT.value
         else:
             assert False
-        outf[Register.Y] = (inf[Register.Y] | (y_in << ALL_BITS)) >> 1
+        outf[Register.Y] = (inf[Register.Y] | ((y_in & 1) << ALL_BITS)) >> 1
 
     if ((ControlLine.SET_MUX_BIT_1 in controls)
     or (ControlLine.SET_MUX_BIT_2 in controls)
@@ -138,7 +138,11 @@ def execute(controls: ControlLines, inf: RegFile,
             outf[SpecialRegister.MUX_SELECT] |= 4
         if ControlLine.SET_MUX_BIT_8 in controls:
             outf[SpecialRegister.MUX_SELECT] |= 8
-
+    if ControlLine.SET_MUX_L_OR_X in controls:
+        if inf[Register.Y] >> (ALL_BITS - 1):
+            outf[SpecialRegister.MUX_SELECT] = Register.L.value # Y negative, use L
+        else:
+            outf[SpecialRegister.MUX_SELECT] = Register.X.value # Y non-negative, use X
     if ControlLine.RESTART in controls:
         return (NextStep.RESTART, outf)
     elif ControlLine.REPEAT_FOR_ALL_BITS in controls:
@@ -150,8 +154,8 @@ def execute(controls: ControlLines, inf: RegFile,
 
 def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
     reg_file: RegFile = {}
-    for r in Register:
-        reg_file[r] = 0
+    for gr in Register:
+        reg_file[gr] = 0
     for sr in SpecialRegister:
         reg_file[sr] = 0
     op_index = 0
@@ -178,7 +182,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                 op_index += 1
         else:
             if debug:
-                print(f"  {op}")
+                print(f" {op}")
             op_index += 1
 
     # Gone over the end of the program
@@ -293,7 +297,7 @@ def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int) ->
             assert error < ACCEPTABLE_ERROR
 
 def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_update_tests: int) -> None:
-    print(f"Test update of L")
+    print("Test move X to L if Y is not negative")
     for i in range(num_update_tests):
         ops = OperationList()
         inputs = []
@@ -336,14 +340,19 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
         inputs.append(o1i)
         ops.add(ControlLine.LOAD_I0_FROM_INPUT)
         move_reg_to_reg(ops, Register.I0, Register.O1)
+        ops.comment(f"Expect O1 = {o1i:04x}")
         inputs.append(li)
         ops.add(ControlLine.LOAD_I0_FROM_INPUT)
         move_reg_to_reg(ops, Register.I0, Register.L)
+        ops.comment(f"Expect L = {li:04x}")
 
         # do it
         set_X_to_abs_O1(ops)
+        ops.comment(f"Expect X = {xi:04x}")
         set_Y_to_X_minus_reg(ops, Register.L)
+        ops.comment(f"Expect Y = {yi:04x}")
         move_X_to_L_if_Y_is_not_negative(ops)
+        ops.comment("Test outputs")
         ops.add(ControlLine.SEND_L_TO_OUTPUT)
         ops.add(ControlLine.SEND_O1_TO_OUTPUT)
         move_reg_to_reg(ops, Register.X, Register.O1)
@@ -364,7 +373,7 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
         assert expect_xi == result_xi
 
 def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: int) -> None:
-    print(f"Test update of Y")
+    print("Test Y = X - reg")
     for i in range(num_update_tests):
         ops = OperationList()
         inputs = []
@@ -465,7 +474,7 @@ def main() -> None:
     test_bandpass_filter(r, debug, 100)
     test_move_X_to_L_if_Y_is_not_negative(r, debug, 100)
     test_set_Y_to_X_minus_reg(r, debug, 100)
-    test_demodulator(debug, 100000)
+    test_demodulator(debug, 1000)
 
 if __name__ == "__main__":
     main()

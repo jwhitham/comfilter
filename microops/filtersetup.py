@@ -26,7 +26,6 @@ class Register(enum.Enum):
     I2 = 10
     ZERO = 11
     # Special codes
-    L_OR_X = 15
     UNCHANGED = 0
     # Hidden registers
     LS = -1
@@ -64,6 +63,7 @@ class ControlLine(enum.Enum):
     SET_MUX_BIT_2 = enum.auto()
     SET_MUX_BIT_4 = enum.auto()
     SET_MUX_BIT_8 = enum.auto()
+    SET_MUX_L_OR_X = enum.auto()
     REPEAT_FOR_ALL_BITS = enum.auto()
 
 SHIFT_CONTROL_LINE = {
@@ -320,6 +320,7 @@ def rc_filter(ops: OperationList) -> None:
 
 def set_X_to_abs_O1(ops: OperationList) -> None:
     # Operation: X = abs(O1)
+    ops.comment("set X = abs(O1)")
     ops.add(ControlLine.SET_X_IN_TO_ABS_O1_REG_OUT, get_mux_lines(Register.O1))
     ops.add(ControlLine.SHIFT_X_RIGHT, ControlLine.SHIFT_O1_RIGHT, ControlLine.REPEAT_FOR_ALL_BITS)
 
@@ -327,15 +328,17 @@ def set_X_to_abs_O1(ops: OperationList) -> None:
 
 def set_Y_to_X_minus_reg(ops: OperationList, source: Register) -> None:
     # Operation: Y = X - reg
+    ops.comment(f"set Y = X - {source.name}")
     ops.add(ControlLine.SET_X_IN_TO_X, ControlLine.SET_Y_IN_TO_X_MINUS_REG_OUT,
             get_mux_lines(source))
     ops.add(ControlLine.SHIFT_X_RIGHT, ControlLine.SHIFT_Y_RIGHT,
             get_shift_line(source), ControlLine.REPEAT_FOR_ALL_BITS)
 
 def move_X_to_L_if_Y_is_not_negative(ops: OperationList) -> None:
-    # if Y is non-negative, then X >= L: so, set L = X
+    # if Y is non-negative, then X >= L: so, set L = X = X
     # if Y is negative, then X < L: so, set X = X
-    ops.add(get_mux_lines(Register.L_OR_X))
+    ops.comment("if Y >= 0 then set L = X")
+    ops.add(ControlLine.SET_MUX_L_OR_X)
     ops.add(ControlLine.SHIFT_L_RIGHT, ControlLine.SHIFT_X_RIGHT,
             ControlLine.REPEAT_FOR_ALL_BITS, ControlLine.SET_X_IN_TO_X)
 
