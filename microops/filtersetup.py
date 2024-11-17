@@ -83,6 +83,9 @@ ControlLines = typing.Set[ControlLine]
 ControlLineTree = typing.Union[ControlLines, ControlLine, typing.Sequence]
 
 class Operation:
+    def __str__(self) -> str:
+        return "<base>"
+
     def dump_code(self, fd: typing.IO) -> None:
         pass
 
@@ -91,16 +94,24 @@ class CommentOperation(Operation):
         Operation.__init__(self)
         self.comment = comment
 
+    def __str__(self) -> str:
+        return self.comment
+
     def dump_code(self, fd: typing.IO) -> None:
-        fd.write(f"# {self.comment}\n")
+        fd.write('# ')
+        fd.write(str(self))
+        fd.write("\n")
 
 class ControlOperation(Operation):
     def __init__(self, controls: ControlLines) -> None:
         Operation.__init__(self)
         self.controls = controls
 
+    def __str__(self) -> str:
+        return ','.join([cl.name for cl in self.controls])
+
     def dump_code(self, fd: typing.IO) -> None:
-        fd.write(','.join([cl.name for cl in self.controls]))
+        fd.write(str(self))
         fd.write("\n")
 
 class OperationList:

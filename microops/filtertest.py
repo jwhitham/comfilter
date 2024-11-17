@@ -123,7 +123,17 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
     while op_index < len(ops):
         op = ops[op_index]
         if isinstance(op, ControlOperation):
-            (next_step, reg_file) = execute(op.controls, reg_file, reverse_in_values, out_values)
+            if debug:
+                print(f"op: {op_index} {op}")
+            previous_reg_file = reg_file
+            (next_step, reg_file) = execute(op.controls, previous_reg_file, reverse_in_values, out_values)
+            if debug:
+                for r in reg_file.keys():
+                    if reg_file[r] != previous_reg_file[r]:
+                        print(f" reg {r.name}: {previous_reg_file[r]:08x} -> {reg_file[r]:08x}")
+                if next_step != NextStep.NEXT:
+                    print(f" next: {next_step.name}")
+
             if next_step == NextStep.RESTART:
                 if len(reverse_in_values) == 0:
                     return out_values
@@ -132,13 +142,14 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
             elif next_step == NextStep.NEXT:
                 op_index += 1
         else:
+            if debug:
+                print(str(op))
             op_index += 1
 
     # Gone over the end of the program
     raise Exception("Program must end in RESTART")
         
 def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: int) -> None:
-    debug = 0
     print(f"Test multiply accumulate")
     for i in range(num_multiply_tests):
         if debug > 0:
@@ -169,6 +180,7 @@ def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: i
             multiply_accumulate_via_regs(ops, v1f_list)
         else:
             multiply_accumulate(ops, v1f_list)
+        ops.add(ControlLine.RESTART)
         out_values = run_ops(ops, v0i_list, debug > 1)
         assert len(out_values) == 1
         ri = out_values[0]
@@ -215,11 +227,11 @@ def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int) ->
                 print(f" o2 = {make_fixed(o2):04x} * {make_fixed(-a2):04x}", end="")
                 print(f" -> o0 = {make_fixed(o0):04x}")
             assert abs(o0) < 2.0
-            ops.append(Operation.LOAD_I0_FROM_INPUT)
+            ops.add(ControlLine.LOAD_I0_FROM_INPUT)
             filter_step(ops, a1, a2, b0, b2)
             move_reg_to_reg(ops, Register.I1, Register.I2)
             move_reg_to_reg(ops, Register.I0, Register.I1)
-            ops.append(Operation.SEND_O1_TO_OUTPUT)
+            ops.add(ControlLine.SEND_O1_TO_OUTPUT)
             expect_values.append(o0)
             o2 = o1
             o1 = o0
@@ -231,6 +243,7 @@ def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int) ->
         #a0 =   1.005859e+00 a1 =  -1.966797e+00 a2 =   9.863281e-01 (fixed_t 9)
         #b0 =   5.859375e-03 b1 =   0.000000e+00 b2 =  -5.859375e-03 (fixed_t 9)
 
+        ops.add(ControlLine.RESTART)
         out_values = run_ops(ops, inputs, debug > 1)
         assert len(out_values) == len(inputs)
         assert len(expect_values) == len(inputs)
@@ -248,7 +261,6 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
     for i in range(num_update_tests):
         ops = OperationList()
         inputs = []
-        expect_values = []
 
         # Generate test values - must keep yf in range
         # O1 should be -1.0 .. 1.0 but might be slightly outside
@@ -286,20 +298,21 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
 
         # Load input 
         inputs.append(o1i)
-        ops.append(Operation.LOAD_I0_FROM_INPUT)
+        ops.add(ControlLine.LOAD_I0_FROM_INPUT)
         move_reg_to_reg(ops, Register.I0, Register.O1)
         inputs.append(li)
-        ops.append(Operation.LOAD_I0_FROM_INPUT)
+        ops.add(ControlLine.LOAD_I0_FROM_INPUT)
         move_reg_to_reg(ops, Register.I0, Register.L)
 
         # do it
         set_X_to_abs_O1(ops)
         set_Y_to_X_minus_reg(ops, Register.L)
         move_X_to_L_if_Y_is_not_negative(ops)
-        ops.append(Operation.SEND_L_TO_OUTPUT)
-        ops.append(Operation.SEND_O1_TO_OUTPUT)
+        ops.add(ControlLine.SEND_L_TO_OUTPUT)
+        ops.add(ControlLine.SEND_O1_TO_OUTPUT)
         move_reg_to_reg(ops, Register.X, Register.O1)
-        ops.append(Operation.SEND_O1_TO_OUTPUT)
+        ops.add(ControlLine.SEND_O1_TO_OUTPUT)
+        ops.add(ControlLine.RESTART)
 
         # run
         out_values = run_ops(ops, inputs, debug > 1)
@@ -319,7 +332,6 @@ def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: in
     for i in range(num_update_tests):
         ops = OperationList()
         inputs = []
-        expect_values = []
 
         # Generate test values
         xi = r.randrange(0, 1 << ALL_BITS)
@@ -331,14 +343,15 @@ def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: in
 
         # Load input 
         inputs.append(xi)
-        ops.append(Operation.LOAD_I0_FROM_INPUT)
+        ops.add(ControlLine.LOAD_I0_FROM_INPUT)
         move_reg_to_reg(ops, Register.I0, Register.X)
         inputs.append(i0i)
-        ops.append(Operation.LOAD_I0_FROM_INPUT)
+        ops.add(ControlLine.LOAD_I0_FROM_INPUT)
 
         # Operation: Y = X - I0
         set_Y_to_X_minus_reg(ops, Register.I0)
-        ops.append(Operation.SEND_Y_TO_OUTPUT)
+        ops.add(ControlLine.SEND_Y_TO_OUTPUT)
+        ops.add(ControlLine.RESTART)
 
         # run
         out_values = run_ops(ops, inputs, debug > 1)
@@ -410,7 +423,7 @@ def test_demodulator(debug: int, num_compare_tests: int) -> None:
     assert correct > (len(in_values) * 0.99)
 
 def main() -> None:
-    debug = 0
+    debug = 2
     r = random.Random(2)
     test_multiply_accumulate(r, debug, 100)
     test_bandpass_filter(r, debug, 100)
