@@ -79,7 +79,7 @@ SHIFT_CONTROL_LINE = {
     Register.R : ControlLine.SHIFT_R_RIGHT,
 }
 
-ControlLines = typing.List[ControlLine]
+ControlLines = typing.Set[ControlLine]
 ControlLineTree = typing.Union[ControlLines, ControlLine, typing.Sequence]
 
 class Operation:
@@ -110,13 +110,16 @@ class OperationList:
     def __len__(self) -> int:
         return len(self.operations)
 
+    def __getitem__(self, index: int) -> Operation:
+        return self.operations[index]
+
     def add(self, *controls_tree: ControlLineTree) -> None:
-        control_lines: ControlLines = []
+        control_lines: ControlLines = set()
 
         def collector(cl: ControlLineTree) -> None:
             if isinstance(cl, ControlLine):
-                control_lines.append(cl)
-            elif isinstance(cl, list) or isinstance(cl, tuple):
+                control_lines.add(cl)
+            elif isinstance(cl, list) or isinstance(cl, tuple) or isinstance(cl, set):
                 for cl2 in cl:
                     collector(cl2)
             else:

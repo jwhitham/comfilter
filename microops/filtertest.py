@@ -1,8 +1,9 @@
 import filtersetup
 from filtersetup import (
-        ControlLine,
-        OperationList, Register, Operation, SET_REG_OUT_TABLE, SHIFT_TABLE,
+        ControlLine, ControlLines,
+        OperationList, Register, Operation, ControlOperation,
         ALL_BITS, A_BITS, R_BITS, make_fixed, make_float,
+        SHIFT_CONTROL_LINE,
         multiply_accumulate, filter_step, demodulator,
         multiply_accumulate_via_regs, move_reg_to_reg,
         set_X_to_abs_O1, set_Y_to_X_minus_reg,
@@ -15,207 +16,126 @@ ACCEPTABLE_ERROR = (1.0 / (1 << (FRACTIONAL_BITS - 3)))
 VERY_SMALL_ERROR = (1.0 / (1 << FRACTIONAL_BITS)) * 1.01
 
 class XSelect(enum.Enum):
-    PASSTHROUGH_X = enum.auto()
-    PASSTHROUGH_REG_OUT = enum.auto()
-    NEGATE_REG_OUT = enum.auto()
-    BORROW_REG_OUT = enum.auto()
+    PASSTHROUGH_X = 0
+    PASSTHROUGH_REG_OUT = 1
+    NEGATE_REG_OUT = 2
+    BORROW_REG_OUT = 3
 
 class YSelect(enum.Enum):
-    X_MINUS_REG_OUT = enum.auto()
-    BORROW_X_MINUS_REG_OUT = enum.auto()
+    X_MINUS_REG_OUT = 0
+    BORROW_X_MINUS_REG_OUT = 1
 
-class RegFile:
-    def __init__(self) -> None:
-        self.reg_file: typing.Dict[Register, int] = {
-            register: 0 for register in Register
-        }
-        self.reg_select = Register.I0
-        self.x_select = XSelect.PASSTHROUGH_X
-        self.y_select = YSelect.X_MINUS_REG_OUT
+class SpecialRegister(enum.Enum):
+    X_SELECT = -100
+    Y_SELECT = -101
+    MUX_SELECT = -102
+    REPEAT_COUNTER = -103
 
-class ExecutableControlOperation(filtersetup.ControlOperation):
-    def __init__(self, controls: typing.List[ControlLine]) -> None:
-        filtersetup.ControlOperation.__init__(self, controls)
+class NextStep(enum.Enum):
+    NEXT = enum.auto()
+    REPEAT = enum.auto()
+    RESTART = enum.auto()
 
-    def execute(self, inf: RegFile,
-            reverse_in_values: typing.List[int],
-            out_values: typing.List[int]) -> None:
-        outf = inf.copy()
+RegFile = typing.Dict[typing.Union[Register, SpecialRegister], int]
+NUMBER_TO_REGISTER = {r.value: r for r in Register}
 
-        if ControlLine.ADD_A_TO_R in self.controls:
-            outf[Register.R] += inf[Register.A]
-            outf[Register.R] &= (1 << R_BITS) - 1
-        if ControlLine.BANK_SWITCH in self.controls:
-            outf[Register.L], outf[Register.LS] = inf[Register.LS], inf[Register.L]
-            outf[Register.O1], outf[Register.O1S] = inf[Register.O1S], inf[Register.O1]
-            outf[Register.O2], outf[Register.O2S] = inf[Register.O2S], inf[Register.O2]
-        if ControlLine.LOAD_I0_FROM_INPUT in self.controls:
-            outf[Register.I0] = reverse_in_values.pop()
-        if ControlLine.SEND_Y_TO_OUTPUT in self.controls:
-            out_values.append(inf[Register.Y])
-        if ControlLine.SET_X_IN_TO_X in self.controls:
-            outf.x_select = XSelect.PASSTHROUGH_X
-        if ControlLine.SET_X_IN_TO_REG_OUT in self.controls:
-            outf.x_select = XSelect.PASSTHROUGH_REG_OUT
-        if ControlLine.SET_X_IN_TO_ABS_O1_REG_OUT in self.controls:
-            if inf[Register.O1] >> (ALL_BITS - 1):
-                outf.x_select = XSelect.NEGATE_REG_OUT
-            else:
-                outf.x_select = XSelect.PASSTHROUGH_REG_OUT
-        if ControlLine.SET_Y_IN_TO_X_MINUS_REG_OUT in self.controls:
-            outf.y_select = YSelect.X_MINUS_REG_OUT
-        if ControlLine.RESTART in self.controls:
-            raise RestartEvent()
-        if ControlLine.ASSERT_X_IS_ABS_O1 in self.controls:
-            assert abs(make_float(inf[Register.O1])) == make_float(abs(inf[Register.X]))
-        if ControlLine.ASSERT_A_HIGH_ZERO in self.controls:
-            assert (inf[Register.A] >> ALL_BITS) == 0
-        if ControlLine.ASSERT_A_LOW_ZERO in self.controls:
-            assert (inf[Register.A] & ((1 << ALL_BITS) - 1)) == 0
-        if ControlLine.ASSERT_R_ZERO in self.controls:
-        if ControlLine.ASSERT_Y_IS_X_MINUS_L in self.controls:
-        if ControlLine.SEND_O1_TO_OUTPUT in self.controls:
-        if ControlLine.SEND_L_TO_OUTPUT in self.controls:
-        if ControlLine.SHIFT_A_RIGHT in self.controls:
-        if ControlLine.SHIFT_X_RIGHT in self.controls:
-        if ControlLine.SHIFT_Y_RIGHT in self.controls:
-        if ControlLine.SHIFT_I0_RIGHT in self.controls:
-        if ControlLine.SHIFT_I1_RIGHT in self.controls:
-        if ControlLine.SHIFT_I2_RIGHT in self.controls:
-        if ControlLine.SHIFT_L_RIGHT in self.controls:
-        if ControlLine.SHIFT_O1_RIGHT in self.controls:
-        if ControlLine.SHIFT_O2_RIGHT in self.controls:
-        if ControlLine.SHIFT_R_RIGHT in self.controls:
-        if ControlLine.SET_REG_OUT_TO_I0 in self.controls:
-        if ControlLine.SET_REG_OUT_TO_I1 in self.controls:
-        if ControlLine.SET_REG_OUT_TO_I2 in self.controls:
-        if ControlLine.SET_REG_OUT_TO_L in self.controls:
-        if ControlLine.SET_REG_OUT_TO_O1 in self.controls:
-        if ControlLine.SET_REG_OUT_TO_O2 in self.controls:
-        if ControlLine.SET_REG_OUT_TO_R in self.controls:
-        if ControlLine.SET_REG_OUT_TO_ZERO in self.controls:
-        if ControlLine.SET_REG_OUT_TO_X in self.controls:
-        if ControlLine.SET_REG_OUT_TO_L_OR_X in self.controls:
-        if ControlLine.REPEAT_FOR_ALL_BITS in self.controls:
+def execute(controls: ControlLines, inf: RegFile,
+        reverse_in_values: typing.List[int],
+        out_values: typing.List[int]) -> typing.Tuple[NextStep, RegFile]:
+    outf = dict(inf)
+    mux_select = inf[SpecialRegister.MUX_SELECT]
+    reg_out = inf[NUMBER_TO_REGISTER[mux_select]] & 1
 
-    def dump_code(self, fd: typing.IO) -> None:
-        fd.write(','.join([cl.name for cl in self.controls]))
-        fd.write("\n")
+    if ControlLine.ADD_A_TO_R in controls:
+        outf[Register.R] = (inf[Register.R] + inf[Register.A]) & (1 << R_BITS) - 1
+    if ControlLine.BANK_SWITCH in controls:
+        outf[Register.L], outf[Register.LS] = inf[Register.LS], inf[Register.L]
+        outf[Register.O1], outf[Register.O1S] = inf[Register.O1S], inf[Register.O1]
+        outf[Register.O2], outf[Register.O2S] = inf[Register.O2S], inf[Register.O2]
+    if ControlLine.LOAD_I0_FROM_INPUT in controls:
+        outf[Register.I0] = reverse_in_values.pop()
+    if ControlLine.SEND_Y_TO_OUTPUT in controls:
+        out_values.append(inf[Register.Y])
+    if ControlLine.SET_X_IN_TO_X in controls:
+        outf[SpecialRegister.X_SELECT] = XSelect.PASSTHROUGH_X.value
+    if ControlLine.SET_X_IN_TO_REG_OUT in controls:
+        outf[SpecialRegister.X_SELECT] = XSelect.PASSTHROUGH_REG_OUT.value
+    if ControlLine.SET_X_IN_TO_ABS_O1_REG_OUT in controls:
+        if inf[Register.O1] >> (ALL_BITS - 1):
+            outf[SpecialRegister.X_SELECT] = XSelect.NEGATE_REG_OUT.value
+        else:
+            outf[SpecialRegister.X_SELECT] = XSelect.PASSTHROUGH_REG_OUT.value
+    if ControlLine.SET_Y_IN_TO_X_MINUS_REG_OUT in controls:
+        outf[SpecialRegister.Y_SELECT] = YSelect.X_MINUS_REG_OUT.value
+    if ControlLine.ASSERT_X_IS_ABS_O1 in controls:
+        assert abs(make_float(inf[Register.O1])) == make_float(abs(inf[Register.X]))
+    if ControlLine.ASSERT_A_HIGH_ZERO in controls:
+        assert (inf[Register.A] >> ALL_BITS) == 0
+    if ControlLine.ASSERT_A_LOW_ZERO in controls:
+        assert (inf[Register.A] & ((1 << ALL_BITS) - 1)) == 0
+    if ControlLine.ASSERT_R_ZERO in controls:
+        assert inf[Register.R] == 0
+    if ControlLine.ASSERT_Y_IS_X_MINUS_L in controls:
+        assert inf[Register.Y] == ((inf[Register.X] - inf[Register.L]) & ((1 << ALL_BITS) - 1))
+    if ControlLine.SEND_O1_TO_OUTPUT in controls:
+        out_values.append(inf[Register.O1])
+    if ControlLine.SEND_L_TO_OUTPUT in controls:
+        out_values.append(inf[Register.L])
+    if ControlLine.SHIFT_A_RIGHT in controls:
+        outf[Register.A] = (inf[Register.A] | (reg_out << A_BITS)) >> 1
 
-class ExecutableOperationList(filtersetup.OperationList):
-    
+    for (reg, cl) in SHIFT_CONTROL_LINE.items():
+        if cl in controls:
+            outf[reg] = (inf[reg] | (reg_out << ALL_BITS)) >> 1
 
-def run_ops(ops: ExecutableOperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
+    if ((ControlLine.SET_MUX_BIT_1 in controls)
+    or (ControlLine.SET_MUX_BIT_2 in controls)
+    or (ControlLine.SET_MUX_BIT_4 in controls)
+    or (ControlLine.SET_MUX_BIT_8 in controls)):
+        outf[SpecialRegister.MUX_SELECT] = 0
+        if ControlLine.SET_MUX_BIT_1 in controls:
+            outf[SpecialRegister.MUX_SELECT] |= 1
+        if ControlLine.SET_MUX_BIT_2 in controls:
+            outf[SpecialRegister.MUX_SELECT] |= 2
+        if ControlLine.SET_MUX_BIT_4 in controls:
+            outf[SpecialRegister.MUX_SELECT] |= 4
+        if ControlLine.SET_MUX_BIT_8 in controls:
+            outf[SpecialRegister.MUX_SELECT] |= 8
+
+    if ControlLine.RESTART in controls:
+        return (NextStep.RESTART, outf)
+    elif ControlLine.REPEAT_FOR_ALL_BITS in controls:
+        outf[SpecialRegister.REPEAT_COUNTER] = (inf[SpecialRegister.REPEAT_COUNTER] + 1) % ALL_BITS
+        if outf[SpecialRegister.REPEAT_COUNTER] != 0:
+            return (NextStep.REPEAT, outf)
+
+    return (NextStep.NEXT, outf)
+
+def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
+    reg_file: RegFile = {}
+    for r in Register:
+        reg_file[r] = 0
+    for sr in SpecialRegister:
+        reg_file[sr] = 0
+    op_index = 0
     out_values: typing.List[int] = []
-    reg_file: typing.Dict[Register, int] = {
-        register: 0 for register in Register
-    }
-    in_index = 0
-    reg_select = Register.I0
-    x_select = XSelect.PASSTHROUGH_X
-    y_select = YSelect.X_MINUS_REG_OUT
-    while in_index < len(in_values):
-        for op in ops:
-            if debug:
-                for (register, value) in reg_file.items():
-                    print(f"{register.name} {value:04x} ", end="")
-                print(f"op {op.name}")
-                
-            r_sign = (reg_file[Register.R] >> (R_BITS - 1)) & 1
-            a_sign = (reg_file[Register.A] >> (A_BITS - 1)) & 1
-            reg_out = reg_file[reg_select] & 1
-
-            if op in SET_REG_OUT_TABLE:
-                reg_select = SET_REG_OUT_TABLE[op]
-
-            elif op == Operation.ADD_A_TO_R:
-                reg_file[Register.R] += reg_file[Register.A]
-                reg_file[Register.R] &= (1 << R_BITS) - 1
-            elif op == Operation.SHIFT_A_RIGHT:
-                reg_file[Register.A] |= reg_out << A_BITS
-                reg_file[Register.A] >>= 1
-            elif op == Operation.SHIFT_R_RIGHT:
-                reg_file[Register.R] >>= 1
-            elif op == Operation.SHIFT_X_RIGHT:
-                if x_select == XSelect.PASSTHROUGH_REG_OUT:
-                    x_in = reg_out
-                elif x_select == XSelect.PASSTHROUGH_X:
-                    x_in = reg_file[Register.X] & 1
-                elif x_select == XSelect.NEGATE_REG_OUT:
-                    x_in = 4 - reg_out
-                    if x_in & 2:
-                        x_select = XSelect.BORROW_REG_OUT
-                elif x_select == XSelect.BORROW_REG_OUT:
-                    x_in = 3 - reg_out
-                    if not (x_in & 2):
-                        x_select = XSelect.NEGATE_REG_OUT
+    reverse_in_values = list(reversed(in_values))
+    while op_index < len(ops):
+        op = ops[op_index]
+        if isinstance(op, ControlOperation):
+            (next_step, reg_file) = execute(op.controls, reg_file, reverse_in_values, out_values)
+            if next_step == NextStep.RESTART:
+                if len(reverse_in_values) == 0:
+                    return out_values
                 else:
-                    assert False
-                reg_file[Register.X] |= (x_in & 1) << ALL_BITS
-                reg_file[Register.X] >>= 1
-            elif op == Operation.SHIFT_Y_RIGHT:
-                if y_select == YSelect.X_MINUS_REG_OUT:
-                    y_in = 4 + (reg_file[Register.X] & 1) - reg_out
-                    if y_in & 2:
-                        y_select = YSelect.BORROW_X_MINUS_REG_OUT
-                elif y_select == YSelect.BORROW_X_MINUS_REG_OUT:
-                    y_in = 3 + (reg_file[Register.X] & 1) - reg_out
-                    if not (y_in & 2):
-                        y_select = YSelect.X_MINUS_REG_OUT
-                else:
-                    assert False
-                reg_file[Register.Y] |= (y_in & 1) << ALL_BITS
-                reg_file[Register.Y] >>= 1
-            elif op in SHIFT_TABLE:
-                reg_file[SHIFT_TABLE[op]] |= reg_out << ALL_BITS
-                reg_file[SHIFT_TABLE[op]] >>= 1
+                    op_index = 0
+            elif next_step == NextStep.NEXT:
+                op_index += 1
+        else:
+            op_index += 1
 
-            elif op == Operation.BANK_SWITCH:
-                reg_file[Register.L], reg_file[Register.LS] = reg_file[Register.LS], reg_file[Register.L]
-                reg_file[Register.O1], reg_file[Register.O1S] = reg_file[Register.O1S], reg_file[Register.O1]
-                reg_file[Register.O2], reg_file[Register.O2S] = reg_file[Register.O2S], reg_file[Register.O2]
-
-            elif op == Operation.LOAD_I0_FROM_INPUT:
-                reg_file[Register.I0] = in_values[in_index]
-                in_index += 1
-            elif op == Operation.SEND_O1_TO_OUTPUT:
-                out_values.append(reg_file[Register.O1])
-            elif op == Operation.SEND_L_TO_OUTPUT:
-                out_values.append(reg_file[Register.L])
-            elif op == Operation.SEND_Y_TO_OUTPUT:
-                out_values.append(reg_file[Register.Y])
-            elif op == Operation.SET_REG_OUT_TO_L_OR_X:
-                if reg_file[Register.Y] >> (ALL_BITS - 1):
-                    reg_select = Register.L # Y negative, use L
-                else:
-                    reg_select = Register.X # Y non-negative, use X
-            elif op == Operation.SET_X_IN_TO_REG_OUT:
-                x_select = XSelect.PASSTHROUGH_REG_OUT
-            elif op == Operation.SET_X_IN_TO_ABS_O1_REG_OUT:
-                if reg_file[Register.O1] >> (ALL_BITS - 1):
-                    x_select = XSelect.NEGATE_REG_OUT
-                else:
-                    x_select = XSelect.PASSTHROUGH_REG_OUT
-            elif op == Operation.SET_X_IN_TO_X:
-                x_select = XSelect.PASSTHROUGH_X
-            elif op == Operation.SET_Y_IN_TO_X_MINUS_REG_OUT:
-                y_select = YSelect.X_MINUS_REG_OUT
-            elif op == Operation.ASSERT_A_HIGH_ZERO:
-                assert (reg_file[Register.A] >> ALL_BITS) == 0
-            elif op == Operation.ASSERT_A_LOW_ZERO:
-                assert (reg_file[Register.A] & ((1 << ALL_BITS) - 1)) == 0
-            elif op == Operation.ASSERT_R_ZERO:
-                assert reg_file[Register.R] == 0
-            elif op == Operation.ASSERT_X_IS_ABS_O1:
-                assert abs(make_float(reg_file[Register.O1])) == make_float(abs(reg_file[Register.X]))
-            elif op == Operation.ASSERT_Y_IS_X_MINUS_L:
-                assert reg_file[Register.Y] == ((reg_file[Register.X] - reg_file[Register.L]) & ((1 << ALL_BITS) - 1))
-            elif op == Operation.RESTART:
-                break
-            else:
-                assert False, op.name
-
-    return out_values
+    # Gone over the end of the program
+    raise Exception("Program must end in RESTART")
         
 def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: int) -> None:
     debug = 0
