@@ -87,9 +87,34 @@ SHIFT_CONTROL_LINE = {
 ControlLines = typing.Set[ControlLine]
 ControlLineTree = typing.Union[ControlLines, ControlLine, typing.Sequence]
 
-class Operation:
+class CodeTable:
     def __init__(self) -> None:
-        self.address = 0
+        self.table: typing.Dict[str, int] = {}
+
+    def encode(self, controls: ControlLines) -> None:
+        controls = set(controls)
+        flag = 0
+        if ControlLine.REPEAT_FOR_ALL_BITS in controls:
+            flag |= 0x40
+            controls.discard(ControlLine.REPEAT_FOR_ALL_BITS)
+        if ControlLine.SHIFT_A_RIGHT in controls:
+            flag |= 0x20
+            controls.discard(ControlLine.SHIFT_A_RIGHT)
+        key = ','.join(sorted(c.name for c in controls))
+        if key not in self.table:
+            self.table[key] = len(self.table)
+            if self.table[key] >= 0x20:
+                raise ValueError("Too many codes are required")
+        return self.table[key] | flag
+
+    def dump_code(self, fd: typing.IO) -> None:
+        for (value, key) in sorted((value, key)
+                for (key, value) in self.table.items()):
+            fd.write(f"{value:02x} {key}\n")
+
+class Operation:
+    def __init__(self, address) -> None:
+        self.address = address
 
     def __str__(self) -> str:
         return "<base>"
@@ -97,57 +122,66 @@ class Operation:
     def dump_code(self, fd: typing.IO) -> None:
         pass
 
+    def encode(self) -> typing.Optional[int]:
+        return None
+
 class CommentOperation(Operation):
-    def __init__(self, comment: str) -> None:
-        Operation.__init__(self)
+    def __init__(self, comment: str, address: int) -> None:
+        Operation.__init__(self, address)
         self.comment = comment
 
     def __str__(self) -> str:
         return self.comment
 
     def dump_code(self, fd: typing.IO) -> None:
-        fd.write('     # ')
-        fd.write(str(self))
-        fd.write("\n")
+        fd.write(f'        # {self}\n')
 
 class ControlOperation(Operation):
-    def __init__(self, controls: ControlLines) -> None:
-        Operation.__init__(self)
+    def __init__(self, controls: ControlLines,
+                code_table: CodeTable, address: int) -> None:
+        Operation.__init__(self, address)
         self.controls = controls
+        self.code_table = code_table
 
     def __str__(self) -> str:
         return ','.join(sorted([cl.name for cl in self.controls]))
 
     def dump_code(self, fd: typing.IO) -> None:
-        fd.write(f'{self.address:03x}  ')
-        fd.write(str(self))
-        fd.write("\n")
+        fd.write(f'{self.address:03x}  {self.encode():02x} {self}\n')
+
+    def encode(self) -> typing.Optional[int]:
+        return self.code_table.encode(self.controls)
 
 class DebugOperation(Operation):
-    def __init__(self, debug: Debug) -> None:
-        Operation.__init__(self)
+    def __init__(self, debug: Debug, address: int) -> None:
+        Operation.__init__(self, address)
         self.debug = debug
 
     def __str__(self) -> str:
         return self.debug.name
 
     def dump_code(self, fd: typing.IO) -> None:
-        fd.write(f'{self.address:03x}  {self.debug.name}\n')
+        fd.write(f'{self.address:03x}     {self.debug.name}\n')
 
 class MuxOperation(Operation):
-    def __init__(self, source: MuxCode) -> None:
-        Operation.__init__(self)
+    def __init__(self, source: MuxCode, address: int) -> None:
+        Operation.__init__(self, address)
         self.source = source
 
     def __str__(self) -> str:
         return f"SET MUX {self.source.name}"
 
     def dump_code(self, fd: typing.IO) -> None:
-        fd.write(f'{self.address:03x}  {self}\n')
+        fd.write(f'{self.address:03x}  {self.encode():02x} {self}\n')
+
+    def encode(self) -> typing.Optional[int]:
+        return 0x80 | self.source.value
 
 class OperationList:
     def __init__(self) -> None:
         self.operations: typing.List[Operation] = []
+        self.code_table = CodeTable()
+        self.address = 0
 
     def __len__(self) -> int:
         return len(self.operations)
@@ -168,13 +202,14 @@ class OperationList:
                 raise ValueError("Unknown ControlLine type")
 
         collector(controls_tree)
-        self.operations.append(ControlOperation(control_lines))
+        self.operations.append(ControlOperation(control_lines, self.code_table, self.address))
+        self.address += 1
    
     def debug(self, debug: Debug) -> None:
-        self.operations.append(DebugOperation(debug))
+        self.operations.append(DebugOperation(debug, self.address))
    
     def comment(self, text: str) -> None:
-        self.operations.append(CommentOperation(text))
+        self.operations.append(CommentOperation(text, self.address))
    
     def mux(self, source: typing.Union[MuxCode, Register]) -> None:
         if isinstance(source, Register):
@@ -183,23 +218,22 @@ class OperationList:
         if not isinstance(source, MuxCode):
             raise ValueError("Unknown Register or MuxCode")
        
-        self.operations.append(MuxOperation(source))
+        self.operations.append(MuxOperation(source, self.address))
+        self.address += 1
 
     def __iter__(self) -> typing.Iterator[Operation]:
         for op in self.operations:
             yield op
 
     def finalise(self) -> None:
-        address = 0
-        count: typing.Dict[typing.Tuple, int] = {}
-        for op in self.operations:
-            op.address = address
-            if isinstance(op, ControlOperation) or isinstance(op, MuxOperation):
-                address += 1
+        pass
 
     def dump_code(self, fd: typing.IO) -> None:
+        fd.write("Memory map\n\n")
         for op in self.operations:
             op.dump_code(fd)
+        fd.write("\n\nCode table\n\n")
+        self.code_table.dump_code(fd)
    
 def get_shift_line(target: Register) -> ControlLine:
     if not isinstance(target, Register):

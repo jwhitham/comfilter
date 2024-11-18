@@ -13,7 +13,6 @@ from hardware import (
         OperationList, Register, ControlLine,
         ALL_BITS, A_BITS, R_BITS,
     )
-from grouping import grouping
 import enum, math, typing
 
 def make_fixed(value: float) -> int:
@@ -272,7 +271,6 @@ def main() -> None:
     ops = OperationList()
     demodulator(ops)
     ops.finalise()
-    grouping(ops)
     with open("generated/demodulator", "wt") as fd:
         ops.dump_code(fd)
     #with open("generated/map", "wt") as fd:
