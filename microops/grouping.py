@@ -3,7 +3,7 @@ from hardware import (
         OperationList, ControlOperation, ControlLine,
     )
 
-import typing
+import typing, collections
 
 
 class Vertex:
@@ -20,7 +20,7 @@ VertexSet = typing.Set[Vertex]
 class BadControlError(Exception):
     pass
 
-def grouping(operations: OperationList) -> None:
+def grouping1(operations: OperationList) -> None:
     control_ops = [op for op in operations 
                         if isinstance(op, ControlOperation)]
 
@@ -37,7 +37,7 @@ def grouping(operations: OperationList) -> None:
             raise BadControlError(f"Control line {cl.name} is never used")
 
     remaining_controls = all_controls[:]
-    multiplexers = []
+    multiplexers: typing.List[typing.List[ControlLine]] = []
     while len(remaining_controls) > 0:
         vertexes = [Vertex(cl) for cl in remaining_controls]
         for i in range(len(vertexes) - 1):
@@ -58,6 +58,7 @@ def grouping(operations: OperationList) -> None:
                     vertexes[i].add_edge(vertexes[j])
 
         maximal_clique = bron_kerbosch(set(), set(vertexes), set())
+        assert maximal_clique is not None
         selected_controls = [v.cl for v in vertexes if v in maximal_clique]
         remaining_controls = [v.cl for v in vertexes if v not in maximal_clique]
         selected_controls.append(ControlLine.NOTHING)
@@ -79,3 +80,31 @@ def bron_kerbosch(R: VertexSet, P: VertexSet, X: VertexSet) -> typing.Optional[V
         P = P - {v}
         X = X | {v}
     return None
+
+def grouping(operations: OperationList) -> None:
+    control_ops = [op for op in operations 
+                        if isinstance(op, ControlOperation)]
+    unique: typing.Dict[str, int] = collections.defaultdict(lambda: 0)
+    ignore_set = set([
+        ControlLine.SHIFT_A_RIGHT, # used about 50% of the time
+        ControlLine.REPEAT_FOR_ALL_BITS, # same
+    ])
+    #ControlLine.SET_MUX_BIT_1,
+    #                ControlLine.SET_MUX_BIT_2,
+    #                ControlLine.SET_MUX_BIT_4,
+    #                ControlLine.SET_MUX_BIT_8])
+    for cop in control_ops:
+        code = ','.join(sorted(cl.name for cl in cop.controls
+                        if cl not in ignore_set))
+        unique[code] += 1
+
+    frequency: typing.Dict[str, int] = collections.defaultdict(lambda: 0)
+    for (i, (count, code)) in enumerate(sorted((count, code) for (code, count) in unique.items())):
+        print(f"{i:2d} {count:2d} {code}")
+        for name in code.split(","):
+            frequency[name] += 1
+    for (count, name) in sorted((count, name) for (name, count) in frequency.items()):
+        print(f"-- {count:2d} {name}")
+
+        
+
