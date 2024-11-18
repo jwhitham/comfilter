@@ -53,17 +53,27 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
     # Configure source
     ops.add(get_mux_lines(source))
 
-    # Do multiplication
-    for i in range(A_BITS):
-        ops.add(ControlLine.SHIFT_A_RIGHT)
+    ops.add(ControlLine.SHIFT_A_RIGHT)
 
+    # Do the first part of the multiplication, shifting data in from the source register
+    # Leave the final source register bit in place (sign extend)
+    for i in range(ALL_BITS - 1):
         ivalue = ivalue << 1
         if ivalue & (1 << A_BITS):
-            ops.add(ControlLine.ADD_A_TO_R)
-        
-        # Don't shift ALL_BITS - leave the input register at the last bit (the sign)
-        if i < (ALL_BITS - 1):
+            ops.add(ControlLine.ADD_A_TO_R, get_shift_line(source))
+        else:
             ops.add(get_shift_line(source))
+
+        ops.add(ControlLine.SHIFT_A_RIGHT)
+
+    # Do the second part of the multiplication, now that everything from the source register is present
+    for i in range(A_BITS - (ALL_BITS - 1)):
+        ivalue = ivalue << 1
+        if ivalue & (1 << A_BITS):
+            ops.add(ControlLine.ADD_A_TO_R, ControlLine.SHIFT_A_RIGHT)
+        else:
+            ops.add(ControlLine.SHIFT_A_RIGHT)
+
 
     # Final bit shifted
     ops.add(get_shift_line(source))
