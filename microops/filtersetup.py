@@ -35,48 +35,47 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
     negative = ivalue & (1 << (ALL_BITS - 1))
     if negative:
         ivalue |= ((1 << ALL_BITS) - 1) << ALL_BITS
-    # print(f"Multiplication with value {value:1.6f} fixed encoding {ivalue:04x}")
+
+    ops.comment(f"Multiplication begins: {source.name} * {value:1.6f} ({ivalue:04x})")
 
     # Clear high A bits
-    ops.comment(f"Multiplication begins: {source.name} * {value:1.6f} ({ivalue:04x})")
     ops.add(get_mux_lines(Register.ZERO))
     ops.add(ControlLine.SHIFT_A_RIGHT, ControlLine.REPEAT_FOR_ALL_BITS)
 
     # If negative, also clear the low bits, as these will be added during shift-in
     if negative:
         ops.add(ControlLine.SHIFT_A_RIGHT, ControlLine.REPEAT_FOR_ALL_BITS)
-
-    ops.add(ControlLine.ASSERT_A_HIGH_ZERO)
-    if negative:
         ops.add(ControlLine.ASSERT_A_LOW_ZERO)
 
     # Configure source
-    ops.add(get_mux_lines(source))
+    ops.add(get_mux_lines(source), ControlLine.ASSERT_A_HIGH_ZERO)
 
-    ops.add(ControlLine.SHIFT_A_RIGHT)
+    # Load first bit and prepare second bit
+    ops.add(ControlLine.SHIFT_A_RIGHT, get_shift_line(source))
 
     # Do the first part of the multiplication, shifting data in from the source register
-    # Leave the final source register bit in place (sign extend)
-    for i in range(ALL_BITS - 1):
+    # Stop before shifting the final source register (sign extend)
+    for i in range(ALL_BITS - 2):
         ivalue = ivalue << 1
         if ivalue & (1 << A_BITS):
-            ops.add(ControlLine.ADD_A_TO_R, get_shift_line(source))
+            ops.add(ControlLine.ADD_A_TO_R, get_shift_line(source), ControlLine.SHIFT_A_RIGHT)
         else:
-            ops.add(get_shift_line(source))
-
-        ops.add(ControlLine.SHIFT_A_RIGHT)
+            ops.add(get_shift_line(source), ControlLine.SHIFT_A_RIGHT)
 
     # Do the second part of the multiplication, now that everything from the source register is present
-    for i in range(A_BITS - (ALL_BITS - 1)):
+    for i in range(A_BITS - (ALL_BITS - 2) - 1):
         ivalue = ivalue << 1
         if ivalue & (1 << A_BITS):
             ops.add(ControlLine.ADD_A_TO_R, ControlLine.SHIFT_A_RIGHT)
         else:
             ops.add(ControlLine.SHIFT_A_RIGHT)
 
-
-    # Final bit shifted
-    ops.add(get_shift_line(source))
+    # The third part of the multiplication restores the source register state
+    ivalue = ivalue << 1
+    if ivalue & (1 << A_BITS):
+        ops.add(ControlLine.ADD_A_TO_R, ControlLine.SHIFT_A_RIGHT, get_shift_line(source))
+    else:
+        ops.add(ControlLine.SHIFT_A_RIGHT, get_shift_line(source))
 
     ops.comment(f"Multiplication complete: {source.name} * {value:1.6f}")
 
