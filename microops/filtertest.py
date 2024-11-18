@@ -1,6 +1,6 @@
 
 from hardware import (
-        OperationList, Register, ControlLine,
+        OperationList, Register, ControlLine, Debug,
         ALL_BITS,
     )
 from filtersetup import (
@@ -102,7 +102,7 @@ def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int) ->
             filter_step(ops, a1, a2, b0, b2)
             move_reg_to_reg(ops, Register.I1, Register.I2)
             move_reg_to_reg(ops, Register.I0, Register.I1)
-            ops.add(ControlLine.SEND_O1_TO_OUTPUT)
+            ops.debug(Debug.SEND_O1_TO_OUTPUT)
             expect_values.append(o0)
             o2 = o1
             o1 = o0
@@ -184,10 +184,10 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
         ops.comment(f"Expect Y = {yi:04x}")
         move_X_to_L_if_Y_is_not_negative(ops)
         ops.comment("Test outputs")
-        ops.add(ControlLine.SEND_L_TO_OUTPUT)
-        ops.add(ControlLine.SEND_O1_TO_OUTPUT)
+        ops.debug(Debug.SEND_L_TO_OUTPUT)
+        ops.debug(Debug.SEND_O1_TO_OUTPUT)
         move_reg_to_reg(ops, Register.X, Register.O1)
-        ops.add(ControlLine.SEND_O1_TO_OUTPUT)
+        ops.debug(Debug.SEND_O1_TO_OUTPUT)
         ops.add(ControlLine.RESTART)
 
         # run

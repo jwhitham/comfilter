@@ -2,6 +2,7 @@
 from hardware import (
         ControlLine, ControlLines,
         OperationList, Register, ControlOperation,
+        DebugOperation, Debug,
         SHIFT_CONTROL_LINE,
         ALL_BITS, A_BITS, R_BITS,
     )
@@ -62,20 +63,6 @@ def execute(controls: ControlLines, inf: RegFile,
             outf[SpecialRegister.X_SELECT] = XSelect.PASSTHROUGH_REG_OUT.value
     if ControlLine.SET_Y_IN_TO_X_MINUS_REG_OUT in controls:
         outf[SpecialRegister.Y_SELECT] = YSelect.X_MINUS_REG_OUT.value
-    if ControlLine.ASSERT_X_IS_ABS_O1 in controls:
-        assert abs(make_float(inf[Register.O1])) == make_float(inf[Register.X])
-    if ControlLine.ASSERT_A_HIGH_ZERO in controls:
-        assert (inf[Register.A] >> ALL_BITS) == 0
-    if ControlLine.ASSERT_A_LOW_ZERO in controls:
-        assert (inf[Register.A] & ((1 << ALL_BITS) - 1)) == 0
-    if ControlLine.ASSERT_R_ZERO in controls:
-        assert inf[Register.R] == 0
-    if ControlLine.ASSERT_Y_IS_X_MINUS_L in controls:
-        assert inf[Register.Y] == ((inf[Register.X] - inf[Register.L]) & ((1 << ALL_BITS) - 1))
-    if ControlLine.SEND_O1_TO_OUTPUT in controls:
-        out_values.append(inf[Register.O1])
-    if ControlLine.SEND_L_TO_OUTPUT in controls:
-        out_values.append(inf[Register.L])
 
     # Shift for generic registers
     for (reg, cl) in SHIFT_CONTROL_LINE.items():
@@ -147,6 +134,24 @@ def execute(controls: ControlLines, inf: RegFile,
 
     return (NextStep.NEXT, outf)
 
+
+def execute_debug(debug: Debug, inf: RegFile,
+        out_values: typing.List[int]) -> None:
+    if debug == Debug.ASSERT_X_IS_ABS_O1:
+        assert abs(make_float(inf[Register.O1])) == make_float(inf[Register.X])
+    if debug == Debug.ASSERT_A_HIGH_ZERO:
+        assert (inf[Register.A] >> ALL_BITS) == 0
+    if debug == Debug.ASSERT_A_LOW_ZERO:
+        assert (inf[Register.A] & ((1 << ALL_BITS) - 1)) == 0
+    if debug == Debug.ASSERT_R_ZERO:
+        assert inf[Register.R] == 0
+    if debug == Debug.ASSERT_Y_IS_X_MINUS_L:
+        assert inf[Register.Y] == ((inf[Register.X] - inf[Register.L]) & ((1 << ALL_BITS) - 1))
+    if debug == Debug.SEND_O1_TO_OUTPUT:
+        out_values.append(inf[Register.O1])
+    if debug == Debug.SEND_L_TO_OUTPUT:
+        out_values.append(inf[Register.L])
+
 def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
     reg_file: RegFile = {}
     for gr in Register:
@@ -175,6 +180,11 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
                     op_index = 0
             elif next_step == NextStep.NEXT:
                 op_index += 1
+        elif isinstance(op, DebugOperation):
+            if debug:
+                print(f" {op}")
+            execute_debug(op.debug, reg_file, out_values)
+            op_index += 1
         else:
             if debug:
                 print(f" {op}")

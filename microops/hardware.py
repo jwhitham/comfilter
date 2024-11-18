@@ -37,13 +37,6 @@ class ControlLine(enum.Enum):
     SET_X_IN_TO_ABS_O1_REG_OUT = enum.auto()
     SET_Y_IN_TO_X_MINUS_REG_OUT = enum.auto()
     RESTART = enum.auto()
-    ASSERT_X_IS_ABS_O1 = enum.auto()
-    ASSERT_A_HIGH_ZERO = enum.auto()
-    ASSERT_A_LOW_ZERO = enum.auto()
-    ASSERT_R_ZERO = enum.auto()
-    ASSERT_Y_IS_X_MINUS_L = enum.auto()
-    SEND_O1_TO_OUTPUT = enum.auto()
-    SEND_L_TO_OUTPUT = enum.auto()
     SHIFT_A_RIGHT = enum.auto()
     SHIFT_X_RIGHT = enum.auto()
     SHIFT_Y_RIGHT = enum.auto()
@@ -61,6 +54,15 @@ class ControlLine(enum.Enum):
     SET_MUX_L_OR_X = enum.auto()
     REPEAT_FOR_ALL_BITS = enum.auto()
     NOTHING = enum.auto()
+
+class Debug(enum.Enum):
+    ASSERT_X_IS_ABS_O1 = enum.auto()
+    ASSERT_A_HIGH_ZERO = enum.auto()
+    ASSERT_A_LOW_ZERO = enum.auto()
+    ASSERT_R_ZERO = enum.auto()
+    ASSERT_Y_IS_X_MINUS_L = enum.auto()
+    SEND_O1_TO_OUTPUT = enum.auto()
+    SEND_L_TO_OUTPUT = enum.auto()
 
 SHIFT_CONTROL_LINE = {
     Register.A : ControlLine.SHIFT_A_RIGHT,
@@ -114,6 +116,17 @@ class ControlOperation(Operation):
         fd.write(str(self))
         fd.write("\n")
 
+class DebugOperation(Operation):
+    def __init__(self, debug: Debug) -> None:
+        Operation.__init__(self)
+        self.debug = debug
+
+    def __str__(self) -> str:
+        return self.debug.name
+
+    def dump_code(self, fd: typing.IO) -> None:
+        fd.write(f'{self.address:03x}  {self.debug.name}\n')
+
 class OperationList:
     def __init__(self) -> None:
         self.operations: typing.List[Operation] = []
@@ -139,6 +152,9 @@ class OperationList:
         collector(controls_tree)
         self.operations.append(ControlOperation(control_lines))
    
+    def debug(self, debug: Debug) -> None:
+        self.operations.append(DebugOperation(debug))
+   
     def comment(self, text: str) -> None:
         self.operations.append(CommentOperation(text))
    
@@ -151,6 +167,9 @@ class OperationList:
         count: typing.Dict[typing.Tuple, int] = {}
         for op in self.operations:
             op.address = address
+            if isinstance(op, ControlOperation):
+                address += 1
+
     def dump_code(self, fd: typing.IO) -> None:
         for op in self.operations:
             op.dump_code(fd)

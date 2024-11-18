@@ -9,7 +9,7 @@ from settings import (
         SAMPLE_RATE,
     )
 from hardware import (
-        get_shift_line, get_mux_lines,
+        get_shift_line, get_mux_lines, Debug,
         OperationList, Register, ControlLine,
         ALL_BITS, A_BITS, R_BITS,
     )
@@ -45,10 +45,11 @@ def fixed_multiply(ops: OperationList, source: Register, value: float) -> None:
     # If negative, also clear the low bits, as these will be added during shift-in
     if negative:
         ops.add(ControlLine.SHIFT_A_RIGHT, ControlLine.REPEAT_FOR_ALL_BITS)
-        ops.add(ControlLine.ASSERT_A_LOW_ZERO)
+        ops.debug(Debug.ASSERT_A_LOW_ZERO)
 
     # Configure source
-    ops.add(get_mux_lines(source), ControlLine.ASSERT_A_HIGH_ZERO)
+    ops.add(get_mux_lines(source))
+    ops.debug(Debug.ASSERT_A_HIGH_ZERO)
 
     # Load first bit and prepare second bit
     ops.add(ControlLine.SHIFT_A_RIGHT, get_shift_line(source))
@@ -93,7 +94,7 @@ def move_R_to_reg(ops: OperationList, target: Register) -> None:
         ops.add(ControlLine.SHIFT_R_RIGHT)
 
     # R should be zero again here!
-    ops.add(ControlLine.ASSERT_R_ZERO)
+    ops.debug(Debug.ASSERT_R_ZERO)
 
 def move_reg_to_reg(ops: OperationList, source: Register, target: Register) -> None:
     ops.comment(f"Move {source.name} to {target.name}")
@@ -108,7 +109,7 @@ def move_reg_to_reg(ops: OperationList, source: Register, target: Register) -> N
 
 def filter_step(ops: OperationList, a1: float, a2: float, b0: float, b2: float) -> None:
     # R should be zero here!
-    ops.add(ControlLine.ASSERT_R_ZERO)
+    ops.debug(Debug.ASSERT_R_ZERO)
 
     # R += i0 * b0
     fixed_multiply(ops, Register.I0, b0)
@@ -152,22 +153,22 @@ def rc_filter(ops: OperationList) -> None:
 
     # decay L register
     ops.comment("Decay L register")
-    ops.add(ControlLine.ASSERT_R_ZERO)
+    ops.debug(Debug.ASSERT_R_ZERO)
     fixed_multiply(ops, Register.L, decay)
     move_reg_to_reg(ops, Register.R, Register.L)
-    ops.add(ControlLine.ASSERT_R_ZERO)
+    ops.debug(Debug.ASSERT_R_ZERO)
 
     ops.comment("Max L register")
     # do:
     #   if abs(O1) >= L: L = abs(O1)
     set_X_to_abs_O1(ops)
     set_Y_to_X_minus_reg(ops, Register.L)
-    ops.add(ControlLine.ASSERT_X_IS_ABS_O1)
-    ops.add(ControlLine.ASSERT_Y_IS_X_MINUS_L)
+    ops.debug(Debug.ASSERT_X_IS_ABS_O1)
+    ops.debug(Debug.ASSERT_Y_IS_X_MINUS_L)
     move_X_to_L_if_Y_is_not_negative(ops)
 
-    ops.add(ControlLine.ASSERT_X_IS_ABS_O1)
-    ops.add(ControlLine.ASSERT_R_ZERO)
+    ops.debug(Debug.ASSERT_X_IS_ABS_O1)
+    ops.debug(Debug.ASSERT_R_ZERO)
 
 def set_X_to_abs_O1(ops: OperationList) -> None:
     # Operation: X = abs(O1)
@@ -175,7 +176,7 @@ def set_X_to_abs_O1(ops: OperationList) -> None:
     ops.add(ControlLine.SET_X_IN_TO_ABS_O1_REG_OUT, get_mux_lines(Register.O1))
     ops.add(ControlLine.SHIFT_X_RIGHT, ControlLine.SHIFT_O1_RIGHT, ControlLine.REPEAT_FOR_ALL_BITS)
 
-    ops.add(ControlLine.ASSERT_X_IS_ABS_O1)
+    ops.debug(Debug.ASSERT_X_IS_ABS_O1)
 
 def set_Y_to_X_minus_reg(ops: OperationList, source: Register) -> None:
     # Operation: Y = X - reg
@@ -201,15 +202,15 @@ def demodulator(ops: OperationList) -> None:
     # Use first bank for O1, O2, L
     bandpass_filter(ops, UPPER_FREQUENCY, FILTER_WIDTH)
     rc_filter(ops)
-    ops.add(ControlLine.SEND_O1_TO_OUTPUT)
-    ops.add(ControlLine.SEND_L_TO_OUTPUT)
+    ops.debug(Debug.SEND_O1_TO_OUTPUT)
+    ops.debug(Debug.SEND_L_TO_OUTPUT)
 
     # Use second bank for O1S, O2S, LS
     ops.add(ControlLine.BANK_SWITCH)
     bandpass_filter(ops, LOWER_FREQUENCY, FILTER_WIDTH)
     rc_filter(ops)
-    ops.add(ControlLine.SEND_O1_TO_OUTPUT)
-    ops.add(ControlLine.SEND_L_TO_OUTPUT)
+    ops.debug(Debug.SEND_O1_TO_OUTPUT)
+    ops.debug(Debug.SEND_L_TO_OUTPUT)
 
     # Operation: X = LS
     move_reg_to_reg(ops, Register.L, Register.X)
@@ -219,7 +220,7 @@ def demodulator(ops: OperationList) -> None:
 
     # Operation: Y = X - L
     set_Y_to_X_minus_reg(ops, Register.L)
-    ops.add(ControlLine.ASSERT_Y_IS_X_MINUS_L)
+    ops.debug(Debug.ASSERT_Y_IS_X_MINUS_L)
 
     # if Y is non-negative, then LS >= L: so, lower frequency signal is stronger
     # if Y is negative, then LS < L: so, upper frequency signal is stronger
@@ -233,7 +234,7 @@ def demodulator(ops: OperationList) -> None:
 def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> None:
     # For testing: multiply-accumulate
     ops.comment(f"Begin multiply_accumulate with {test_values}")
-    ops.add(ControlLine.ASSERT_R_ZERO)
+    ops.debug(Debug.ASSERT_R_ZERO)
 
     # Multiply and add repeatedly
     for test_value in test_values:
@@ -244,11 +245,11 @@ def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> 
     move_reg_to_reg(ops, Register.R, Register.O1)
 
     # One output
-    ops.add(ControlLine.SEND_O1_TO_OUTPUT)
+    ops.debug(Debug.SEND_O1_TO_OUTPUT)
 
 def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[float]) -> None:
     # For testing: multiply-accumulate but via other registers
-    ops.add(ControlLine.ASSERT_R_ZERO)
+    ops.debug(Debug.ASSERT_R_ZERO)
 
     # Multiply and add repeatedly
     for test_value in test_values:
@@ -263,7 +264,7 @@ def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[fl
         fixed_multiply(ops, Register.O2, 1.0)
 
     # One output
-    ops.add(ControlLine.SEND_O1_TO_OUTPUT)
+    ops.debug(Debug.SEND_O1_TO_OUTPUT)
 
 def main() -> None:
     ops = OperationList()
