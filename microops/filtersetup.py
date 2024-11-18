@@ -201,13 +201,15 @@ def demodulator(ops: OperationList) -> None:
     # Use first bank for O1, O2, L
     bandpass_filter(ops, UPPER_FREQUENCY, FILTER_WIDTH)
     rc_filter(ops)
-    ops.add(ControlLine.SEND_O1_TO_OUTPUT, ControlLine.SEND_L_TO_OUTPUT)
+    ops.add(ControlLine.SEND_O1_TO_OUTPUT)
+    ops.add(ControlLine.SEND_L_TO_OUTPUT)
 
     # Use second bank for O1S, O2S, LS
     ops.add(ControlLine.BANK_SWITCH)
     bandpass_filter(ops, LOWER_FREQUENCY, FILTER_WIDTH)
     rc_filter(ops)
-    ops.add(ControlLine.SEND_O1_TO_OUTPUT, ControlLine.SEND_L_TO_OUTPUT)
+    ops.add(ControlLine.SEND_O1_TO_OUTPUT)
+    ops.add(ControlLine.SEND_L_TO_OUTPUT)
 
     # Operation: X = LS
     move_reg_to_reg(ops, Register.L, Register.X)
@@ -266,6 +268,7 @@ def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[fl
 def main() -> None:
     ops = OperationList()
     demodulator(ops)
+    ops.finalise()
     with open("generated/demodulator", "wt") as fd:
         ops.dump_code(fd)
     #with open("generated/map", "wt") as fd:

@@ -78,6 +78,9 @@ ControlLines = typing.Set[ControlLine]
 ControlLineTree = typing.Union[ControlLines, ControlLine, typing.Sequence]
 
 class Operation:
+    def __init__(self) -> None:
+        self.address = 0
+
     def __str__(self) -> str:
         return "<base>"
 
@@ -93,7 +96,7 @@ class CommentOperation(Operation):
         return self.comment
 
     def dump_code(self, fd: typing.IO) -> None:
-        fd.write('# ')
+        fd.write('     # ')
         fd.write(str(self))
         fd.write("\n")
 
@@ -106,6 +109,7 @@ class ControlOperation(Operation):
         return ','.join(sorted([cl.name for cl in self.controls]))
 
     def dump_code(self, fd: typing.IO) -> None:
+        fd.write(f'{self.address:03x}  ')
         fd.write(str(self))
         fd.write("\n")
 
@@ -140,6 +144,19 @@ class OperationList:
     def __iter__(self) -> typing.Iterator[Operation]:
         for op in self.operations:
             yield op
+
+    def finalise(self) -> None:
+        address = 0
+        count: typing.Dict[typing.Tuple, int] = {}
+        for op in self.operations:
+            op.address = address
+            if isinstance(op, ControlOperation):
+                unique = str(op)
+                count[unique] = count.get(unique, 0) + 1
+                address += 1
+        print(len(count), "unique")
+        for (unique, value) in sorted(count.items(), key=lambda x: x[1]):
+            print(value, unique)
 
     def dump_code(self, fd: typing.IO) -> None:
         for op in self.operations:
