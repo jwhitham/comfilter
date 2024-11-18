@@ -8,7 +8,8 @@ import enum, typing
 ALL_BITS = FRACTIONAL_BITS + NON_FRACTIONAL_BITS
 A_BITS = R_BITS = (FRACTIONAL_BITS * 2) + NON_FRACTIONAL_BITS
 
-class Register(enum.Enum):
+class MuxCode(enum.Enum):
+    ZERO = 0
     R = 1
     A = 2
     Y = 3
@@ -19,9 +20,24 @@ class Register(enum.Enum):
     I0 = 8
     I1 = 9
     I2 = 10
-    ZERO = 11
-    # Special codes
-    UNCHANGED = 0
+    RESTART = 11
+    L_OR_X = 12
+    BANK_SWITCH = 13
+    LOAD_I0_FROM_INPUT = 14
+    SEND_Y_TO_OUTPUT = 15
+
+class Register(enum.Enum):
+    ZERO = MuxCode.ZERO.value
+    R = MuxCode.R.value
+    A = MuxCode.A.value
+    Y = MuxCode.Y.value
+    O1 = MuxCode.O1.value
+    O2 = MuxCode.O2.value
+    X = MuxCode.X.value
+    L = MuxCode.L.value
+    I0 = MuxCode.I0.value
+    I1 = MuxCode.I1.value
+    I2 = MuxCode.I2.value
     # Hidden registers
     LS = -1
     O1S = -2
@@ -29,14 +45,10 @@ class Register(enum.Enum):
 
 class ControlLine(enum.Enum):
     ADD_A_TO_R = enum.auto()
-    BANK_SWITCH = enum.auto()
-    LOAD_I0_FROM_INPUT = enum.auto()
-    SEND_Y_TO_OUTPUT = enum.auto()
     SET_X_IN_TO_X = enum.auto()
     SET_X_IN_TO_REG_OUT = enum.auto()
     SET_X_IN_TO_ABS_O1_REG_OUT = enum.auto()
     SET_Y_IN_TO_X_MINUS_REG_OUT = enum.auto()
-    RESTART = enum.auto()
     SHIFT_A_RIGHT = enum.auto()
     SHIFT_X_RIGHT = enum.auto()
     SHIFT_Y_RIGHT = enum.auto()
@@ -47,11 +59,6 @@ class ControlLine(enum.Enum):
     SHIFT_O1_RIGHT = enum.auto()
     SHIFT_O2_RIGHT = enum.auto()
     SHIFT_R_RIGHT = enum.auto()
-    SET_MUX_BIT_1 = enum.auto()
-    SET_MUX_BIT_2 = enum.auto()
-    SET_MUX_BIT_4 = enum.auto()
-    SET_MUX_BIT_8 = enum.auto()
-    SET_MUX_L_OR_X = enum.auto()
     REPEAT_FOR_ALL_BITS = enum.auto()
     NOTHING = enum.auto()
 
@@ -127,6 +134,17 @@ class DebugOperation(Operation):
     def dump_code(self, fd: typing.IO) -> None:
         fd.write(f'{self.address:03x}  {self.debug.name}\n')
 
+class MuxOperation(Operation):
+    def __init__(self, source: MuxCode) -> None:
+        Operation.__init__(self)
+        self.source = source
+
+    def __str__(self) -> str:
+        return f"SET MUX {self.source.name}"
+
+    def dump_code(self, fd: typing.IO) -> None:
+        fd.write(f'{self.address:03x}  {self}\n')
+
 class OperationList:
     def __init__(self) -> None:
         self.operations: typing.List[Operation] = []
@@ -158,6 +176,15 @@ class OperationList:
     def comment(self, text: str) -> None:
         self.operations.append(CommentOperation(text))
    
+    def mux(self, source: typing.Union[MuxCode, Register]) -> None:
+        if isinstance(source, Register):
+            source = MuxCode(source.value)
+
+        if not isinstance(source, MuxCode):
+            raise ValueError("Unknown Register or MuxCode")
+       
+        self.operations.append(MuxOperation(source))
+
     def __iter__(self) -> typing.Iterator[Operation]:
         for op in self.operations:
             yield op
@@ -167,32 +194,13 @@ class OperationList:
         count: typing.Dict[typing.Tuple, int] = {}
         for op in self.operations:
             op.address = address
-            if isinstance(op, ControlOperation):
+            if isinstance(op, ControlOperation) or isinstance(op, MuxOperation):
                 address += 1
 
     def dump_code(self, fd: typing.IO) -> None:
         for op in self.operations:
             op.dump_code(fd)
    
-def get_mux_lines(source: Register) -> typing.Sequence[ControlLine]:
-    if not isinstance(source, Register):
-        raise ValueError("Unknown Register type")
-   
-    value = source.value
-    if (value < 0) or (value > 15):
-        raise ValueError(f"Non-selectable register {source.name}")
-
-    control_lines = []
-    if value & 1:
-        control_lines.append(ControlLine.SET_MUX_BIT_1)
-    if value & 2:
-        control_lines.append(ControlLine.SET_MUX_BIT_2)
-    if value & 4:
-        control_lines.append(ControlLine.SET_MUX_BIT_4)
-    if value & 8:
-        control_lines.append(ControlLine.SET_MUX_BIT_8)
-    return control_lines
-
 def get_shift_line(target: Register) -> ControlLine:
     if not isinstance(target, Register):
         raise ValueError("Unknown Register type")

@@ -2,7 +2,7 @@
 from hardware import (
         ControlLine, ControlLines,
         OperationList, Register, ControlOperation,
-        DebugOperation, Debug,
+        DebugOperation, Debug, MuxOperation, MuxCode,
         SHIFT_CONTROL_LINE,
         ALL_BITS, A_BITS, R_BITS,
     )
@@ -35,23 +35,13 @@ class NextStep(enum.Enum):
 RegFile = typing.Dict[typing.Union[Register, SpecialRegister], int]
 NUMBER_TO_REGISTER = {r.value: r for r in Register}
 
-def execute(controls: ControlLines, inf: RegFile,
-        reverse_in_values: typing.List[int],
-        out_values: typing.List[int]) -> typing.Tuple[NextStep, RegFile]:
+def execute_control(controls: ControlLines, inf: RegFile) -> typing.Tuple[NextStep, RegFile]:
     outf = dict(inf)
     mux_select = inf[SpecialRegister.MUX_SELECT]
     reg_out = inf[NUMBER_TO_REGISTER[mux_select]] & 1
 
     if ControlLine.ADD_A_TO_R in controls:
         outf[Register.R] = (inf[Register.R] + inf[Register.A]) & (1 << R_BITS) - 1
-    if ControlLine.BANK_SWITCH in controls:
-        outf[Register.L], outf[Register.LS] = inf[Register.LS], inf[Register.L]
-        outf[Register.O1], outf[Register.O1S] = inf[Register.O1S], inf[Register.O1]
-        outf[Register.O2], outf[Register.O2S] = inf[Register.O2S], inf[Register.O2]
-    if ControlLine.LOAD_I0_FROM_INPUT in controls:
-        outf[Register.I0] = reverse_in_values.pop()
-    if ControlLine.SEND_Y_TO_OUTPUT in controls:
-        out_values.append(inf[Register.Y])
     if ControlLine.SET_X_IN_TO_X in controls:
         outf[SpecialRegister.X_SELECT] = XSelect.PASSTHROUGH_X.value
     if ControlLine.SET_X_IN_TO_REG_OUT in controls:
@@ -107,33 +97,37 @@ def execute(controls: ControlLines, inf: RegFile,
             assert False
         outf[Register.Y] = (inf[Register.Y] | ((y_in & 1) << ALL_BITS)) >> 1
 
-    if ((ControlLine.SET_MUX_BIT_1 in controls)
-    or (ControlLine.SET_MUX_BIT_2 in controls)
-    or (ControlLine.SET_MUX_BIT_4 in controls)
-    or (ControlLine.SET_MUX_BIT_8 in controls)):
-        outf[SpecialRegister.MUX_SELECT] = 0
-        if ControlLine.SET_MUX_BIT_1 in controls:
-            outf[SpecialRegister.MUX_SELECT] |= 1
-        if ControlLine.SET_MUX_BIT_2 in controls:
-            outf[SpecialRegister.MUX_SELECT] |= 2
-        if ControlLine.SET_MUX_BIT_4 in controls:
-            outf[SpecialRegister.MUX_SELECT] |= 4
-        if ControlLine.SET_MUX_BIT_8 in controls:
-            outf[SpecialRegister.MUX_SELECT] |= 8
-    if ControlLine.SET_MUX_L_OR_X in controls:
-        if inf[Register.Y] >> (ALL_BITS - 1):
-            outf[SpecialRegister.MUX_SELECT] = Register.L.value # Y negative, use L
-        else:
-            outf[SpecialRegister.MUX_SELECT] = Register.X.value # Y non-negative, use X
-    if ControlLine.RESTART in controls:
-        return (NextStep.RESTART, outf)
-    elif ControlLine.REPEAT_FOR_ALL_BITS in controls:
+    if ControlLine.REPEAT_FOR_ALL_BITS in controls:
         outf[SpecialRegister.REPEAT_COUNTER] = (inf[SpecialRegister.REPEAT_COUNTER] + 1) % ALL_BITS
         if outf[SpecialRegister.REPEAT_COUNTER] != 0:
             return (NextStep.REPEAT, outf)
 
     return (NextStep.NEXT, outf)
 
+def execute_mux(source: MuxCode, inf: RegFile,
+        reverse_in_values: typing.List[int],
+        out_values: typing.List[int]) -> typing.Tuple[NextStep, RegFile]:
+    outf = dict(inf)
+    if source == MuxCode.L_OR_X:
+        if inf[Register.Y] >> (ALL_BITS - 1):
+            outf[SpecialRegister.MUX_SELECT] = Register.L.value # Y negative, use L
+        else:
+            outf[SpecialRegister.MUX_SELECT] = Register.X.value # Y non-negative, use X
+    elif source == MuxCode.RESTART:
+        return (NextStep.RESTART, outf)
+    elif source == MuxCode.BANK_SWITCH:
+        outf[Register.L], outf[Register.LS] = inf[Register.LS], inf[Register.L]
+        outf[Register.O1], outf[Register.O1S] = inf[Register.O1S], inf[Register.O1]
+        outf[Register.O2], outf[Register.O2S] = inf[Register.O2S], inf[Register.O2]
+    elif source == MuxCode.LOAD_I0_FROM_INPUT:
+        outf[Register.I0] = reverse_in_values.pop()
+    elif source == MuxCode.SEND_Y_TO_OUTPUT:
+        out_values.append(inf[Register.Y])
+    else:
+        assert source.value in NUMBER_TO_REGISTER, source.value
+        outf[SpecialRegister.MUX_SELECT] = source.value
+
+    return (NextStep.NEXT, outf)
 
 def execute_debug(debug: Debug, inf: RegFile,
         out_values: typing.List[int]) -> None:
@@ -163,31 +157,36 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
     reverse_in_values = list(reversed(in_values))
     while op_index < len(ops):
         op = ops[op_index]
+        next_step = NextStep.NEXT
         if isinstance(op, ControlOperation):
             if debug:
                 print(f"  op: {op_index} {op}")
             previous_reg_file = reg_file
-            (next_step, reg_file) = execute(op.controls, previous_reg_file, reverse_in_values, out_values)
+            (next_step, reg_file) = execute_control(op.controls, previous_reg_file)
             if debug:
                 for r in reg_file.keys():
                     if reg_file[r] != previous_reg_file[r]:
                         print(f"   reg {r.name}: {previous_reg_file[r]:08x} -> {reg_file[r]:08x}")
 
-            if next_step == NextStep.RESTART:
-                if len(reverse_in_values) == 0:
-                    return out_values
-                else:
-                    op_index = 0
-            elif next_step == NextStep.NEXT:
-                op_index += 1
+        elif isinstance(op, MuxOperation):
+            if debug:
+                print(f"  op: {op_index} {op}")
+            previous_reg_file = reg_file
+            (next_step, reg_file) = execute_mux(op.source, previous_reg_file, reverse_in_values, out_values)
         elif isinstance(op, DebugOperation):
             if debug:
                 print(f" {op}")
             execute_debug(op.debug, reg_file, out_values)
-            op_index += 1
         else:
             if debug:
                 print(f" {op}")
+
+        if next_step == NextStep.RESTART:
+            if len(reverse_in_values) == 0:
+                return out_values
+            else:
+                op_index = 0
+        elif next_step == NextStep.NEXT:
             op_index += 1
 
     # Gone over the end of the program
