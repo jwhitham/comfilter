@@ -300,12 +300,12 @@ def test_demodulator(debug: int, num_compare_tests: int) -> None:
 
 def main() -> None:
     debug = 0
-    r = random.Random(2)
+    r = random.Random(3)
     test_multiply_accumulate(r, debug, 100)
     test_bandpass_filter(r, debug, 100)
     test_move_X_to_L_if_Y_is_not_negative(r, debug, 100)
     test_set_Y_to_X_minus_reg(r, debug, 100)
-    test_demodulator(debug, 1000)
+    test_demodulator(debug, 40000)
 
 if __name__ == "__main__":
     main()

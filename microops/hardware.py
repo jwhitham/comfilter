@@ -60,6 +60,7 @@ class ControlLine(enum.Enum):
     SET_MUX_BIT_8 = enum.auto()
     SET_MUX_L_OR_X = enum.auto()
     REPEAT_FOR_ALL_BITS = enum.auto()
+    NOTHING = enum.auto()
 
 SHIFT_CONTROL_LINE = {
     Register.A : ControlLine.SHIFT_A_RIGHT,
@@ -150,14 +151,6 @@ class OperationList:
         count: typing.Dict[typing.Tuple, int] = {}
         for op in self.operations:
             op.address = address
-            if isinstance(op, ControlOperation):
-                unique = str(op)
-                count[unique] = count.get(unique, 0) + 1
-                address += 1
-        print(len(count), "unique")
-        for (unique, value) in sorted(count.items(), key=lambda x: x[1]):
-            print(value, unique)
-
     def dump_code(self, fd: typing.IO) -> None:
         for op in self.operations:
             op.dump_code(fd)
