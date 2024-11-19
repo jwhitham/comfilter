@@ -273,6 +273,12 @@ def main() -> None:
     ops.finalise()
     with open("generated/demodulator", "wt") as fd:
         ops.dump_code(fd)
+    with open("generated/control_line_decoder.vhdl", "wt") as fd:
+        ops.dump_control_line_decoder(fd)
+    with open("generated/microcode_store.vhdl", "wt") as fd:
+        ops.dump_lattice_rom(fd)
+    with open("generated/microcode_store.test.vhdl", "wt") as fd:
+        ops.dump_test_rom(fd)
     #with open("generated/map", "wt") as fd:
     #    ops.dump_map(fd)
     #with open("generated/frequency", "wt") as fd:
