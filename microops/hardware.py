@@ -64,13 +64,13 @@ class ControlLine(enum.Enum):
     NOTHING = enum.auto()
 
 class Debug(enum.Enum):
-    ASSERT_X_IS_ABS_O1 = enum.auto()
-    ASSERT_A_HIGH_ZERO = enum.auto()
-    ASSERT_A_LOW_ZERO = enum.auto()
-    ASSERT_R_ZERO = enum.auto()
-    ASSERT_Y_IS_X_MINUS_L = enum.auto()
-    SEND_O1_TO_OUTPUT = enum.auto()
-    SEND_L_TO_OUTPUT = enum.auto()
+    ASSERT_X_IS_ABS_O1 = 1
+    ASSERT_A_HIGH_ZERO = 2
+    ASSERT_A_LOW_ZERO = 3
+    ASSERT_R_ZERO = 4
+    ASSERT_Y_IS_X_MINUS_L = 5
+    SEND_O1_TO_OUTPUT = 6
+    SEND_L_TO_OUTPUT = 7
 
 SHIFT_CONTROL_LINE = {
     Register.A : ControlLine.SHIFT_A_RIGHT,
@@ -123,13 +123,15 @@ entity control_line_decoder is port (
         fd.write("""
 mux_select          : out std_logic_vector(3 downto 0);
 mux_strobe          : out std_logic;
+debug_strobe        : out std_logic;
 code_in             : in std_logic_vector(7 downto 0));
 end control_line_decoder;
 architecture structural of control_line_decoder is
     signal enable : std_logic;
 begin
     enable <= not code_in(7);
-    mux_strobe <= code_in(7);
+    mux_strobe <= code_in(7) and not code_in(6);
+    debug_strobe <= code_in(7) and code_in(6);
     mux_select <= code_in(3 downto 0);
     REPEAT_FOR_ALL_BITS <= code_in(6) and enable;
     SHIFT_A_RIGHT <= code_in(5) and enable;
@@ -167,7 +169,10 @@ class Operation:
         return "<base>"
 
     def dump_code(self, fd: typing.IO) -> None:
-        pass
+        if self.encode() is None:
+            fd.write(f'        # {self}\n')
+        else:
+            fd.write(f'{self.address:03x}  {self.encode():02x} {self}\n')
 
     def encode(self) -> typing.Optional[int]:
         return None
@@ -180,9 +185,6 @@ class CommentOperation(Operation):
     def __str__(self) -> str:
         return self.comment
 
-    def dump_code(self, fd: typing.IO) -> None:
-        fd.write(f'        # {self}\n')
-
 class ControlOperation(Operation):
     def __init__(self, controls: ControlLines,
                 code_table: CodeTable, address: int) -> None:
@@ -192,9 +194,6 @@ class ControlOperation(Operation):
 
     def __str__(self) -> str:
         return ','.join(sorted([cl.name for cl in self.controls]))
-
-    def dump_code(self, fd: typing.IO) -> None:
-        fd.write(f'{self.address:03x}  {self.encode():02x} {self}\n')
 
     def encode(self) -> typing.Optional[int]:
         return self.code_table.encode(self.controls)
@@ -207,8 +206,8 @@ class DebugOperation(Operation):
     def __str__(self) -> str:
         return self.debug.name
 
-    def dump_code(self, fd: typing.IO) -> None:
-        fd.write(f'{self.address:03x}     {self.debug.name}\n')
+    def encode(self) -> typing.Optional[int]:
+        return 0xc0 | self.debug.value
 
 class MuxOperation(Operation):
     def __init__(self, source: MuxCode, address: int) -> None:
@@ -217,9 +216,6 @@ class MuxOperation(Operation):
 
     def __str__(self) -> str:
         return f"SET MUX {self.source.name}"
-
-    def dump_code(self, fd: typing.IO) -> None:
-        fd.write(f'{self.address:03x}  {self.encode():02x} {self}\n')
 
     def encode(self) -> typing.Optional[int]:
         return 0x80 | self.source.value
@@ -254,6 +250,7 @@ class OperationList:
    
     def debug(self, debug: Debug) -> None:
         self.operations.append(DebugOperation(debug, self.address))
+        self.address += 1
    
     def comment(self, text: str) -> None:
         self.operations.append(CommentOperation(text, self.address))
