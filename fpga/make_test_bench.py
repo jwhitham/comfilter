@@ -31,7 +31,7 @@ def wav_to_test_data(fd: typing.IO, wav_file_name: str) -> None:
 
 def main() -> None:
     # generate test bench
-    with open("test/generated/test_signal_generator.vhdl", "wt") as fd:
+    with open("generated/test_signal_generator.vhdl", "wt") as fd:
         fd.write(f"""
 library ieee;
 use ieee.std_logic_1164.all;
@@ -75,7 +75,7 @@ begin
         done <= '0';
 """)
         # read input files
-        wav_to_test_data(fd, "test/generated/signal.wav")
+        wav_to_test_data(fd, "generated/signal.wav")
 
         fd.write("""
         done <= '1';

@@ -10,3 +10,4 @@ gnuplot model/test1.gnuplot > $G/t.png
 cmp test_data $G/output
 python microops/filtersetup.py
 python microops/filtertest.py
+python fpga/make_test_bench.py
