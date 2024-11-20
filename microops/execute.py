@@ -15,7 +15,6 @@ class XSelect(enum.Enum):
     PASSTHROUGH_X = 0
     PASSTHROUGH_REG_OUT = 1
     NEGATE_REG_OUT = 2
-    BORROW_REG_OUT = 3
 
 class YSelect(enum.Enum):
     X_MINUS_REG_OUT = 0
@@ -26,6 +25,7 @@ class SpecialRegister(enum.Enum):
     Y_BORROW = -101
     MUX_SELECT = -102
     REPEAT_COUNTER = -103
+    X_BORROW = -104
 
 class NextStep(enum.Enum):
     NEXT = enum.auto()
@@ -51,6 +51,7 @@ def execute_control(controls: ControlLines, inf: RegFile) -> typing.Tuple[NextSt
             outf[SpecialRegister.X_SELECT] = XSelect.NEGATE_REG_OUT.value
         else:
             outf[SpecialRegister.X_SELECT] = XSelect.PASSTHROUGH_REG_OUT.value
+        outf[SpecialRegister.X_BORROW] = 0
     if ControlLine.SET_Y_IN_TO_X_MINUS_REG_OUT in controls:
         outf[SpecialRegister.Y_BORROW] = YSelect.X_MINUS_REG_OUT.value
 
@@ -73,13 +74,10 @@ def execute_control(controls: ControlLines, inf: RegFile) -> typing.Tuple[NextSt
         elif inf[SpecialRegister.X_SELECT] == XSelect.PASSTHROUGH_X.value:
             x_in = inf[Register.X] & 1
         elif inf[SpecialRegister.X_SELECT] == XSelect.NEGATE_REG_OUT.value:
-            x_in = 4 - reg_out
-            if x_in & 2:
-                outf[SpecialRegister.X_SELECT] = XSelect.BORROW_REG_OUT.value
-        elif inf[SpecialRegister.X_SELECT] == XSelect.BORROW_REG_OUT.value:
-            x_in = 3 - reg_out
-            if not (x_in & 2):
-                outf[SpecialRegister.X_SELECT] = XSelect.NEGATE_REG_OUT.value
+            (x_in, outf[SpecialRegister.X_BORROW]) = subtractor(
+                0,
+                reg_out,
+                inf[SpecialRegister.X_BORROW])
         else:
             assert False
         outf[Register.X] = (inf[Register.X] | ((x_in & 1) << ALL_BITS)) >> 1
@@ -87,8 +85,8 @@ def execute_control(controls: ControlLines, inf: RegFile) -> typing.Tuple[NextSt
         # Y register has a special function input (subtract)
         (y_in, outf[SpecialRegister.Y_BORROW]) = subtractor(
             inf[Register.X] & 1,
-            reg_out & 1,
-            inf[SpecialRegister.Y_BORROW] & 1)
+            reg_out,
+            inf[SpecialRegister.Y_BORROW])
         outf[Register.Y] = (inf[Register.Y] | ((y_in & 1) << ALL_BITS)) >> 1
     if ControlLine.REPEAT_FOR_ALL_BITS in controls:
         outf[SpecialRegister.REPEAT_COUNTER] = (inf[SpecialRegister.REPEAT_COUNTER] + 1) % ALL_BITS
