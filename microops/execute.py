@@ -23,7 +23,7 @@ class YSelect(enum.Enum):
 
 class SpecialRegister(enum.Enum):
     X_SELECT = -100
-    Y_SELECT = -101
+    Y_BORROW = -101
     MUX_SELECT = -102
     REPEAT_COUNTER = -103
 
@@ -52,7 +52,7 @@ def execute_control(controls: ControlLines, inf: RegFile) -> typing.Tuple[NextSt
         else:
             outf[SpecialRegister.X_SELECT] = XSelect.PASSTHROUGH_REG_OUT.value
     if ControlLine.SET_Y_IN_TO_X_MINUS_REG_OUT in controls:
-        outf[SpecialRegister.Y_SELECT] = YSelect.X_MINUS_REG_OUT.value
+        outf[SpecialRegister.Y_BORROW] = YSelect.X_MINUS_REG_OUT.value
 
     # Shift for generic registers
     for (reg, cl) in SHIFT_CONTROL_LINE.items():
@@ -85,24 +85,22 @@ def execute_control(controls: ControlLines, inf: RegFile) -> typing.Tuple[NextSt
         outf[Register.X] = (inf[Register.X] | ((x_in & 1) << ALL_BITS)) >> 1
     if ControlLine.SHIFT_Y_RIGHT in controls:
         # Y register has a special function input (subtract)
-        if inf[SpecialRegister.Y_SELECT] == YSelect.X_MINUS_REG_OUT.value:
-            y_in = 4 + (inf[Register.X] & 1) - reg_out
-            if y_in & 2:
-                outf[SpecialRegister.Y_SELECT] = YSelect.BORROW_X_MINUS_REG_OUT.value
-        elif inf[SpecialRegister.Y_SELECT] == YSelect.BORROW_X_MINUS_REG_OUT.value:
-            y_in = 3 + (inf[Register.X] & 1) - reg_out
-            if not (y_in & 2):
-                outf[SpecialRegister.Y_SELECT] = YSelect.X_MINUS_REG_OUT.value
-        else:
-            assert False
+        (y_in, outf[SpecialRegister.Y_BORROW]) = subtractor(
+            inf[Register.X] & 1,
+            reg_out & 1,
+            inf[SpecialRegister.Y_BORROW] & 1)
         outf[Register.Y] = (inf[Register.Y] | ((y_in & 1) << ALL_BITS)) >> 1
-
     if ControlLine.REPEAT_FOR_ALL_BITS in controls:
         outf[SpecialRegister.REPEAT_COUNTER] = (inf[SpecialRegister.REPEAT_COUNTER] + 1) % ALL_BITS
         if outf[SpecialRegister.REPEAT_COUNTER] != 0:
             return (NextStep.REPEAT, outf)
 
     return (NextStep.NEXT, outf)
+
+def subtractor(x_in: int, y_in: int, b_in) -> typing.Tuple[int, int]:
+    d_out = x_in ^ y_in ^ b_in
+    b_out = int(x_in < (y_in + b_in))
+    return (d_out, b_out)
 
 def execute_mux(source: MuxCode, inf: RegFile,
         reverse_in_values: typing.List[int],
