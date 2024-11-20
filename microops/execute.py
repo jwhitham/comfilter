@@ -96,7 +96,7 @@ def execute_control(controls: ControlLines, inf: RegFile) -> typing.Tuple[NextSt
     return (NextStep.NEXT, outf)
 
 def subtractor(x_in: int, y_in: int, b_in) -> typing.Tuple[int, int]:
-    d_out = x_in ^ y_in ^ b_in
+    d_out = (x_in + y_in + b_in) & 1
     b_out = int(x_in < (y_in + b_in))
     return (d_out, b_out)
 
