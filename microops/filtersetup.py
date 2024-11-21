@@ -104,8 +104,9 @@ def move_reg_to_reg(ops: OperationList, source: Register, target: Register) -> N
         return
 
     ops.mux(source)
-    ops.add(get_shift_line(target), get_shift_line(source), ControlLine.REPEAT_FOR_ALL_BITS,
-            ControlLine.SET_X_IN_TO_REG_OUT)
+    if target == Register.X:
+        ops.add(ControlLine.SET_X_IN_TO_REG_OUT)
+    ops.add(get_shift_line(target), get_shift_line(source), ControlLine.REPEAT_FOR_ALL_BITS)
 
 def filter_step(ops: OperationList, a1: float, a2: float, b0: float, b2: float) -> None:
     # R should be zero here!
@@ -183,7 +184,7 @@ def set_Y_to_X_minus_reg(ops: OperationList, source: Register) -> None:
     # Operation: Y = X - reg
     ops.comment(f"set Y = X - {source.name}")
     ops.mux(source)
-    ops.add(ControlLine.SET_X_IN_TO_X, ControlLine.SET_Y_IN_TO_X_MINUS_REG_OUT)
+    ops.add(ControlLine.SET_X_IN_TO_X_AND_CLEAR_Y_BORROW)
     ops.add(ControlLine.SHIFT_X_RIGHT, ControlLine.SHIFT_Y_RIGHT,
             get_shift_line(source), ControlLine.REPEAT_FOR_ALL_BITS)
 
@@ -192,8 +193,9 @@ def move_X_to_L_if_Y_is_not_negative(ops: OperationList) -> None:
     # if Y is negative, then X < L: so, set X = X
     ops.comment("if Y >= 0 then set L = X")
     ops.mux(MuxCode.L_OR_X)
+    ops.add(ControlLine.SET_X_IN_TO_X_AND_CLEAR_Y_BORROW)
     ops.add(ControlLine.SHIFT_L_RIGHT, ControlLine.SHIFT_X_RIGHT,
-            ControlLine.REPEAT_FOR_ALL_BITS, ControlLine.SET_X_IN_TO_X)
+            ControlLine.REPEAT_FOR_ALL_BITS)
 
 def demodulator(ops: OperationList) -> None:
     # Load new input

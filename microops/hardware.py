@@ -46,10 +46,9 @@ class Register(enum.Enum):
 
 class ControlLine(enum.Enum):
     ADD_A_TO_R = enum.auto()
-    SET_X_IN_TO_X = enum.auto()
+    SET_X_IN_TO_X_AND_CLEAR_Y_BORROW = enum.auto()
     SET_X_IN_TO_REG_OUT = enum.auto()
     SET_X_IN_TO_ABS_O1_REG_OUT = enum.auto()
-    SET_Y_IN_TO_X_MINUS_REG_OUT = enum.auto()
     SHIFT_A_RIGHT = enum.auto()
     SHIFT_X_RIGHT = enum.auto()
     SHIFT_Y_RIGHT = enum.auto()

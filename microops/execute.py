@@ -42,8 +42,9 @@ def execute_control(controls: ControlLines, inf: RegFile) -> typing.Tuple[NextSt
 
     if ControlLine.ADD_A_TO_R in controls:
         outf[Register.R] = (inf[Register.R] + inf[Register.A]) & (1 << R_BITS) - 1
-    if ControlLine.SET_X_IN_TO_X in controls:
+    if ControlLine.SET_X_IN_TO_X_AND_CLEAR_Y_BORROW in controls:
         outf[SpecialRegister.X_SELECT] = XSelect.PASSTHROUGH_X.value
+        outf[SpecialRegister.Y_BORROW] = 0
     if ControlLine.SET_X_IN_TO_REG_OUT in controls:
         outf[SpecialRegister.X_SELECT] = XSelect.PASSTHROUGH_REG_OUT.value
     if ControlLine.SET_X_IN_TO_ABS_O1_REG_OUT in controls:
@@ -52,8 +53,6 @@ def execute_control(controls: ControlLines, inf: RegFile) -> typing.Tuple[NextSt
         else:
             outf[SpecialRegister.X_SELECT] = XSelect.PASSTHROUGH_REG_OUT.value
         outf[SpecialRegister.X_BORROW] = 0
-    if ControlLine.SET_Y_IN_TO_X_MINUS_REG_OUT in controls:
-        outf[SpecialRegister.Y_BORROW] = YSelect.X_MINUS_REG_OUT.value
 
     # Shift for generic registers
     for (reg, cl) in SHIFT_CONTROL_LINE.items():
