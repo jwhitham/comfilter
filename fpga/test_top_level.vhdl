@@ -28,8 +28,7 @@ architecture structural of test_top_level is
     signal REPEAT_FOR_ALL_BITS : std_logic := '0';
     signal SET_X_IN_TO_ABS_O1_REG_OUT : std_logic := '0';
     signal SET_X_IN_TO_REG_OUT : std_logic := '0';
-    signal SET_X_IN_TO_X : std_logic := '0';
-    signal SET_Y_IN_TO_X_MINUS_REG_OUT : std_logic := '0';
+    signal SET_X_IN_TO_X_AND_CLEAR_Y_BORROW : std_logic := '0';
     signal SHIFT_A_RIGHT : std_logic := '0';
     signal SHIFT_I0_RIGHT : std_logic := '0';
     signal SHIFT_I1_RIGHT : std_logic := '0';
@@ -80,8 +79,7 @@ begin
                 REPEAT_FOR_ALL_BITS => REPEAT_FOR_ALL_BITS,
                 SET_X_IN_TO_ABS_O1_REG_OUT => SET_X_IN_TO_ABS_O1_REG_OUT,
                 SET_X_IN_TO_REG_OUT => SET_X_IN_TO_REG_OUT,
-                SET_X_IN_TO_X => SET_X_IN_TO_X,
-                SET_Y_IN_TO_X_MINUS_REG_OUT => SET_Y_IN_TO_X_MINUS_REG_OUT,
+                SET_X_IN_TO_X_AND_CLEAR_Y_BORROW => SET_X_IN_TO_X_AND_CLEAR_Y_BORROW,
                 SHIFT_A_RIGHT => SHIFT_A_RIGHT,
                 SHIFT_I0_RIGHT => SHIFT_I0_RIGHT,
                 SHIFT_I1_RIGHT => SHIFT_I1_RIGHT,
@@ -103,46 +101,117 @@ begin
                 raddr => uc_addr,
                 rclk => clock):
 
-    y_register : entity register
-        generic map (name => "Y")
-        port map (
-                reg_out => Y_OUT,
-                shift_right => SHIFT_Y_RIGHT,
-                reg_in => Y_IN);
-    process (MUX_OUT, X_OUT, Y_SELECT) is
+    -- X register components
+    x_register : block
+        type x_select_enum is (PASSTHROUGH_REG_OUT, PASSTHROUGH_X, NEGATE_REG_OUT);
+        signal x_select                     : x_select_enum := PASSTHROUGH_REG_OUT;
+        signal x_in_negate_reg_out, x_mux   : std_logic := '0';
     begin
-        y_input <= 
-        # Y register has a special function input (subtract)
-        if inf[SpecialRegister.Y_SELECT] == YSelect.X_MINUS_REG_OUT.value:
-            y_in = 4 + (inf[Register.X] & 1) - reg_out
-            if y_in & 2:
-                outf[SpecialRegister.Y_SELECT] = YSelect.BORROW_X_MINUS_REG_OUT.value
-        elif inf[SpecialRegister.Y_SELECT] == YSelect.BORROW_X_MINUS_REG_OUT.value:
-            y_in = 3 + (inf[Register.X] & 1) - reg_out
-            if not (y_in & 2):
-                outf[SpecialRegister.Y_SELECT] = YSelect.X_MINUS_REG_OUT.value
-        else:
-            assert False
-        outf[Register.Y] = (inf[Register.Y] | ((y_in & 1) << ALL_BITS)) >> 1
+        x_subtractor : entity subtractor
+            port map (
+                    x_in => zero,
+                    y_in => reg_out,
+                    b_reset_in => SET_X_IN_TO_ABS_O1_REG_OUT,
+                    d_out => negate_reg_out,
+                    clock_in => clock);
 
+        x_mux <= reg_out if x_select = PASSTHROUGH_REG_OUT
+            else x_out if x_select = PASSTHROUGH_X
+            else negate_reg_out;
 
-    filter : entity top_level
-        generic map (
-            sample_width => 15,
-            result_width => 11,
-            frequency => 1270.0,
-            filter_width => 100.0,
-            sample_rate => 48000.0)
+        x_register : entity shift_register
+            generic map (name => "X")
+            port map (
+                    reg_out => x_out,
+                    shift_right_in => SHIFT_X_RIGHT,
+                    reg_in => x_mux,
+                    parallel_out => open,
+                    clock_in => clock);
+
+        process (clock) is
+        begin
+            if clock = '1' and clock'event then
+                if SET_X_IN_TO_REG_OUT = '1' then
+                    x_select <= PASSTHROUGH_REG_OUT;
+                elsif SET_X_IN_TO_ABS_O1_REG_OUT = '1' then
+                    if o1_is_negative = '1' then
+                        x_select <= NEGATE_REG_OUT;
+                    else
+                        x_select <= PASSTHROUGH_REG_OUT;
+                    end if;
+                elsif SET_X_IN_TO_X_AND_CLEAR_Y_BORROW = '1' then
+                    x_select <= PASSTHROUGH_X;
+                end if;
+            end if;
+        end process;
+    end block x_register;
+
+    -- Y register components
+    y_register : block
+        signal y_in : std_logic := '0';
+    begin
+        y_subtractor : entity subtractor
+            port map (
+                    x_in => x_out,
+                    y_in => reg_out,
+                    b_reset_in => SET_X_IN_TO_X_AND_CLEAR_Y_BORROW,
+                    d_out => y_in,
+                    clock_in => clock);
+        y_register : entity shift_register
+            generic map (name => "Y")
+            port map (
+                    reg_out => y_out,
+                    shift_right_in => SHIFT_Y_RIGHT,
+                    reg_in => y_in,
+                    parallel_out => open,
+                    clock_in => clock);
+    end y_register;
+
+    -- I0 register
+    i0_register : declare
+    begin
+        process (clock) is
+        begin
+            if clock = '1' and clock'event then
+                if LOAD_I0_FROM_INPUT = '1' then
+                    i0_value
+                end if;
+            end if;
+        end process;
+
+    -- Other registers
+    i1_register : entity shift_register
+        generic map (name => "I1")
         port map (
-            value_in => sample_value,
-            value_negative_in => sample_value_neg,
-            result_out => filter_value,
-            result_negative_out => filter_value_neg,
-            start_in => sample_strobe,
-            reset_in => reset,
-            finish_out => filter_finish,
-            ready_out => filter_ready,
-            clock_in => clock);
+                reg_out => i1_out,
+                shift_right_in => SHIFT_I1_RIGHT,
+                reg_in => reg_out,
+                parallel_out => open,
+                clock_in => clock);
+    i2_register : entity shift_register
+        generic map (name => "I2")
+        port map (
+                reg_out => i2_out,
+                shift_right_in => SHIFT_I2_RIGHT,
+                reg_in => reg_out,
+                parallel_out => open,
+                clock_in => clock);
+    o1_register : entity shift_register
+        generic map (name => "O1")
+        port map (
+                reg_out => o1_out,
+                shift_right_in => SHIFT_O1_RIGHT,
+                reg_in => reg_out,
+                parallel_out => open,
+                clock_in => clock);
+    o2_register : entity shift_register
+        generic map (name => "O2")
+        port map (
+                reg_out => o2_out,
+                shift_right_in => SHIFT_O2_RIGHT,
+                reg_in => reg_out,
+                parallel_out => open,
+                clock_in => clock);
 
 
     process is
