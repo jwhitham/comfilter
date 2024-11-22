@@ -199,7 +199,7 @@ def move_X_to_L_if_Y_is_not_negative(ops: OperationList) -> None:
 
 def demodulator(ops: OperationList) -> None:
     # Load new input
-    ops.mux(MuxCode.LOAD_I0_FROM_INPUT)
+    ops.add(ControlLine.LOAD_I0_FROM_INPUT)
 
     # Apply both filters
     # Use first bank for O1, O2, L
@@ -227,12 +227,12 @@ def demodulator(ops: OperationList) -> None:
 
     # if Y is non-negative, then LS >= L: so, lower frequency signal is stronger
     # if Y is negative, then LS < L: so, upper frequency signal is stronger
-    ops.mux(MuxCode.SEND_Y_TO_OUTPUT)
+    ops.add(ControlLine.SEND_Y_TO_OUTPUT)
 
     # ready for next input
     move_reg_to_reg(ops, Register.I1, Register.I2)
     move_reg_to_reg(ops, Register.I0, Register.I1)
-    ops.mux(MuxCode.RESTART)
+    ops.add(ControlLine.RESTART)
 
 def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> None:
     # For testing: multiply-accumulate
@@ -241,7 +241,7 @@ def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> 
 
     # Multiply and add repeatedly
     for test_value in test_values:
-        ops.mux(MuxCode.LOAD_I0_FROM_INPUT)
+        ops.add(ControlLine.LOAD_I0_FROM_INPUT)
         fixed_multiply(ops, Register.I0, test_value)
 
     ops.comment("Output from multiply_accumulate")
@@ -256,7 +256,7 @@ def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[fl
 
     # Multiply and add repeatedly
     for test_value in test_values:
-        ops.mux(MuxCode.LOAD_I0_FROM_INPUT)
+        ops.add(ControlLine.LOAD_I0_FROM_INPUT)
         # multiply from I2, via I1
         move_reg_to_reg(ops, Register.I0, Register.I1)
         move_reg_to_reg(ops, Register.I1, Register.I2)

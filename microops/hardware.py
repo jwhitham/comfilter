@@ -21,11 +21,8 @@ class MuxCode(enum.Enum):
     I0 = 8
     I1 = 9
     I2 = 10
-    RESTART = 11
-    L_OR_X = 12
-    BANK_SWITCH = 13
-    LOAD_I0_FROM_INPUT = 14
-    SEND_Y_TO_OUTPUT = 15
+    BANK_SWITCH = 14
+    L_OR_X = 15
 
 class Register(enum.Enum):
     ZERO = MuxCode.ZERO.value
@@ -60,6 +57,9 @@ class ControlLine(enum.Enum):
     SHIFT_O2_RIGHT = enum.auto()
     SHIFT_R_RIGHT = enum.auto()
     REPEAT_FOR_ALL_BITS = enum.auto()
+    RESTART = enum.auto()
+    LOAD_I0_FROM_INPUT = enum.auto()
+    SEND_Y_TO_OUTPUT = enum.auto()
     NOTHING = enum.auto()
 
 class Debug(enum.Enum):

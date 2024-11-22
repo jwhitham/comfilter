@@ -35,7 +35,9 @@ class NextStep(enum.Enum):
 RegFile = typing.Dict[typing.Union[Register, SpecialRegister], int]
 NUMBER_TO_REGISTER = {r.value: r for r in Register}
 
-def execute_control(controls: ControlLines, inf: RegFile) -> typing.Tuple[NextStep, RegFile]:
+def execute_control(controls: ControlLines, inf: RegFile,
+        reverse_in_values: typing.List[int],
+        out_values: typing.List[int]) -> typing.Tuple[NextStep, RegFile]:
     outf = dict(inf)
     mux_select = inf[SpecialRegister.MUX_SELECT]
     reg_out = inf[NUMBER_TO_REGISTER[mux_select]] & 1
@@ -53,6 +55,10 @@ def execute_control(controls: ControlLines, inf: RegFile) -> typing.Tuple[NextSt
         else:
             outf[SpecialRegister.X_SELECT] = XSelect.PASSTHROUGH_REG_OUT.value
         outf[SpecialRegister.X_BORROW] = 0
+    if ControlLine.LOAD_I0_FROM_INPUT in controls:
+        outf[Register.I0] = reverse_in_values.pop()
+    if ControlLine.SEND_Y_TO_OUTPUT in controls:
+        out_values.append(inf[Register.Y])
 
     # Shift for generic registers
     for (reg, cl) in SHIFT_CONTROL_LINE.items():
@@ -92,6 +98,8 @@ def execute_control(controls: ControlLines, inf: RegFile) -> typing.Tuple[NextSt
         if outf[SpecialRegister.REPEAT_COUNTER] != 0:
             return (NextStep.REPEAT, outf)
 
+    if ControlLine.RESTART in controls:
+        return (NextStep.RESTART, outf)
     return (NextStep.NEXT, outf)
 
 def subtractor(x_in: int, y_in: int, b_in) -> typing.Tuple[int, int]:
@@ -99,25 +107,17 @@ def subtractor(x_in: int, y_in: int, b_in) -> typing.Tuple[int, int]:
     b_out = int(x_in < (y_in + b_in))
     return (d_out, b_out)
 
-def execute_mux(source: MuxCode, inf: RegFile,
-        reverse_in_values: typing.List[int],
-        out_values: typing.List[int]) -> typing.Tuple[NextStep, RegFile]:
+def execute_mux(source: MuxCode, inf: RegFile) -> typing.Tuple[NextStep, RegFile]:
     outf = dict(inf)
     if source == MuxCode.L_OR_X:
         if inf[Register.Y] >> (ALL_BITS - 1):
             outf[SpecialRegister.MUX_SELECT] = Register.L.value # Y negative, use L
         else:
             outf[SpecialRegister.MUX_SELECT] = Register.X.value # Y non-negative, use X
-    elif source == MuxCode.RESTART:
-        return (NextStep.RESTART, outf)
     elif source == MuxCode.BANK_SWITCH:
         outf[Register.L], outf[Register.LS] = inf[Register.LS], inf[Register.L]
         outf[Register.O1], outf[Register.O1S] = inf[Register.O1S], inf[Register.O1]
         outf[Register.O2], outf[Register.O2S] = inf[Register.O2S], inf[Register.O2]
-    elif source == MuxCode.LOAD_I0_FROM_INPUT:
-        outf[Register.I0] = reverse_in_values.pop()
-    elif source == MuxCode.SEND_Y_TO_OUTPUT:
-        out_values.append(inf[Register.Y])
     else:
         assert source.value in NUMBER_TO_REGISTER, source.value
         outf[SpecialRegister.MUX_SELECT] = source.value
@@ -157,7 +157,8 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
             if debug:
                 print(f"  op: {op_index} {op}")
             previous_reg_file = reg_file
-            (next_step, reg_file) = execute_control(op.controls, previous_reg_file)
+            (next_step, reg_file) = execute_control(op.controls,
+                previous_reg_file, reverse_in_values, out_values)
             if debug:
                 for r in reg_file.keys():
                     if reg_file[r] != previous_reg_file[r]:
@@ -167,7 +168,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
             if debug:
                 print(f"  op: {op_index} {op}")
             previous_reg_file = reg_file
-            (next_step, reg_file) = execute_mux(op.source, previous_reg_file, reverse_in_values, out_values)
+            (next_step, reg_file) = execute_mux(op.source, previous_reg_file)
         elif isinstance(op, DebugOperation):
             if debug:
                 print(f" {op}")

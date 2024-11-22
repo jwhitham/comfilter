@@ -50,7 +50,7 @@ def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: i
             multiply_accumulate_via_regs(ops, v1f_list)
         else:
             multiply_accumulate(ops, v1f_list)
-        ops.mux(MuxCode.RESTART)
+        ops.add(ControlLine.RESTART)
         out_values = run_ops(ops, v0i_list, debug > 1)
         assert len(out_values) == 1
         ri = out_values[0]
@@ -98,7 +98,7 @@ def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int) ->
                 print(f" o2 = {make_fixed(o2):04x} * {make_fixed(-a2):04x}", end="")
                 print(f" -> o0 = {make_fixed(o0):04x}")
             assert abs(o0) < 2.0
-            ops.mux(MuxCode.LOAD_I0_FROM_INPUT)
+            ops.add(ControlLine.LOAD_I0_FROM_INPUT)
             filter_step(ops, a1, a2, b0, b2)
             move_reg_to_reg(ops, Register.I1, Register.I2)
             move_reg_to_reg(ops, Register.I0, Register.I1)
@@ -114,7 +114,7 @@ def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int) ->
         #a0 =   1.005859e+00 a1 =  -1.966797e+00 a2 =   9.863281e-01 (fixed_t 9)
         #b0 =   5.859375e-03 b1 =   0.000000e+00 b2 =  -5.859375e-03 (fixed_t 9)
 
-        ops.mux(MuxCode.RESTART)
+        ops.add(ControlLine.RESTART)
         out_values = run_ops(ops, inputs, debug > 1)
         assert len(out_values) == len(inputs)
         assert len(expect_values) == len(inputs)
@@ -169,11 +169,11 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
 
         # Load input 
         inputs.append(o1i)
-        ops.mux(MuxCode.LOAD_I0_FROM_INPUT)
+        ops.add(ControlLine.LOAD_I0_FROM_INPUT)
         move_reg_to_reg(ops, Register.I0, Register.O1)
         ops.comment(f"Expect O1 = {o1i:04x}")
         inputs.append(li)
-        ops.mux(MuxCode.LOAD_I0_FROM_INPUT)
+        ops.add(ControlLine.LOAD_I0_FROM_INPUT)
         move_reg_to_reg(ops, Register.I0, Register.L)
         ops.comment(f"Expect L = {li:04x}")
 
@@ -188,7 +188,7 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
         ops.debug(Debug.SEND_O1_TO_OUTPUT)
         move_reg_to_reg(ops, Register.X, Register.O1)
         ops.debug(Debug.SEND_O1_TO_OUTPUT)
-        ops.mux(MuxCode.RESTART)
+        ops.add(ControlLine.RESTART)
 
         # run
         out_values = run_ops(ops, inputs, debug > 1)
@@ -219,15 +219,15 @@ def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: in
 
         # Load input 
         inputs.append(xi)
-        ops.mux(MuxCode.LOAD_I0_FROM_INPUT)
+        ops.add(ControlLine.LOAD_I0_FROM_INPUT)
         move_reg_to_reg(ops, Register.I0, Register.X)
         inputs.append(i0i)
-        ops.mux(MuxCode.LOAD_I0_FROM_INPUT)
+        ops.add(ControlLine.LOAD_I0_FROM_INPUT)
 
         # Operation: Y = X - I0
         set_Y_to_X_minus_reg(ops, Register.I0)
-        ops.mux(MuxCode.SEND_Y_TO_OUTPUT)
-        ops.mux(MuxCode.RESTART)
+        ops.add(ControlLine.SEND_Y_TO_OUTPUT)
+        ops.add(ControlLine.RESTART)
 
         # run
         out_values = run_ops(ops, inputs, debug > 1)
