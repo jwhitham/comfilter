@@ -12,22 +12,20 @@ MICROCODE_STORE_SIZE = 0x200
 class MuxCode(enum.Enum):
     ZERO = 0
     R = 1
-    A = 2
-    Y = 3
-    O1 = 4
-    O2 = 5
-    X = 6
-    L = 7
-    I0 = 8
-    I1 = 9
-    I2 = 10
+    Y = 2
+    O1 = 3
+    O2 = 4
+    X = 5
+    L = 6
+    I0 = 7
+    I1 = 8
+    I2 = 9
     BANK_SWITCH = 14
     L_OR_X = 15
 
 class Register(enum.Enum):
     ZERO = MuxCode.ZERO.value
     R = MuxCode.R.value
-    A = MuxCode.A.value
     Y = MuxCode.Y.value
     O1 = MuxCode.O1.value
     O2 = MuxCode.O2.value
@@ -40,6 +38,7 @@ class Register(enum.Enum):
     LS = -1
     O1S = -2
     O2S = -3
+    A = -4
 
 class ControlLine(enum.Enum):
     ADD_A_TO_R = enum.auto()
