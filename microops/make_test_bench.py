@@ -65,15 +65,17 @@ begin
         reset_out <= '1';
         wait for {CLOCK_PERIOD_NS * 10} ns;
         reset_out <= '0';
-        wait for {CLOCK_PERIOD_NS * 10} ns;
+        wait until clock = '1' and clock'event;
+        wait until clock = '1' and clock'event;
 """)
         for value in in_values:
+            fd.write("""wait until clock = '1' and clock'event; """)
             fd.write(f"""p <= x"{value:04x}"; v <= '1'; """)
-            fd.write(f"""wait for {CLOCK_PERIOD_NS} ns; """)
+            fd.write("""wait until clock = '1' and clock'event; """)
             fd.write(f"""p <= g; v <= '0'; wait for {INTERSAMPLE_NS} ns;\n""")
 
         fd.write(f"""
-        wait for {INTERSAMPLE_NS + CLOCK_PERIOD_NS} ns;
+        wait for {INTERSAMPLE_NS} ns;
         done <= '1';
         wait;
     end process;
