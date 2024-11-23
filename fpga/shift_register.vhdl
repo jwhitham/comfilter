@@ -27,6 +27,7 @@ architecture structural of shift_register is
 begin
     process (clock_in) is
         variable l : line;
+        variable new_value : std_logic_vector(size - 1 downto 0) := (others => '0');
     begin
         if clock_in = '1' and clock_in'event then
             -- check for metastable states:
@@ -34,11 +35,12 @@ begin
             assert shift_right_in = '1' or shift_right_in = '0';
 
             if shift_right_in = '1' then
-                value(size - 1) <= reg_in;
-                value(size - 2 downto 0) <= value(size - 1 downto 1);
+                new_value(size - 1) := reg_in;
+                new_value(size - 2 downto 0) := value(size - 1 downto 1);
+                value <= new_value;
                 write (l, name);
                 write (l, String'(" := "));
-                write (l, Integer'(ieee.numeric_std.to_integer(signed(value))));
+                write (l, Integer'(ieee.numeric_std.to_integer(signed(new_value))));
                 writeline (output, l);
             end if;
         end if;

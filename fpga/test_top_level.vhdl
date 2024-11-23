@@ -41,7 +41,7 @@ begin
     process is
         variable l : line;
         variable active : Boolean := false;
-        variable copy : unsigned (0 downto 0) := "0";
+        variable copy : unsigned (1 downto 0) := "00";
     begin
         wait until reset = '0';
         while done = '0' loop

@@ -170,7 +170,7 @@ class Operation:
         if self.encode() is None:
             fd.write(f'        # {self}\n')
         else:
-            fd.write(f'{self.address:03x}  {self.encode():02x} {self}\n')
+            fd.write(f'{self.address:3d}  {self.encode():3d} {self}\n')
 
     def encode(self) -> typing.Optional[int]:
         return None

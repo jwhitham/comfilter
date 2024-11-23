@@ -29,20 +29,22 @@ architecture structural of banked_shift_register is
     signal debug_b0, debug_b1            : std_logic_vector(size - 1 downto 0) := (others => '0');
 begin
     b0 : entity shift_register
-        generic map (name => name & "0", size => size)
+        generic map (name => name & "_b0", size => size)
         port map (
             reg_out => reg_b0,
             negative_out => negative_b0,
             shift_right_in => shift_b0,
+            debug_out => debug_b0,
             reg_in => reg_in,
             clock_in => clock_in);
 
     b1 : entity shift_register
-        generic map (name => name & "1", size => size)
+        generic map (name => name & "_b1", size => size)
         port map (
             reg_out => reg_b1,
             negative_out => negative_b1,
             shift_right_in => shift_b1,
+            debug_out => debug_b1,
             reg_in => reg_in,
             clock_in => clock_in);
 
