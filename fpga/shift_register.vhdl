@@ -29,11 +29,11 @@ begin
     begin
         if clock_in = '1' and clock_in'event then
             if shift_right_in = '1' then
-                value(size - 1) <= reg_out;
+                value(size - 1) <= reg_in;
                 value(size - 2 downto 0) <= value(size - 1 downto 1);
                 write (l, name);
                 write (l, String'(" := "));
-                write (l, Integer'(ieee.numeric_std.to_integer(signed(value)));
+                write (l, Integer'(ieee.numeric_std.to_integer(signed(value))));
                 writeline (output, l);
             end if;
         end if;

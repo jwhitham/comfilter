@@ -363,9 +363,7 @@ begin
     process (rclk)
     begin
         if rclk'event and rclk = '1' then
-            if rclke = '1' and re = '1' then
-                rdata <= storage (to_integer (unsigned (raddr)));
-            end if;
+            rdata <= storage (to_integer (unsigned (raddr)));
         end if;
     end process;
 end architecture behavioural;

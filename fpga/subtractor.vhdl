@@ -21,17 +21,16 @@ end subtractor;
 architecture structural of subtractor is
     signal b_value : std_logic := '0';
 begin
-    return (d_out, b_out)
     process (clock_in) is
     begin
         if clock_in = '1' and clock_in'event then
             if strobe_in = '1' then
                 -- effectively: b_value := x_in < (y_in + b_in)
-                if y_in = '1' and b_in = '1' then
+                if y_in = '1' and b_value = '1' then
                     b_value <= '1';
-                elsif y_in = '1' or b_in = '1' then
+                elsif y_in = '1' or b_value = '1' then
                     b_value <= not x_in;
-                else:
+                else
                     b_value <= '0';
                 end if;
             end if;

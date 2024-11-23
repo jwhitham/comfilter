@@ -56,6 +56,7 @@ begin
     strobe_out <= v;
 
     process
+        variable l : line;
     begin
         while done = '0' loop
             clock <= '1';
@@ -73,15 +74,15 @@ begin
     begin
         done <= '0';
         reset_out <= '1';
-        wait for (CLOCK_PERIOD_NS * 10) ns;
+        wait for {CLOCK_PERIOD_NS * 10} ns;
         reset_out <= '0';
-        wait for (CLOCK_PERIOD_NS * 10) ns;
+        wait for {CLOCK_PERIOD_NS * 10} ns;
 """)
         # read input files
         wav_to_test_data(fd, "generated/signal.wav")
 
-        fd.write("""
-        wait for (CLOCK_PERIOD_NS * 10) ns;
+        fd.write(f"""
+        wait for {CLOCK_PERIOD_NS * 10} ns;
         done <= '1';
         wait;
     end process;
