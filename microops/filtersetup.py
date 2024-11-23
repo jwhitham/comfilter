@@ -241,6 +241,7 @@ def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> 
 
     # Multiply and add repeatedly
     for test_value in test_values:
+        ops.comment(f"test value {test_value}")
         ops.add(ControlLine.LOAD_I0_FROM_INPUT)
         fixed_multiply(ops, Register.I0, test_value)
 
@@ -252,21 +253,23 @@ def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> 
 
 def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[float]) -> None:
     # For testing: multiply-accumulate but via other registers
+    ops.comment(f"Begin multiply_accumulate (regs) with {test_values}")
     ops.debug(Debug.ASSERT_R_ZERO)
 
     # Multiply and add repeatedly
     for test_value in test_values:
         ops.add(ControlLine.LOAD_I0_FROM_INPUT)
-        # multiply from I2, via I1
+        ops.comment("multiply from I2, via I1")
         move_reg_to_reg(ops, Register.I0, Register.I1)
         move_reg_to_reg(ops, Register.I1, Register.I2)
         fixed_multiply(ops, Register.I2, test_value)
-        # move out of R then back into it, via O registers
+        ops.comment("move out of R then back into it, via O registers")
         move_reg_to_reg(ops, Register.R, Register.O1)
         move_reg_to_reg(ops, Register.O1, Register.O2)
         fixed_multiply(ops, Register.O2, 1.0)
 
     # One output
+    ops.comment("Output from multiply_accumulate (regs)")
     ops.debug(Debug.SEND_O1_TO_OUTPUT)
 
 def main() -> None:

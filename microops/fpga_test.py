@@ -13,7 +13,7 @@ GHDL_OUTPUT = Path("generated/output.txt").absolute()
 
 def fpga_run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
     ops.generate()
-    make_test_bench.make_test_bench(in_values=in_values, verbose=debug > 1)
+    make_test_bench.make_test_bench(in_values=in_values, verbose=debug)
     subprocess.check_call(["ghdl", "--remove"], cwd=FPGA_DIR)
     subprocess.check_call(["ghdl", "-a", "--work=work",
             "../generated/control_line_decoder.vhdl",
@@ -33,7 +33,7 @@ def fpga_run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -
     out_values: typing.List[int] = []
     with open(GHDL_OUTPUT, "rt", encoding="utf-8") as fd:
         for line in fd:
-            if (debug > 0) or (rc != 0):
+            if debug or (rc != 0):
                 print(line, end="")
             fields = line.split()
             if (len(fields) == 5) and (fields[0] == "Debug") and (fields[1] == "out") and (fields[3] == "="):
@@ -45,7 +45,8 @@ def fpga_run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -
     return out_values
 
 def main() -> None:
-    filtertest.test_all(1, 1, fpga_run_ops)
+    debug = 2
+    filtertest.test_all(1, debug, fpga_run_ops)
 
 if __name__ == "__main__":
     try:

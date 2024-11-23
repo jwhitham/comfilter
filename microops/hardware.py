@@ -69,6 +69,7 @@ class Debug(enum.Enum):
     ASSERT_Y_IS_X_MINUS_L = 5
     SEND_O1_TO_OUTPUT = 6
     SEND_L_TO_OUTPUT = 7
+    HALT = 8
 
 SHIFT_CONTROL_LINE = {
     Register.A : ControlLine.SHIFT_A_RIGHT,
@@ -225,7 +226,7 @@ class OperationList:
         self.address = 0
 
         # Initial operation - do nothing (simplifies reset logic to have a NOP at address 0)
-        self.mux(MuxCode.ZERO)
+        self.add([])
 
     def __len__(self) -> int:
         return len(self.operations)

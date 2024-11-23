@@ -54,6 +54,7 @@ architecture structural of filter_unit is
     constant ASSERT_Y_IS_X_MINUS_L : std_logic_vector(3 downto 0) := x"5";
     constant SEND_O1_TO_OUTPUT  : std_logic_vector(3 downto 0) := x"6";
     constant SEND_L_TO_OUTPUT   : std_logic_vector(3 downto 0) := x"7";
+    constant HALT               : std_logic_vector(3 downto 0) := x"8";
 
     signal mux_select           : std_logic_vector(3 downto 0) := (others => '0');
     signal mux_strobe           : std_logic := '0';
@@ -445,6 +446,7 @@ begin
                             write (l, String'("Debug out L = "));
                             write (l, Integer'(ieee.numeric_std.to_integer(signed(l_debug_value))));
                             writeline (output, l);
+                        when HALT =>
                         when others =>
                             null;
                     end case;
