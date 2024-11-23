@@ -198,6 +198,9 @@ def move_X_to_L_if_Y_is_not_negative(ops: OperationList) -> None:
             ControlLine.REPEAT_FOR_ALL_BITS)
 
 def demodulator(ops: OperationList) -> None:
+    # Do nothing (simplifies reset logic to have a NOP at address 0)
+    ops.mux(MuxCode.ZERO)
+
     # Load new input
     ops.add(ControlLine.LOAD_I0_FROM_INPUT)
 

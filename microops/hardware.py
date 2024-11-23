@@ -298,9 +298,10 @@ library ieee;
 use ieee.std_logic_1164.all;
 
 entity microcode_store is port (
-        rdata       : out std_logic_vector (7 downto 0) := (others => '0');
-        raddr       : in std_logic_vector (8 downto 0);
-        rclk        : in std_logic);
+        uc_data_out : out std_logic_vector (7 downto 0) := (others => '0');
+        uc_addr_in  : in std_logic_vector (8 downto 0) := (others => '0');
+        enable_in   : in std_logic := '0';
+        clock_in    : in std_logic := '0');
 end microcode_store;
 architecture structural of microcode_store is
     signal one      : std_logic := '1';
@@ -324,14 +325,14 @@ generic map (
             fd.write('"')
         fd.write(""")
 port map (
-RDATA => rdata,
-RADDR => raddr,
-RCLK => rclk,
+RDATA => uc_data_out,
+RADDR => uc_addr_in,
+RCLK => clock_in,
 RCLKE => one,
-RE => one,
+RE => enable_in,
 WADDR => unused(8 downto 0),
 WDATA => unused(7 downto 0),
-WCLK => rclk,
+WCLK => clock_in,
 WCLKE => unused(0),
 WE => unused(0));
 end structural;
@@ -344,9 +345,10 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 entity microcode_store is port (
-        rdata       : out std_logic_vector (7 downto 0) := (others => '0');
-        raddr       : in std_logic_vector (8 downto 0);
-        rclk        : in std_logic);
+        uc_data_out : out std_logic_vector (7 downto 0) := (others => '0');
+        uc_addr_in  : in std_logic_vector (8 downto 0) := (others => '0');
+        enable_in   : in std_logic := '0';
+        clock_in    : in std_logic := '0');
 end microcode_store;
 architecture behavioural of microcode_store is
     subtype t_word is std_logic_vector (7 downto 0);
@@ -360,10 +362,12 @@ architecture behavioural of microcode_store is
         fd.write(f'others => "{code:08b}");\n')
         fd.write("""
 begin
-    process (rclk)
+    process (clock_in)
     begin
-        if rclk'event and rclk = '1' then
-            rdata <= storage (to_integer (unsigned (raddr)));
+        if clock_in'event and clock_in = '1' then
+            if enable_in = '1' then
+                uc_data_out <= storage (to_integer (unsigned (uc_addr_in)));
+            end if;
         end if;
     end process;
 end architecture behavioural;

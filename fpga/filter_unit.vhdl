@@ -58,7 +58,6 @@ architecture structural of filter_unit is
     signal mux_strobe           : std_logic := '0';
     signal debug_strobe         : std_logic := '0';
     signal uc_code              : std_logic_vector(7 downto 0) := (others => '0');
-    signal uc_addr              : unsigned(8 downto 0) := (others => '0');
 
     signal bank_select          : std_logic := '0';
     signal o1_is_negative       : std_logic := '0';
@@ -106,40 +105,54 @@ begin
                 mux_strobe => mux_strobe,
                 debug_strobe => debug_strobe,
                 code_in => uc_code);
-    
-    test_uc_store : entity microcode_store 
-        port map (
-                rdata => uc_code,
-                raddr => std_logic_vector(uc_addr),
-                rclk => clock_in);
-
-    -- Address register
-    addr_register : block
-        signal bit_counter : Natural range 0 to ALL_BITS := 0;
+  
+    -- Microcode unit
+    uc : block
+        signal uc_addr      : unsigned(8 downto 0) := (others => '1');
+        signal uc_addr_next : unsigned(8 downto 0) := (others => '0');
+        signal bit_counter  : Natural range 0 to ALL_BITS := 0;
+        signal uc_enable    : std_logic := '0';
+        signal more_bits    : std_logic := '0';
     begin
+        store : entity microcode_store 
+            port map (
+                    uc_data_out => uc_code,
+                    uc_addr_in => std_logic_vector(uc_addr_next),
+                    enable_in => uc_enable,
+                    clock_in => clock_in);
+
+        more_bits <= '1' when bit_counter /= 0 else '0';
+        uc_enable <= '1' when RESTART = '1'
+            else '1' when reset_in = '1'
+            else '0' when (LOAD_I0_FROM_INPUT and not audio_ready_in) = '1'
+            else '0' when (REPEAT_FOR_ALL_BITS = '1' and more_bits = '1')
+            else '1';
+        uc_addr_next <= uc_addr + 1;
+
         process (clock_in) is
             variable l : line;
         begin
             if clock_in = '1' and clock_in'event then
-                uc_addr <= uc_addr + 1;
-                bit_counter <= ALL_BITS;
-                if RESTART = '1' or reset_in = '1' then
-                    -- Reset microprogram
-                    uc_addr <= (others => '0');
-                elsif REPEAT_FOR_ALL_BITS = '1' and bit_counter /= 0 then
-                    -- Stay on this instruction until the bit counter reaches 0
-                    bit_counter <= bit_counter - 1;
-                    uc_addr <= uc_addr;
-                elsif LOAD_I0_FROM_INPUT = '1' and audio_ready_in = '0' then
-                    -- Stay on this instruction until input is received
-                    uc_addr <= uc_addr;
-                end if;
-                write (l, String'("uc_addr := "));
-                write (l, Integer'(ieee.numeric_std.to_integer(unsigned(uc_addr))));
+                write (l, String'("uc_code = "));
+                write (l, Integer'(ieee.numeric_std.to_integer(unsigned(uc_code))));
                 writeline (output, l);
+                bit_counter <= ALL_BITS;
+                if reset_in = '1' or RESTART = '1' then
+                    uc_addr <= (others => '1');
+                    write (l, String'("uc_addr -- reset"));
+                    writeline (output, l);
+                elsif uc_enable = '1' then
+                    uc_addr <= uc_addr_next;
+                    write (l, String'("uc_addr := "));
+                    write (l, Integer'(ieee.numeric_std.to_integer(uc_addr_next)));
+                    writeline (output, l);
+                end if;
+                if REPEAT_FOR_ALL_BITS = '1' and more_bits = '1' then
+                    bit_counter <= bit_counter - 1;
+                end if;
             end if;
         end process;
-    end block addr_register;
+    end block uc;
 
     -- X register (special input via negation unit or passthrough)
     x_register : block
