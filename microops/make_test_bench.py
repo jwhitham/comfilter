@@ -1,5 +1,6 @@
 
 from settings import SAMPLE_RATE
+from hardware import ALL_BITS
 import typing, struct, math
 
 CLOCK_FREQUENCY_HZ = 100e6
@@ -23,7 +24,7 @@ entity test_signal_generator is
         strobe_out          : out std_logic;
         reset_out           : out std_logic;
         verbose_debug_out   : out std_logic;
-        value_out           : out std_logic_vector(15 downto 0)
+        value_out           : out std_logic_vector({ALL_BITS - 1} downto 0)
     );
 end test_signal_generator;
 
@@ -35,7 +36,7 @@ architecture structural of test_signal_generator is
     signal clock : std_logic := '0';
     signal v : std_logic := '0';
 begin
-    value_out <= p;
+    value_out <= p({ALL_BITS - 1} downto 0);
     clock_out <= clock;
     done_out <= done;
     strobe_out <= v;
@@ -66,8 +67,8 @@ begin
         reset_out <= '0';
         wait for {CLOCK_PERIOD_NS * 10} ns;
 """)
-        for sample in in_values:
-            fd.write(f"""p <= x"{sample:04x}"; v <= '1'; """)
+        for value in in_values:
+            fd.write(f"""p <= x"{value:04x}"; v <= '1'; """)
             fd.write(f"""wait for {CLOCK_PERIOD_NS} ns; """)
             fd.write(f"""p <= g; v <= '0'; wait for {INTERSAMPLE_NS} ns;\n""")
 

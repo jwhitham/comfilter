@@ -9,20 +9,22 @@ use ieee.numeric_std.all;
 use std.textio.all;
 
 entity filter_unit is
+    generic (
+        FRACTIONAL_BITS    : Natural := 14;
+        NON_FRACTIONAL_BITS : Natural := 2);
     port (
         clock_in            : in std_logic := '0';
         reset_in            : in std_logic := '0';
         verbose_debug_in    : in std_logic := '0';
-        audio_ready_in      : in std_logic := '0';
-        audio_data_in       : in std_logic_vector (15 downto 0) := (others => '0');
+        input_strobe_in     : in std_logic := '0';
+        input_data_in       : in std_logic_vector
+            (FRACTIONAL_BITS + NON_FRACTIONAL_BITS - 1 downto 0) := (others => '0');
         serial_ready_out    : out std_logic := '0';
         serial_data_out     : out std_logic := '0');
 end filter_unit;
 
 architecture structural of filter_unit is
 
-    constant FRACTIONAL_BITS    : Natural := 14;
-    constant NON_FRACTIONAL_BITS : Natural := 2;
     constant ALL_BITS           : Natural := FRACTIONAL_BITS + NON_FRACTIONAL_BITS;
     constant A_BITS             : Natural := (FRACTIONAL_BITS * 2) + NON_FRACTIONAL_BITS;
 
@@ -125,7 +127,7 @@ begin
         more_bits <= '1' when bit_counter /= 0 else '0';
         uc_enable <= '1' when RESTART = '1'
             else '1' when reset_in = '1'
-            else '0' when (LOAD_I0_FROM_INPUT and not audio_ready_in) = '1'
+            else '0' when (LOAD_I0_FROM_INPUT and not input_strobe_in) = '1'
             else '0' when (REPEAT_FOR_ALL_BITS = '1' and more_bits = '1')
             else '1';
         uc_addr_next <= uc_addr + 1;
@@ -241,26 +243,24 @@ begin
         process (clock_in) is
             variable l : line;
             variable new_i0_value : std_logic_vector(ALL_BITS - 1 downto 0) := (others => '0');
+            variable print_i0 : std_logic := '0';
         begin
             if clock_in = '1' and clock_in'event then
+                print_i0 := '0';
                 if LOAD_I0_FROM_INPUT = '1' then
-                    new_i0_value(ALL_BITS - 1 downto FRACTIONAL_BITS) := (others => audio_data_in(15));
-                    new_i0_value(FRACTIONAL_BITS - 1 downto 0) := audio_data_in(14 downto 15 - FRACTIONAL_BITS);
+                    new_i0_value := input_data_in;
                     i0_value <= new_i0_value;
-                    if verbose_debug_in = '1' then
-                        write (l, String'("I0 := "));
-                        write (l, Integer'(ieee.numeric_std.to_integer(signed(new_i0_value))));
-                        writeline (output, l);
-                    end if;
+                    print_i0 := verbose_debug_in;
                 elsif SHIFT_I0_RIGHT = '1' then
                     new_i0_value(ALL_BITS - 1) := reg_out;
                     new_i0_value(ALL_BITS - 2 downto 0) := i0_value(ALL_BITS - 1 downto 1);
                     i0_value <= new_i0_value;
-                    if verbose_debug_in = '1' then
-                        write (l, String'("I0 := "));
-                        write (l, Integer'(ieee.numeric_std.to_integer(signed(new_i0_value))));
-                        writeline (output, l);
-                    end if;
+                    print_i0 := verbose_debug_in;
+                end if;
+                if print_i0 = '1' then
+                    write (l, String'("I0 := "));
+                    write (l, Integer'(ieee.numeric_std.to_integer(signed(new_i0_value))));
+                    writeline (output, l);
                 end if;
             end if;
         end process;
@@ -328,8 +328,10 @@ begin
             variable l : line;
             variable new_a_value : signed(A_BITS - 1 downto 0) := (others => '0');
             variable new_r_value : signed(A_BITS - 1 downto 0) := (others => '0');
+            variable print_r     : std_logic := '0';
         begin
             if clock_in = '1' and clock_in'event then
+                print_r := '0';
                 if SHIFT_A_RIGHT = '1' then
                     new_a_value(A_BITS - 1) := reg_out;
                     new_a_value(A_BITS - 2 downto 0) := a_value(A_BITS - 1 downto 1);
@@ -343,20 +345,17 @@ begin
                 if ADD_A_TO_R = '1' then
                     new_r_value := r_value + a_value;
                     r_value <= new_r_value;
-                    if verbose_debug_in = '1' then
-                        write (l, String'("R := "));
-                        write (l, Integer'(ieee.numeric_std.to_integer(new_r_value)));
-                        writeline (output, l);
-                    end if;
+                    print_r := verbose_debug_in;
                 elsif SHIFT_R_RIGHT = '1' then
                     new_r_value(A_BITS - 1) := '0';
                     new_r_value(A_BITS - 2 downto 0) := r_value(A_BITS - 1 downto 1);
                     r_value <= new_r_value;
-                    if verbose_debug_in = '1' then
-                        write (l, String'("R := "));
-                        write (l, Integer'(ieee.numeric_std.to_integer(new_r_value)));
-                        writeline (output, l);
-                    end if;
+                    print_r := verbose_debug_in;
+                end if;
+                if print_r = '1' then
+                    write (l, String'("R := "));
+                    write (l, Integer'(ieee.numeric_std.to_integer(new_r_value)));
+                    writeline (output, l);
                 end if;
                 if debug_strobe = '1' then
                     case mux_select is

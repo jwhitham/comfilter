@@ -161,7 +161,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
         next_step = NextStep.NEXT
         if isinstance(op, ControlOperation):
             if debug:
-                print(f"  op: {op_index} {op}")
+                print(f"  op: {op.address} {op}")
             previous_reg_file = reg_file
             (next_step, reg_file) = execute_control(op.controls,
                 previous_reg_file, reverse_in_values, out_values)
@@ -172,12 +172,12 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
 
         elif isinstance(op, MuxOperation):
             if debug:
-                print(f"  op: {op_index} {op}")
+                print(f"  op: {op.address} {op}")
             previous_reg_file = reg_file
             (next_step, reg_file) = execute_mux(op.source, previous_reg_file)
         elif isinstance(op, DebugOperation):
             if debug:
-                print(f" {op}")
+                print(f" op: {op.address} {op}")
             execute_debug(op.debug, reg_file, out_values)
         else:
             if debug:
