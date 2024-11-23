@@ -102,6 +102,7 @@ begin
 
     -- Address register
     addr_register : process (clock_in) is
+        variable l : line;
     begin
         if clock_in = '1' and clock_in'event then
             uc_addr <= uc_addr + 1;
@@ -117,6 +118,9 @@ begin
                 -- Stay on this instruction until input is received
                 uc_addr <= uc_addr;
             end if;
+            write (l, String'("uc_addr := "));
+            write (l, Integer'(ieee.numeric_std.to_integer(unsigned(uc_addr)));
+            writeline (output, l);
         end if;
     end process addr_register;
 
@@ -130,7 +134,8 @@ begin
             port map (
                     x_in => zero,
                     y_in => reg_out,
-                    b_reset_in => SET_X_IN_TO_ABS_O1_REG_OUT,
+                    reset_in => SET_X_IN_TO_ABS_O1_REG_OUT,
+                    strobe_in => SHIFT_X_RIGHT,
                     d_out => negate_reg_out,
                     clock_in => clock_in);
 
@@ -173,7 +178,8 @@ begin
             port map (
                     x_in => x_out,
                     y_in => reg_out,
-                    b_reset_in => SET_X_IN_TO_X_AND_CLEAR_Y_BORROW,
+                    reset_in => SET_X_IN_TO_X_AND_CLEAR_Y_BORROW,
+                    strobe_in => SHIFT_Y_RIGHT,
                     d_out => y_in,
                     clock_in => clock_in);
         y_register : entity shift_register
@@ -189,6 +195,7 @@ begin
     -- I0 register (parallel input)
     i0_register : block
         signal i0_value : std_logic_vector(ALL_BITS - 1 downto 0) := (others => '0');
+        variable l : line;
     begin
         process (clock_in) is
         begin
@@ -196,9 +203,15 @@ begin
                 if LOAD_I0_FROM_INPUT = '1' then
                     i0_value(ALL_BITS - 1 downto FRACTIONAL_BITS) <= audio_data_in(15);
                     i0_value(FRACTIONAL_BITS - 1 downto 0) <= audio_data_in(14 downto 15 - FRACTIONAL_BITS);
+                    write (l, String'("I0 := "));
+                    write (l, Integer'(ieee.numeric_std.to_integer(signed(i0_value)));
+                    writeline (output, l);
                 elsif SHIFT_I0_RIGHT = '1' then
                     i0_value(ALL_BITS - 1) <= reg_out;
                     i0_value(ALL_BITS - 2 downto 0) <= i0_value(ALL_BITS - 1 downto 1);
+                    write (l, String'("I0 := "));
+                    write (l, Integer'(ieee.numeric_std.to_integer(signed(i0_value)));
+                    writeline (output, l);
                 end if;
             end if;
         end process;
@@ -252,21 +265,31 @@ begin
 
     -- Adder and A, R registers
     ar_registers : block
-        signal a_value : std_logic_vector(A_BITS - 1 downto 0);
-        signal r_value : std_logic_vector(A_BITS - 1 downto 0);
+        signal a_value : std_logic_vector(A_BITS - 1 downto 0) := (others => '0');
+        signal r_value : std_logic_vector(A_BITS - 1 downto 0) := (others => '0');
     begin
         process (clock_in) is
+            variable l : line;
         begin
             if clock_in = '1' and clock_in'event then
                 if SHIFT_A_RIGHT = '1' then
                     a_value(A_BITS - 1) <= reg_out;
                     a_value(A_BITS - 2 downto 0) <= a_value(A_BITS - 1 downto 1);
+                    write (l, String'("A := "));
+                    write (l, Integer'(ieee.numeric_std.to_integer(signed(a_value)));
+                    writeline (output, l);
                 end if;
                 if ADD_A_TO_R = '1' then
                     r_value <= r_value + a_value;
+                    write (l, String'("R := "));
+                    write (l, Integer'(ieee.numeric_std.to_integer(signed(r_value)));
+                    writeline (output, l);
                 elsif SHIFT_R_RIGHT = '1' then
                     r_value(A_BITS - 1) <= '0';
                     r_value(A_BITS - 2 downto 0) <= r_value(A_BITS - 1 downto 1);
+                    write (l, String'("R := "));
+                    write (l, Integer'(ieee.numeric_std.to_integer(signed(r_value)));
+                    writeline (output, l);
                 end if;
             end if;
         end process;
@@ -276,7 +299,7 @@ begin
     -- Register multiplexer
     mux : block
         signal reg_mux      : std_logic_vector(15 downto 0) := (others => '0');
-        signal mux_select   : Natural range 0 to 15;
+        signal mux_select   : Natural range 0 to 15 := 0;
     begin
         reg_mux(0) <= '0'; -- ZERO = 0
         reg_mux(1) <= r_out; -- R = 1
@@ -309,6 +332,9 @@ begin
                         when others =>
                             null;
                     end case;
+                    write (l, String'("mux_register := "));
+                    write (l, Integer'(ieee.numeric_std.to_integer(unsigned(mux_register)));
+                    writeline (output, l);
                 end if;
             end if;
         end process;

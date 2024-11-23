@@ -103,8 +103,14 @@ def execute_control(controls: ControlLines, inf: RegFile,
     return (NextStep.NEXT, outf)
 
 def subtractor(x_in: int, y_in: int, b_in) -> typing.Tuple[int, int]:
-    d_out = (x_in + y_in + b_in) & 1
-    b_out = int(x_in < (y_in + b_in))
+    d_out = (x_in ^ y_in ^ b_in) & 1
+    if y_in and b_in:
+        b_out = 1
+    elif y_in or b_in:
+        b_out = not x_in
+    else:
+        b_out = 0
+    assert b_out == int(x_in < (y_in + b_in))
     return (d_out, b_out)
 
 def execute_mux(source: MuxCode, inf: RegFile) -> typing.Tuple[NextStep, RegFile]:
