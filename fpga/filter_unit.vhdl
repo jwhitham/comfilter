@@ -12,6 +12,7 @@ entity filter_unit is
     port (
         clock_in            : in std_logic := '0';
         reset_in            : in std_logic := '0';
+        verbose_debug_in    : in std_logic := '0';
         audio_ready_in      : in std_logic := '0';
         audio_data_in       : in std_logic_vector (15 downto 0) := (others => '0');
         serial_ready_out    : out std_logic := '0';
@@ -133,19 +134,25 @@ begin
             variable l : line;
         begin
             if clock_in = '1' and clock_in'event then
-                write (l, String'("uc_code = "));
-                write (l, Integer'(ieee.numeric_std.to_integer(unsigned(uc_code))));
-                writeline (output, l);
+                if verbose_debug_in = '1' then
+                    write (l, String'("uc_code = "));
+                    write (l, Integer'(ieee.numeric_std.to_integer(unsigned(uc_code))));
+                    writeline (output, l);
+                end if;
                 bit_counter <= ALL_BITS - 1;
                 if reset_in = '1' or RESTART = '1' then
                     uc_addr <= (others => '1');
-                    write (l, String'("uc_addr -- reset"));
-                    writeline (output, l);
+                    if verbose_debug_in = '1' then
+                        write (l, String'("uc_addr -- reset"));
+                        writeline (output, l);
+                    end if;
                 elsif uc_enable = '1' then
                     uc_addr <= uc_addr_next;
-                    write (l, String'("uc_addr := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(uc_addr_next)));
-                    writeline (output, l);
+                    if verbose_debug_in = '1' then
+                        write (l, String'("uc_addr := "));
+                        write (l, Integer'(ieee.numeric_std.to_integer(uc_addr_next)));
+                        writeline (output, l);
+                    end if;
                 end if;
                 if REPEAT_FOR_ALL_BITS = '1' and more_bits = '1' then
                     bit_counter <= bit_counter - 1;
@@ -180,6 +187,7 @@ begin
                     reg_out => x_out,
                     shift_right_in => SHIFT_X_RIGHT,
                     reg_in => x_mux,
+                    verbose_debug_in => verbose_debug_in,
                     debug_out => x_debug_value,
                     negative_out => open,
                     clock_in => clock_in);
@@ -220,6 +228,7 @@ begin
                     reg_out => y_out,
                     shift_right_in => SHIFT_Y_RIGHT,
                     reg_in => y_in,
+                    verbose_debug_in => verbose_debug_in,
                     debug_out => y_debug_value,
                     negative_out => y_is_negative,
                     clock_in => clock_in);
@@ -238,16 +247,20 @@ begin
                     new_i0_value(ALL_BITS - 1 downto FRACTIONAL_BITS) := (others => audio_data_in(15));
                     new_i0_value(FRACTIONAL_BITS - 1 downto 0) := audio_data_in(14 downto 15 - FRACTIONAL_BITS);
                     i0_value <= new_i0_value;
-                    write (l, String'("I0 := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(signed(new_i0_value))));
-                    writeline (output, l);
+                    if verbose_debug_in = '1' then
+                        write (l, String'("I0 := "));
+                        write (l, Integer'(ieee.numeric_std.to_integer(signed(new_i0_value))));
+                        writeline (output, l);
+                    end if;
                 elsif SHIFT_I0_RIGHT = '1' then
                     new_i0_value(ALL_BITS - 1) := reg_out;
                     new_i0_value(ALL_BITS - 2 downto 0) := i0_value(ALL_BITS - 1 downto 1);
                     i0_value <= new_i0_value;
-                    write (l, String'("I0 := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(signed(new_i0_value))));
-                    writeline (output, l);
+                    if verbose_debug_in = '1' then
+                        write (l, String'("I0 := "));
+                        write (l, Integer'(ieee.numeric_std.to_integer(signed(new_i0_value))));
+                        writeline (output, l);
+                    end if;
                 end if;
             end if;
         end process;
@@ -261,6 +274,7 @@ begin
                 reg_out => i1_out,
                 shift_right_in => SHIFT_I1_RIGHT,
                 reg_in => reg_out,
+                verbose_debug_in => verbose_debug_in,
                 negative_out => open,
                 clock_in => clock_in);
     i2_register : entity shift_register
@@ -269,6 +283,7 @@ begin
                 reg_out => i2_out,
                 shift_right_in => SHIFT_I2_RIGHT,
                 reg_in => reg_out,
+                verbose_debug_in => verbose_debug_in,
                 negative_out => open,
                 clock_in => clock_in);
     o1_register : entity banked_shift_register
@@ -277,6 +292,7 @@ begin
                 reg_out => o1_out,
                 shift_right_in => SHIFT_O1_RIGHT,
                 reg_in => reg_out,
+                verbose_debug_in => verbose_debug_in,
                 bank_select_in => bank_select,
                 debug_out => o1_debug_value,
                 negative_out => o1_is_negative,
@@ -287,6 +303,7 @@ begin
                 reg_out => o2_out,
                 shift_right_in => SHIFT_O2_RIGHT,
                 reg_in => reg_out,
+                verbose_debug_in => verbose_debug_in,
                 bank_select_in => bank_select,
                 negative_out => open,
                 clock_in => clock_in);
@@ -296,6 +313,7 @@ begin
                 reg_out => l_out,
                 shift_right_in => SHIFT_L_RIGHT,
                 reg_in => reg_out,
+                verbose_debug_in => verbose_debug_in,
                 bank_select_in => bank_select,
                 debug_out => l_debug_value,
                 negative_out => open,
@@ -308,26 +326,37 @@ begin
     begin
         process (clock_in) is
             variable l : line;
+            variable new_a_value : signed(A_BITS - 1 downto 0) := (others => '0');
+            variable new_r_value : signed(A_BITS - 1 downto 0) := (others => '0');
         begin
             if clock_in = '1' and clock_in'event then
                 if SHIFT_A_RIGHT = '1' then
-                    a_value(A_BITS - 1) <= reg_out;
-                    a_value(A_BITS - 2 downto 0) <= a_value(A_BITS - 1 downto 1);
-                    write (l, String'("A := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(a_value)));
-                    writeline (output, l);
+                    new_a_value(A_BITS - 1) := reg_out;
+                    new_a_value(A_BITS - 2 downto 0) := a_value(A_BITS - 1 downto 1);
+                    a_value <= new_a_value;
+                    if verbose_debug_in = '1' then
+                        write (l, String'("A := "));
+                        write (l, Integer'(ieee.numeric_std.to_integer(new_a_value)));
+                        writeline (output, l);
+                    end if;
                 end if;
                 if ADD_A_TO_R = '1' then
-                    r_value <= r_value + a_value;
-                    write (l, String'("R := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(r_value)));
-                    writeline (output, l);
+                    new_r_value := r_value + a_value;
+                    r_value <= new_r_value;
+                    if verbose_debug_in = '1' then
+                        write (l, String'("R := "));
+                        write (l, Integer'(ieee.numeric_std.to_integer(new_r_value)));
+                        writeline (output, l);
+                    end if;
                 elsif SHIFT_R_RIGHT = '1' then
-                    r_value(A_BITS - 1) <= '0';
-                    r_value(A_BITS - 2 downto 0) <= r_value(A_BITS - 1 downto 1);
-                    write (l, String'("R := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(r_value)));
-                    writeline (output, l);
+                    new_r_value(A_BITS - 1) := '0';
+                    new_r_value(A_BITS - 2 downto 0) := r_value(A_BITS - 1 downto 1);
+                    r_value <= new_r_value;
+                    if verbose_debug_in = '1' then
+                        write (l, String'("R := "));
+                        write (l, Integer'(ieee.numeric_std.to_integer(new_r_value)));
+                        writeline (output, l);
+                    end if;
                 end if;
                 if debug_strobe = '1' then
                     case mux_select is
@@ -336,9 +365,6 @@ begin
                         when ASSERT_A_LOW_ZERO =>
                             assert ieee.numeric_std.to_integer(signed(a_value(ALL_BITS - 1 downto 0))) = 0;
                         when ASSERT_R_ZERO =>
-                            write (l, String'("assert R = 0 --> R = "));
-                            write (l, Integer'(ieee.numeric_std.to_integer(r_value)));
-                            writeline (output, l);
                             assert ieee.numeric_std.to_integer(signed(r_value)) = 0;
                         when others =>
                             null;
@@ -386,9 +412,11 @@ begin
                         when others =>
                             null;
                     end case;
-                    write (l, String'("mux select = "));
-                    write (l, ieee.numeric_std.to_integer(unsigned(mux_select)));
-                    writeline (output, l);
+                    if verbose_debug_in = '1' then
+                        write (l, String'("mux select = "));
+                        write (l, ieee.numeric_std.to_integer(unsigned(mux_select)));
+                        writeline (output, l);
+                    end if;
                 end if;
             end if;
         end process;
@@ -404,34 +432,27 @@ begin
                 if debug_strobe = '1' then
                     case mux_select is
                         when ASSERT_X_IS_ABS_O1 =>
-                            write (l, String'("Assert X = abs(O1) -- X = "));
-                            write (l, Integer'(ieee.numeric_std.to_integer(signed(x_debug_value))));
-                            write (l, String'(" O1 = "));
-                            write (l, Integer'(ieee.numeric_std.to_integer(signed(o1_debug_value))));
-                            writeline (output, l);
                             assert ieee.numeric_std.to_integer(signed(x_debug_value)) =
                                 abs(ieee.numeric_std.to_integer(signed(o1_debug_value)));
                         when ASSERT_Y_IS_X_MINUS_L =>
-                            write (l, String'("Assert Y = X - L -- Y = "));
-                            write (l, Integer'(ieee.numeric_std.to_integer(signed(y_debug_value))));
-                            write (l, String'(" X = "));
-                            write (l, Integer'(ieee.numeric_std.to_integer(signed(x_debug_value))));
-                            write (l, String'(" L = "));
-                            write (l, Integer'(ieee.numeric_std.to_integer(signed(l_debug_value))));
-                            writeline (output, l);
                             x_minus_l := signed(x_debug_value) - signed(l_debug_value);
                             assert signed(y_debug_value) = x_minus_l;
                         when SEND_O1_TO_OUTPUT =>
-                            write (l, String'("Debug out := "));
+                            write (l, String'("Debug out O1 = "));
                             write (l, Integer'(ieee.numeric_std.to_integer(signed(o1_debug_value))));
                             writeline (output, l);
                         when SEND_L_TO_OUTPUT =>
-                            write (l, String'("Debug out := "));
+                            write (l, String'("Debug out L = "));
                             write (l, Integer'(ieee.numeric_std.to_integer(signed(l_debug_value))));
                             writeline (output, l);
                         when others =>
                             null;
                     end case;
+                end if;
+                if SEND_Y_TO_OUTPUT = '1' then
+                    write (l, String'("Debug out Y = "));
+                    write (l, Integer'(ieee.numeric_std.to_integer(signed(l_debug_value))));
+                    writeline (output, l);
                 end if;
             end if;
         end process;

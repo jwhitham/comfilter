@@ -16,6 +16,7 @@ architecture structural of test_top_level is
     signal done                : std_logic := '0';
     signal clock               : std_logic := '0';
     signal reset               : std_logic := '0';
+    signal verbose_debug       : std_logic := '0';
 
     signal sample_value        : std_logic_vector(15 downto 0) := (others => '0');
     signal sample_strobe       : std_logic := '0';
@@ -26,6 +27,7 @@ begin
     test_signal_gen : entity test_signal_generator
         port map (done_out => done,
                 clock_out => clock,
+                verbose_debug_out => verbose_debug,
                 strobe_out => sample_strobe,
                 value_out => sample_value,
                 reset_out => reset);
@@ -33,6 +35,7 @@ begin
     test_filter_unit : entity filter_unit
         port map (clock_in => clock,
                 reset_in => reset,
+                verbose_debug_in => verbose_debug,
                 audio_ready_in => sample_strobe,
                 audio_data_in => sample_value,
                 serial_ready_out => data_strobe,
@@ -50,14 +53,14 @@ begin
             if sample_strobe = '1' then
                 assert not active;
                 active := true;
-                write (l, String'("Data in := "));
+                write (l, String'("Data in = "));
                 write (l, Integer'(ieee.numeric_std.to_integer(signed(sample_value))));
                 writeline (output, l);
             end if;
             if data_strobe = '1' then
                 assert active;
                 active := false;
-                write (l, String'("Data out := "));
+                write (l, String'("Data out = "));
                 copy (0) := data_value;
                 write (l, Integer'(ieee.numeric_std.to_integer(signed(copy))));
                 writeline (output, l);

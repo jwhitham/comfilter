@@ -1,0 +1,54 @@
+
+from hardware import (
+        OperationList,
+    )
+import filtertest, make_test_bench
+
+from pathlib import Path
+import subprocess, typing, sys
+
+RFLAGS = ["--assert-level=note"]
+FPGA_DIR = Path("fpga")
+GHDL_OUTPUT = Path("generated/output.txt")
+
+def fpga_run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
+    ops.generate()
+    make_test_bench.make_test_bench(in_values=in_values, verbose=debug > 1)
+    subprocess.check_call(["ghdl", "--remove"], cwd=FPGA_DIR)
+    subprocess.check_call(["ghdl", "-a", "--work=work",
+            "../generated/control_line_decoder.vhdl",
+            "../generated/microcode_store.test.vhdl",
+            "../generated/test_signal_generator.vhdl",
+            "shift_register.vhdl",
+            "banked_shift_register.vhdl",
+            "subtractor.vhdl",
+            "filter_unit.vhdl",
+            "test_top_level.vhdl",
+            ], cwd=FPGA_DIR)
+            
+    with open(GHDL_OUTPUT, "wb") as fd:
+        subprocess.check_call(["ghdl", "-r", "test_top_level"] + RFLAGS,
+                stdin=subprocess.DEVNULL, stdout=fd)
+
+    out_values: typing.List[int] = []
+    with open(GHDL_OUTPUT, "rt", encoding="utf-8") as fd:
+        for line in fd:
+            fields = line.split()
+            if (len(fields) == 5) and (fields[0] == "Debug") and (fields[1] == "out") and (fields[3] == "="):
+                if debug > 0:
+                    print(line.rstrip())
+                out_values.append(int(fields[4]))
+
+    return out_values
+
+def main() -> None:
+    filtertest.test_all(1, 0, fpga_run_ops)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(1)
+    except subprocess.CalledProcessError:
+        print("subprocess failed")
+        sys.exit(1)

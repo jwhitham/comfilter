@@ -19,6 +19,7 @@ entity shift_register is
         debug_out           : out std_logic_vector(size - 1 downto 0) := (others => '0');
         shift_right_in      : in std_logic := '0';
         reg_in              : in std_logic := '0';
+        verbose_debug_in    : in std_logic := '0';
         clock_in            : in std_logic := '0');
 end shift_register;
 
@@ -38,10 +39,12 @@ begin
                 new_value(size - 1) := reg_in;
                 new_value(size - 2 downto 0) := value(size - 1 downto 1);
                 value <= new_value;
-                write (l, name);
-                write (l, String'(" := "));
-                write (l, Integer'(ieee.numeric_std.to_integer(signed(new_value))));
-                writeline (output, l);
+                if verbose_debug_in = '1' then
+                    write (l, name);
+                    write (l, String'(" := "));
+                    write (l, Integer'(ieee.numeric_std.to_integer(signed(new_value))));
+                    writeline (output, l);
+                end if;
             end if;
         end if;
     end process;

@@ -198,9 +198,6 @@ def move_X_to_L_if_Y_is_not_negative(ops: OperationList) -> None:
             ControlLine.REPEAT_FOR_ALL_BITS)
 
 def demodulator(ops: OperationList) -> None:
-    # Do nothing (simplifies reset logic to have a NOP at address 0)
-    ops.mux(MuxCode.ZERO)
-
     # Load new input
     ops.add(ControlLine.LOAD_I0_FROM_INPUT)
 
@@ -275,20 +272,7 @@ def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[fl
 def main() -> None:
     ops = OperationList()
     demodulator(ops)
-    ops.finalise()
-    with open("generated/demodulator", "wt") as fd:
-        ops.dump_code(fd)
-    with open("generated/control_line_decoder.vhdl", "wt") as fd:
-        ops.dump_control_line_decoder(fd)
-    with open("generated/microcode_store.vhdl", "wt") as fd:
-        ops.dump_lattice_rom(fd)
-    with open("generated/microcode_store.test.vhdl", "wt") as fd:
-        ops.dump_test_rom(fd)
-    #with open("generated/map", "wt") as fd:
-    #    ops.dump_map(fd)
-    #with open("generated/frequency", "wt") as fd:
-    #    ops.dump_frequency(fd)
+    ops.generate()
 
-        
 if __name__ == "__main__":
     main()

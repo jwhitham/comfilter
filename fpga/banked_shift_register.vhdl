@@ -17,6 +17,7 @@ entity banked_shift_register is
         reg_out             : out std_logic := '0';
         negative_out        : out std_logic := '0';
         debug_out           : out std_logic_vector(size - 1 downto 0) := (others => '0');
+        verbose_debug_in    : in std_logic := '0';
         shift_right_in      : in std_logic := '0';
         bank_select_in      : in std_logic := '0';
         reg_in              : in std_logic := '0';
@@ -34,6 +35,7 @@ begin
             reg_out => reg_b0,
             negative_out => negative_b0,
             shift_right_in => shift_b0,
+            verbose_debug_in => verbose_debug_in,
             debug_out => debug_b0,
             reg_in => reg_in,
             clock_in => clock_in);
@@ -44,6 +46,7 @@ begin
             reg_out => reg_b1,
             negative_out => negative_b1,
             shift_right_in => shift_b1,
+            verbose_debug_in => verbose_debug_in,
             debug_out => debug_b1,
             reg_in => reg_in,
             clock_in => clock_in);

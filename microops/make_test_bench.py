@@ -1,31 +1,13 @@
 
+from settings import SAMPLE_RATE
 import typing, struct, math
 
-SAMPLE_RATE_HZ = 48000
 CLOCK_FREQUENCY_HZ = 100e6
 
 CLOCK_PERIOD_NS = int(math.floor(1e9 / CLOCK_FREQUENCY_HZ))
-INTERSAMPLE_NS = (int(math.ceil((1e9 / SAMPLE_RATE_HZ) / CLOCK_PERIOD_NS) - 1.0) * CLOCK_PERIOD_NS)
+INTERSAMPLE_NS = (int(math.ceil((1e9 / SAMPLE_RATE) / CLOCK_PERIOD_NS) - 1.0) * CLOCK_PERIOD_NS)
 
-def print_banner(fd: typing.IO, banner: str) -> None:
-    fd.write("""write (l, String'("{}")); writeline (output, l);\n""".format(banner))
-
-def wav_to_test_data(fd: typing.IO, wav_file_name: str) -> None:
-    state_change_time: typing.List[float] = []
-    print_banner(fd, "Start of {}".format(wav_file_name))
-    with open(wav_file_name, "rb") as fd2:
-        fd2.seek(0x2c, 0) # skip to start of data
-        for _ in range(2000):
-            data = fd2.read(2)
-            if len(data) == 0:
-                break
-            (sample, ) = struct.unpack("<H", data)
-
-            fd.write(f"""p <= x"{sample:04x}"; v <= '1'; """)
-            fd.write(f"""wait for {CLOCK_PERIOD_NS} ns; """)
-            fd.write(f"""v <= '0'; wait for {INTERSAMPLE_NS} ns;\n""")
-
-def main() -> None:
+def make_test_bench(in_values: typing.List[int], verbose: bool) -> None:
     # generate test bench
     with open("generated/test_signal_generator.vhdl", "wt") as fd:
         fd.write(f"""
@@ -40,11 +22,14 @@ entity test_signal_generator is
         clock_out           : out std_logic;
         strobe_out          : out std_logic;
         reset_out           : out std_logic;
+        verbose_debug_out   : out std_logic;
         value_out           : out std_logic_vector(15 downto 0)
     );
 end test_signal_generator;
 
 architecture structural of test_signal_generator is
+    constant verbose : Boolean := {verbose};
+    constant g : std_logic_vector(15 downto 0) := x"cccc";
     signal p : std_logic_vector(15 downto 0) := x"0000";
     signal done : std_logic := '0';
     signal clock : std_logic := '0';
@@ -54,6 +39,7 @@ begin
     clock_out <= clock;
     done_out <= done;
     strobe_out <= v;
+    verbose_debug_out <= '1' when verbose else '0';
 
     process
         variable l : line;
@@ -62,8 +48,10 @@ begin
             clock <= '1';
             wait for {CLOCK_PERIOD_NS // 2} ns;
             clock <= '0';
-            write (l, String'("------"));
-            writeline (output, l);
+            if verbose then
+                write (l, String'("------"));
+                writeline (output, l);
+            end if;
             wait for {CLOCK_PERIOD_NS - (CLOCK_PERIOD_NS // 2)} ns;
         end loop;
         wait;
@@ -78,17 +66,15 @@ begin
         reset_out <= '0';
         wait for {CLOCK_PERIOD_NS * 10} ns;
 """)
-        # read input files
-        wav_to_test_data(fd, "generated/signal.wav")
+        for sample in in_values:
+            fd.write(f"""p <= x"{sample:04x}"; v <= '1'; """)
+            fd.write(f"""wait for {CLOCK_PERIOD_NS} ns; """)
+            fd.write(f"""p <= g; v <= '0'; wait for {INTERSAMPLE_NS} ns;\n""")
 
         fd.write(f"""
-        wait for {CLOCK_PERIOD_NS * 10} ns;
+        wait for {INTERSAMPLE_NS + CLOCK_PERIOD_NS} ns;
         done <= '1';
         wait;
     end process;
 end structural;
 """)
-
-if __name__ == "__main__":
-    main()
-

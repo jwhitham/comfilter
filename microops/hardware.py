@@ -224,6 +224,9 @@ class OperationList:
         self.code_table = CodeTable()
         self.address = 0
 
+        # Initial operation - do nothing (simplifies reset logic to have a NOP at address 0)
+        self.mux(MuxCode.ZERO)
+
     def __len__(self) -> int:
         return len(self.operations)
 
@@ -267,8 +270,15 @@ class OperationList:
         for op in self.operations:
             yield op
 
-    def finalise(self) -> None:
-        pass
+    def generate(self) -> None:
+        with open("generated/demodulator", "wt") as fd:
+            self.dump_code(fd)
+        with open("generated/control_line_decoder.vhdl", "wt") as fd:
+            self.dump_control_line_decoder(fd)
+        with open("generated/microcode_store.vhdl", "wt") as fd:
+            self.dump_lattice_rom(fd)
+        with open("generated/microcode_store.test.vhdl", "wt") as fd:
+            self.dump_test_rom(fd)
 
     def get_memory_image(self) -> bytes:
         memory: typing.List[int] = []
