@@ -46,6 +46,14 @@ architecture structural of filter_unit is
     signal SHIFT_X_RIGHT        : std_logic := '0';
     signal SHIFT_Y_RIGHT        : std_logic := '0';
 
+    constant ASSERT_X_IS_ABS_O1 : std_logic_vector(3 downto 0) := x"1";
+    constant ASSERT_A_HIGH_ZERO : std_logic_vector(3 downto 0) := x"2";
+    constant ASSERT_A_LOW_ZERO  : std_logic_vector(3 downto 0) := x"3";
+    constant ASSERT_R_ZERO      : std_logic_vector(3 downto 0) := x"4";
+    constant ASSERT_Y_IS_X_MINUS_L : std_logic_vector(3 downto 0) := x"5";
+    constant SEND_O1_TO_OUTPUT  : std_logic_vector(3 downto 0) := x"6";
+    constant SEND_L_TO_OUTPUT   : std_logic_vector(3 downto 0) := x"7";
+
     signal mux_select           : std_logic_vector(3 downto 0) := (others => '0');
     signal mux_strobe           : std_logic := '0';
     signal debug_strobe         : std_logic := '0';
@@ -65,6 +73,11 @@ architecture structural of filter_unit is
     signal i0_out               : std_logic := '0';
     signal i1_out               : std_logic := '0';
     signal i2_out               : std_logic := '0';
+
+    signal l_debug_value        : std_logic_vector(ALL_BITS - 1 downto 0) := (others => '0');
+    signal y_debug_value        : std_logic_vector(ALL_BITS - 1 downto 0) := (others => '0');
+    signal x_debug_value        : std_logic_vector(ALL_BITS - 1 downto 0) := (others => '0');
+    signal o1_debug_value       : std_logic_vector(ALL_BITS - 1 downto 0) := (others => '0');
 begin
     zero <= '0';
 
@@ -154,6 +167,7 @@ begin
                     reg_out => x_out,
                     shift_right_in => SHIFT_X_RIGHT,
                     reg_in => x_mux,
+                    debug_out => x_debug_value,
                     negative_out => open,
                     clock_in => clock_in);
 
@@ -193,6 +207,7 @@ begin
                     reg_out => y_out,
                     shift_right_in => SHIFT_Y_RIGHT,
                     reg_in => y_in,
+                    debug_out => y_debug_value,
                     negative_out => y_is_negative,
                     clock_in => clock_in);
     end block y_register;
@@ -247,6 +262,7 @@ begin
                 shift_right_in => SHIFT_O1_RIGHT,
                 reg_in => reg_out,
                 bank_select_in => bank_select,
+                debug_out => o1_debug_value,
                 negative_out => o1_is_negative,
                 clock_in => clock_in);
     o2_register : entity banked_shift_register
@@ -265,6 +281,7 @@ begin
                 shift_right_in => SHIFT_L_RIGHT,
                 reg_in => reg_out,
                 bank_select_in => bank_select,
+                debug_out => l_debug_value,
                 negative_out => open,
                 clock_in => clock_in);
 
@@ -296,6 +313,21 @@ begin
                     write (l, Integer'(ieee.numeric_std.to_integer(r_value)));
                     writeline (output, l);
                 end if;
+                if debug_strobe = '1' then
+                    case mux_select is
+                        when ASSERT_A_HIGH_ZERO =>
+                            assert ieee.numeric_std.to_integer(signed(a_value(A_BITS - 1 downto ALL_BITS))) = 0;
+                        when ASSERT_A_LOW_ZERO =>
+                            assert ieee.numeric_std.to_integer(signed(a_value(ALL_BITS - 1 downto 0))) = 0;
+                        when ASSERT_R_ZERO =>
+                            write (l, String'("assert R = 0 --> R = "));
+                            write (l, Integer'(ieee.numeric_std.to_integer(r_value)));
+                            writeline (output, l);
+                            assert ieee.numeric_std.to_integer(signed(r_value)) = 0;
+                        when others =>
+                            null;
+                    end case;
+                end if;
             end if;
         end process;
         r_out <= r_value(0);
@@ -324,11 +356,11 @@ begin
             if clock_in = '1' and clock_in'event then
                 if mux_strobe = '1' then
                     mux_register <= ieee.numeric_std.to_integer(unsigned(mux_select));
-                    case mux_select is
-                        when x"e" =>
+                    case ieee.numeric_std.to_integer(unsigned(mux_select)) is
+                        when 14 =>
                             -- bank switch
                             bank_select <= not bank_select;
-                        when x"f" =>
+                        when 15 =>
                             -- L or X
                             if y_is_negative = '1' then
                                 mux_register <= 6; -- L when negative
@@ -345,6 +377,38 @@ begin
             end if;
         end process;
     end block mux;
+
+    debug : block
+    begin
+        process (clock_in) is
+            variable l : line;
+            variable x_minus_l : signed(ALL_BITS - 1 downto 0) := (others => '0');
+        begin
+            if clock_in = '1' and clock_in'event then
+                if debug_strobe = '1' then
+                    case mux_select is
+                        when ASSERT_X_IS_ABS_O1 =>
+                            assert ieee.numeric_std.to_integer(signed(x_debug_value)) =
+                                abs(ieee.numeric_std.to_integer(signed(o1_debug_value)));
+                        when ASSERT_Y_IS_X_MINUS_L =>
+                            x_minus_l := signed(x_debug_value) - signed(l_debug_value);
+                            assert signed(y_debug_value) = x_minus_l;
+                        when SEND_O1_TO_OUTPUT =>
+                            write (l, String'("Debug out := "));
+                            write (l, Integer'(ieee.numeric_std.to_integer(signed(o1_debug_value))));
+                            writeline (output, l);
+                        when SEND_L_TO_OUTPUT =>
+                            write (l, String'("Debug out := "));
+                            write (l, Integer'(ieee.numeric_std.to_integer(signed(l_debug_value))));
+                            writeline (output, l);
+                        when others =>
+                            null;
+                    end case;
+                end if;
+            end if;
+        end process;
+    end block debug;
+
 
     -- Output
     serial_data_out <= y_is_negative;
