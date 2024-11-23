@@ -13,7 +13,7 @@ entity filter_unit is
         clock_in            : in std_logic := '0';
         reset_in            : in std_logic := '0';
         audio_ready_in      : in std_logic := '0';
-        audio_data_in       : in std_logic_vector (15 downto 0) := '0';
+        audio_data_in       : in std_logic_vector (15 downto 0) := (others => '0');
         serial_ready_out    : out std_logic := '0';
         serial_data_out     : out std_logic := '0');
 end filter_unit;
@@ -98,37 +98,42 @@ begin
         port map (
                 rdata => uc_code,
                 raddr => uc_addr,
-                rclk => clock_in):
+                rclk => clock_in);
 
     -- Address register
-    addr_register : process (clock_in) is
-        variable l : line;
+    addr_register : block
+        signal bit_counter : Natural range 0 to ALL_BITS := 0;
     begin
-        if clock_in = '1' and clock_in'event then
-            uc_addr <= uc_addr + 1;
-            bit_counter <= ALL_BITS;
-            if RESTART = '1' or reset_in = '1' then
-                -- Reset microprogram
-                uc_addr <= (others => '0');
-            elsif REPEAT_FOR_ALL_BITS = '1' and bit_counter /= 0 then
-                -- Stay on this instruction until the bit counter reaches 0
-                bit_counter <= bit_counter - 1;
-                uc_addr <= uc_addr;
-            elsif LOAD_I0_FROM_INPUT = '1' and audio_ready_in = '0' then
-                -- Stay on this instruction until input is received
-                uc_addr <= uc_addr;
+        process (clock_in) is
+            variable l : line;
+        begin
+            if clock_in = '1' and clock_in'event then
+                uc_addr <= uc_addr + 1;
+                bit_counter <= ALL_BITS;
+                if RESTART = '1' or reset_in = '1' then
+                    -- Reset microprogram
+                    uc_addr <= (others => '0');
+                elsif REPEAT_FOR_ALL_BITS = '1' and bit_counter /= 0 then
+                    -- Stay on this instruction until the bit counter reaches 0
+                    bit_counter <= bit_counter - 1;
+                    uc_addr <= uc_addr;
+                elsif LOAD_I0_FROM_INPUT = '1' and audio_ready_in = '0' then
+                    -- Stay on this instruction until input is received
+                    uc_addr <= uc_addr;
+                end if;
+                write (l, String'("uc_addr := "));
+                write (l, Integer'(ieee.numeric_std.to_integer(unsigned(uc_addr))));
+                writeline (output, l);
             end if;
-            write (l, String'("uc_addr := "));
-            write (l, Integer'(ieee.numeric_std.to_integer(unsigned(uc_addr)));
-            writeline (output, l);
-        end if;
-    end process addr_register;
+        end process;
+    end block addr_register;
 
     -- X register (special input via negation unit or passthrough)
     x_register : block
         type x_select_enum is (PASSTHROUGH_REG_OUT, PASSTHROUGH_X, NEGATE_REG_OUT);
         signal x_select                     : x_select_enum := PASSTHROUGH_REG_OUT;
         signal x_in_negate_reg_out, x_mux   : std_logic := '0';
+        signal negated                      : std_logic := '0';
     begin
         x_subtractor : entity subtractor
             port map (
@@ -136,18 +141,18 @@ begin
                     y_in => reg_out,
                     reset_in => SET_X_IN_TO_ABS_O1_REG_OUT,
                     strobe_in => SHIFT_X_RIGHT,
-                    d_out => negate_reg_out,
+                    d_out => negated,
                     clock_in => clock_in);
 
-        x_mux <= reg_out if x_select = PASSTHROUGH_REG_OUT
-            else x_out if x_select = PASSTHROUGH_X
-            else negate_reg_out;
+        x_mux <= reg_out when x_select = PASSTHROUGH_REG_OUT
+            else x_out when x_select = PASSTHROUGH_X
+            else negated;
 
-        x_register : entity shift_register
+        sr : entity shift_register
             generic map (name => "X", size => ALL_BITS)
             port map (
                     reg_out => x_out,
-                    shift_right_in => SHIFT_X_RIGHT, size => ALL_BITS,
+                    shift_right_in => SHIFT_X_RIGHT,
                     reg_in => x_mux,
                     negative_out => open,
                     clock_in => clock_in);
@@ -182,7 +187,7 @@ begin
                     strobe_in => SHIFT_Y_RIGHT,
                     d_out => y_in,
                     clock_in => clock_in);
-        y_register : entity shift_register
+        sr : entity shift_register
             generic map (name => "Y", size => ALL_BITS)
             port map (
                     reg_out => y_out,
@@ -190,33 +195,33 @@ begin
                     reg_in => y_in,
                     negative_out => y_is_negative,
                     clock_in => clock_in);
-    end y_register;
+    end block y_register;
 
     -- I0 register (parallel input)
     i0_register : block
         signal i0_value : std_logic_vector(ALL_BITS - 1 downto 0) := (others => '0');
-        variable l : line;
     begin
         process (clock_in) is
+            variable l : line;
         begin
             if clock_in = '1' and clock_in'event then
                 if LOAD_I0_FROM_INPUT = '1' then
-                    i0_value(ALL_BITS - 1 downto FRACTIONAL_BITS) <= audio_data_in(15);
+                    i0_value(ALL_BITS - 1 downto FRACTIONAL_BITS) <= (others => audio_data_in(15));
                     i0_value(FRACTIONAL_BITS - 1 downto 0) <= audio_data_in(14 downto 15 - FRACTIONAL_BITS);
                     write (l, String'("I0 := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(signed(i0_value)));
+                    write (l, Integer'(ieee.numeric_std.to_integer(signed(i0_value))));
                     writeline (output, l);
                 elsif SHIFT_I0_RIGHT = '1' then
                     i0_value(ALL_BITS - 1) <= reg_out;
                     i0_value(ALL_BITS - 2 downto 0) <= i0_value(ALL_BITS - 1 downto 1);
                     write (l, String'("I0 := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(signed(i0_value)));
+                    write (l, Integer'(ieee.numeric_std.to_integer(signed(i0_value))));
                     writeline (output, l);
                 end if;
             end if;
         end process;
         i0_out <= i0_value(0);
-    end i0_register;
+    end block i0_register;
 
     -- Other registers
     i1_register : entity shift_register
@@ -276,30 +281,30 @@ begin
                     a_value(A_BITS - 1) <= reg_out;
                     a_value(A_BITS - 2 downto 0) <= a_value(A_BITS - 1 downto 1);
                     write (l, String'("A := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(signed(a_value)));
+                    write (l, Integer'(ieee.numeric_std.to_integer(signed(a_value))));
                     writeline (output, l);
                 end if;
                 if ADD_A_TO_R = '1' then
                     r_value <= r_value + a_value;
                     write (l, String'("R := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(signed(r_value)));
+                    write (l, Integer'(ieee.numeric_std.to_integer(signed(r_value))));
                     writeline (output, l);
                 elsif SHIFT_R_RIGHT = '1' then
                     r_value(A_BITS - 1) <= '0';
                     r_value(A_BITS - 2 downto 0) <= r_value(A_BITS - 1 downto 1);
                     write (l, String'("R := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(signed(r_value)));
+                    write (l, Integer'(ieee.numeric_std.to_integer(signed(r_value))));
                     writeline (output, l);
                 end if;
             end if;
         end process;
         r_out <= r_value(0);
-    end ar_registers;
+    end block ar_registers;
 
     -- Register multiplexer
     mux : block
         signal reg_mux      : std_logic_vector(15 downto 0) := (others => '0');
-        signal mux_select   : Natural range 0 to 15 := 0;
+        signal mux_register : Natural range 0 to 15 := 0;
     begin
         reg_mux(0) <= '0'; -- ZERO = 0
         reg_mux(1) <= r_out; -- R = 1
@@ -311,13 +316,14 @@ begin
         reg_mux(7) <= i0_out; -- I0 = 7
         reg_mux(8) <= i1_out; -- I1 = 8
         reg_mux(9) <= i2_out; -- I2 = 9
-        reg_out <= reg_mux(mux_select);
+        reg_out <= reg_mux(mux_register);
 
         process (clock_in) is
+            variable l : line;
         begin
             if clock_in = '1' and clock_in'event then
                 if mux_strobe = '1' then
-                    mux_register <= conv_integer(mux_select);
+                    mux_register <= ieee.numeric_std.to_integer(unsigned(mux_select));
                     case mux_select is
                         when x"e" =>
                             -- bank switch
@@ -325,20 +331,20 @@ begin
                         when x"f" =>
                             -- L or X
                             if y_is_negative = '1' then
-                                mux_register <= 7; -- L
+                                mux_register <= 6; -- L when negative
                             else
-                                mux_register <= 6; -- X
+                                mux_register <= 5; -- X when not negative
                             end if;
                         when others =>
                             null;
                     end case;
                     write (l, String'("mux_register := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(unsigned(mux_register)));
+                    write (l, mux_register);
                     writeline (output, l);
                 end if;
             end if;
         end process;
-    end mux;
+    end block mux;
 
     -- Output
     serial_data_out <= y_is_negative;
