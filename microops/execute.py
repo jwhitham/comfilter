@@ -179,8 +179,6 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
             if debug:
                 print(f" {op}")
             execute_debug(op.debug, reg_file, out_values)
-            if op.debug == Debug.HALT:
-                return out_values
         else:
             if debug:
                 print(f" {op}")

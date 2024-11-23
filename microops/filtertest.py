@@ -49,7 +49,6 @@ def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: i
             multiply_accumulate_via_regs(ops, v1f_list)
         else:
             multiply_accumulate(ops, v1f_list)
-        ops.debug(Debug.HALT)
         ops.add(ControlLine.RESTART)
         out_values = run_ops(ops, v0i_list, debug > 1)
         assert len(out_values) == 1
@@ -114,7 +113,6 @@ def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int, ru
         #a0 =   1.005859e+00 a1 =  -1.966797e+00 a2 =   9.863281e-01 (fixed_t 9)
         #b0 =   5.859375e-03 b1 =   0.000000e+00 b2 =  -5.859375e-03 (fixed_t 9)
 
-        ops.debug(Debug.HALT)
         ops.add(ControlLine.RESTART)
         out_values = run_ops(ops, inputs, debug > 1)
         assert len(out_values) == len(inputs)
@@ -189,7 +187,6 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
         ops.debug(Debug.SEND_O1_TO_OUTPUT)
         move_reg_to_reg(ops, Register.X, Register.O1)
         ops.debug(Debug.SEND_O1_TO_OUTPUT)
-        ops.debug(Debug.HALT)
         ops.add(ControlLine.RESTART)
 
         # run
@@ -229,7 +226,6 @@ def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: in
         # Operation: Y = X - I0
         set_Y_to_X_minus_reg(ops, Register.I0)
         ops.add(ControlLine.SEND_Y_TO_OUTPUT)
-        ops.debug(Debug.HALT)
         ops.add(ControlLine.RESTART)
 
         # run

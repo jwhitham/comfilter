@@ -237,12 +237,12 @@ def demodulator(ops: OperationList) -> None:
 def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> None:
     # For testing: multiply-accumulate
     ops.comment(f"Begin multiply_accumulate with {test_values}")
-    ops.debug(Debug.ASSERT_R_ZERO)
 
     # Multiply and add repeatedly
     for test_value in test_values:
         ops.comment(f"test value {test_value}")
         ops.add(ControlLine.LOAD_I0_FROM_INPUT)
+        ops.debug(Debug.ASSERT_R_ZERO)
         fixed_multiply(ops, Register.I0, test_value)
 
     ops.comment("Output from multiply_accumulate")
@@ -254,11 +254,11 @@ def multiply_accumulate(ops: OperationList, test_values: typing.List[float]) -> 
 def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[float]) -> None:
     # For testing: multiply-accumulate but via other registers
     ops.comment(f"Begin multiply_accumulate (regs) with {test_values}")
-    ops.debug(Debug.ASSERT_R_ZERO)
 
     # Multiply and add repeatedly
     for test_value in test_values:
         ops.add(ControlLine.LOAD_I0_FROM_INPUT)
+        ops.debug(Debug.ASSERT_R_ZERO)
         ops.comment("multiply from I2, via I1")
         move_reg_to_reg(ops, Register.I0, Register.I1)
         move_reg_to_reg(ops, Register.I1, Register.I2)
