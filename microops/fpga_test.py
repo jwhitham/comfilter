@@ -1,6 +1,6 @@
 
 from hardware import (
-        OperationList,
+        OperationList, ALL_BITS,
     )
 import filtertest, make_test_bench
 
@@ -31,13 +31,14 @@ def fpga_run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -
                 stdin=subprocess.DEVNULL, stdout=fd, cwd=FPGA_DIR)
 
     out_values: typing.List[int] = []
+    mask = (1 << ALL_BITS) - 1
     with open(GHDL_OUTPUT, "rt", encoding="utf-8") as fd:
         for line in fd:
             if debug or (rc != 0):
                 print(line, end="")
             fields = line.split()
             if (len(fields) == 5) and (fields[0] == "Debug") and (fields[1] == "out") and (fields[3] == "="):
-                out_values.append(int(fields[4]))
+                out_values.append((int(fields[4]) + mask + 1) & mask)
 
     if rc != 0:
         sys.exit(1)
