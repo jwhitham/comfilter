@@ -25,16 +25,7 @@ architecture structural of filter_unit is
     constant ALL_BITS           : Natural := FRACTIONAL_BITS + NON_FRACTIONAL_BITS;
     constant A_BITS             : Natural := (FRACTIONAL_BITS * 2) + NON_FRACTIONAL_BITS;
 
-    signal clock                : std_logic := '0';
-    signal reset                : std_logic := '0';
-    signal sample_value         : std_logic_vector(14 downto 0) := (others => '0');
-    signal sample_value_neg     : std_logic := '0';
-    signal sample_strobe        : std_logic := '0';
-    signal filter_value         : std_logic_vector(10 downto 0) := (others => '0');
-    signal filter_value_neg     : std_logic := '0';
-    signal filter_finish        : std_logic := '0';
-    signal filter_ready         : std_logic := '0';
-
+    signal zero                 : std_logic := '0';
 
     signal ADD_A_TO_R           : std_logic := '0';
     signal LOAD_I0_FROM_INPUT   : std_logic := '0';
@@ -75,13 +66,7 @@ architecture structural of filter_unit is
     signal i1_out               : std_logic := '0';
     signal i2_out               : std_logic := '0';
 begin
-    test_signal_gen : entity test_signal_generator
-        port map (done_out => done,
-                clock_out => clock,
-                strobe_out => sample_strobe,
-                value_out => sample_value,
-                value_negative_out => sample_value_neg,
-                reset_out => reset);
+    zero <= '0';
 
     -- Control store and decoder
     test_cl_decoder : entity control_line_decoder
@@ -113,12 +98,12 @@ begin
         port map (
                 rdata => uc_code,
                 raddr => uc_addr,
-                rclk => clock):
+                rclk => clock_in):
 
     -- Address register
-    addr_register : process (clock) is
+    addr_register : process (clock_in) is
     begin
-        if clock = '1' and clock'event then
+        if clock_in = '1' and clock_in'event then
             uc_addr <= uc_addr + 1;
             bit_counter <= ALL_BITS;
             if RESTART = '1' or reset_in = '1' then
@@ -147,24 +132,24 @@ begin
                     y_in => reg_out,
                     b_reset_in => SET_X_IN_TO_ABS_O1_REG_OUT,
                     d_out => negate_reg_out,
-                    clock_in => clock);
+                    clock_in => clock_in);
 
         x_mux <= reg_out if x_select = PASSTHROUGH_REG_OUT
             else x_out if x_select = PASSTHROUGH_X
             else negate_reg_out;
 
         x_register : entity shift_register
-            generic map (name => "X")
+            generic map (name => "X", size => ALL_BITS)
             port map (
                     reg_out => x_out,
                     shift_right_in => SHIFT_X_RIGHT, size => ALL_BITS,
                     reg_in => x_mux,
                     negative_out => open,
-                    clock_in => clock);
+                    clock_in => clock_in);
 
-        process (clock) is
+        process (clock_in) is
         begin
-            if clock = '1' and clock'event then
+            if clock_in = '1' and clock_in'event then
                 if SET_X_IN_TO_REG_OUT = '1' then
                     x_select <= PASSTHROUGH_REG_OUT;
                 elsif SET_X_IN_TO_ABS_O1_REG_OUT = '1' then
@@ -190,7 +175,7 @@ begin
                     y_in => reg_out,
                     b_reset_in => SET_X_IN_TO_X_AND_CLEAR_Y_BORROW,
                     d_out => y_in,
-                    clock_in => clock);
+                    clock_in => clock_in);
         y_register : entity shift_register
             generic map (name => "Y", size => ALL_BITS)
             port map (
@@ -198,18 +183,19 @@ begin
                     shift_right_in => SHIFT_Y_RIGHT,
                     reg_in => y_in,
                     negative_out => y_is_negative,
-                    clock_in => clock);
+                    clock_in => clock_in);
     end y_register;
 
     -- I0 register (parallel input)
     i0_register : block
         signal i0_value : std_logic_vector(ALL_BITS - 1 downto 0) := (others => '0');
     begin
-        process (clock) is
+        process (clock_in) is
         begin
-            if clock = '1' and clock'event then
+            if clock_in = '1' and clock_in'event then
                 if LOAD_I0_FROM_INPUT = '1' then
-                    i0_value <= audio_data_in(15 downto 16 - ALL_BITS);
+                    i0_value(ALL_BITS - 1 downto FRACTIONAL_BITS) <= audio_data_in(15);
+                    i0_value(FRACTIONAL_BITS - 1 downto 0) <= audio_data_in(14 downto 15 - FRACTIONAL_BITS);
                 elsif SHIFT_I0_RIGHT = '1' then
                     i0_value(ALL_BITS - 1) <= reg_out;
                     i0_value(ALL_BITS - 2 downto 0) <= i0_value(ALL_BITS - 1 downto 1);
@@ -227,7 +213,7 @@ begin
                 shift_right_in => SHIFT_I1_RIGHT,
                 reg_in => reg_out,
                 negative_out => open,
-                clock_in => clock);
+                clock_in => clock_in);
     i2_register : entity shift_register
         generic map (name => "I2", size => ALL_BITS)
         port map (
@@ -235,7 +221,7 @@ begin
                 shift_right_in => SHIFT_I2_RIGHT,
                 reg_in => reg_out,
                 negative_out => open,
-                clock_in => clock);
+                clock_in => clock_in);
     o1_register : entity banked_shift_register
         generic map (name => "O1", size => ALL_BITS)
         port map (
@@ -244,7 +230,7 @@ begin
                 reg_in => reg_out,
                 bank_select_in => bank_select,
                 negative_out => o1_is_negative,
-                clock_in => clock);
+                clock_in => clock_in);
     o2_register : entity banked_shift_register
         generic map (name => "O2", size => ALL_BITS)
         port map (
@@ -253,7 +239,7 @@ begin
                 reg_in => reg_out,
                 bank_select_in => bank_select,
                 negative_out => open,
-                clock_in => clock);
+                clock_in => clock_in);
     l_register : entity banked_shift_register
         generic map (name => "L", size => ALL_BITS)
         port map (
@@ -262,16 +248,16 @@ begin
                 reg_in => reg_out,
                 bank_select_in => bank_select,
                 negative_out => open,
-                clock_in => clock);
+                clock_in => clock_in);
 
     -- Adder and A, R registers
     ar_registers : block
         signal a_value : std_logic_vector(A_BITS - 1 downto 0);
         signal r_value : std_logic_vector(A_BITS - 1 downto 0);
     begin
-        process (clock) is
+        process (clock_in) is
         begin
-            if clock = '1' and clock'event then
+            if clock_in = '1' and clock_in'event then
                 if SHIFT_A_RIGHT = '1' then
                     a_value(A_BITS - 1) <= reg_out;
                     a_value(A_BITS - 2 downto 0) <= a_value(A_BITS - 1 downto 1);
@@ -304,9 +290,9 @@ begin
         reg_mux(9) <= i2_out; -- I2 = 9
         reg_out <= reg_mux(mux_select);
 
-        process (clock) is
+        process (clock_in) is
         begin
-            if clock = '1' and clock'event then
+            if clock_in = '1' and clock_in'event then
                 if mux_strobe = '1' then
                     mux_register <= conv_integer(mux_select);
                     case mux_select is
