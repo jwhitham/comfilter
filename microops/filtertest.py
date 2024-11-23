@@ -12,14 +12,15 @@ from filtersetup import (
 #        multiply_accumulate, filter_step, demodulator,
 #        multiply_accumulate_via_regs, move_reg_to_reg,
     )
-from execute import run_ops
+import execute
 from settings import FRACTIONAL_BITS, NON_FRACTIONAL_BITS
 import random, typing, struct
 
-ACCEPTABLE_ERROR = (1.0 / (1 << (FRACTIONAL_BITS - 3)))
+ACCEPTABLE_ERROR = (1.0 / (1 << (FRACTIONAL_BITS - 4)))
 VERY_SMALL_ERROR = (1.0 / (1 << FRACTIONAL_BITS)) * 1.01
+RunOps = typing.Callable[[OperationList, typing.List[int], bool], typing.List[int]]
 
-def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: int) -> None:
+def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: int, run_ops: RunOps) -> None:
     print(f"Test multiply accumulate")
     for i in range(num_multiply_tests):
         if debug > 0:
@@ -64,7 +65,7 @@ def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: i
         else:
             assert error < VERY_SMALL_ERROR
 
-def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int) -> None:
+def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int, run_ops: RunOps) -> None:
     print(f"Test bandpass filter")
     for i in range(num_filter_tests):
         if debug > 0:
@@ -127,7 +128,7 @@ def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int) ->
                 print(f" step {j} input {i0:1.6f} result {rf:1.6f} expected {expect_values[j]:1.6f} error {error:1.6f}")
             assert error < ACCEPTABLE_ERROR
 
-def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_update_tests: int) -> None:
+def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_update_tests: int, run_ops: RunOps) -> None:
     print("Test move X to L if Y is not negative")
     for i in range(num_update_tests):
         ops = OperationList()
@@ -203,7 +204,7 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
         assert expect_o1i == result_o1i
         assert expect_xi == result_xi
 
-def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: int) -> None:
+def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: int, run_ops: RunOps) -> None:
     print("Test Y = X - reg")
     for i in range(num_update_tests):
         ops = OperationList()
@@ -236,7 +237,7 @@ def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: in
 
 
 
-def test_demodulator(debug: int, num_compare_tests: int) -> None:
+def test_demodulator(debug: int, num_compare_tests: int, run_ops: RunOps) -> None:
     print(f"Test demodulator")
     ops = OperationList()
     demodulator(ops)
@@ -298,14 +299,16 @@ def test_demodulator(debug: int, num_compare_tests: int) -> None:
     print(f"{correct} bits out of {len(in_values)} matched expectations")
     assert correct > (len(in_values) * 0.99)
 
+def test_all(scale: int, debug: int, run_ops: RunOps) -> None:
+    r = random.Random(3 + scale)
+    test_multiply_accumulate(r, debug, scale * 10, run_ops)
+    test_bandpass_filter(r, debug, scale * 10, run_ops)
+    test_move_X_to_L_if_Y_is_not_negative(r, debug, scale * 10, run_ops)
+    test_set_Y_to_X_minus_reg(r, debug, scale * 10, run_ops)
+    test_demodulator(debug, scale * 100, run_ops)
+
 def main() -> None:
-    debug = 0
-    r = random.Random(3)
-    test_multiply_accumulate(r, debug, 100)
-    test_bandpass_filter(r, debug, 100)
-    test_move_X_to_L_if_Y_is_not_negative(r, debug, 100)
-    test_set_Y_to_X_minus_reg(r, debug, 100)
-    test_demodulator(debug, 40000)
+    test_all(400, 0, execute.run_ops)
 
 if __name__ == "__main__":
     main()
