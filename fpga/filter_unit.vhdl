@@ -50,7 +50,7 @@ architecture structural of filter_unit is
     signal mux_strobe           : std_logic := '0';
     signal debug_strobe         : std_logic := '0';
     signal uc_code              : std_logic_vector(7 downto 0) := (others => '0');
-    signal uc_addr              : std_logic_vector(8 downto 0) := (others => '0');
+    signal uc_addr              : unsigned(8 downto 0) := (others => '0');
 
     signal bank_select          : std_logic := '0';
     signal o1_is_negative       : std_logic := '0';
@@ -97,7 +97,7 @@ begin
     test_uc_store : entity microcode_store 
         port map (
                 rdata => uc_code,
-                raddr => uc_addr,
+                raddr => std_logic_vector(uc_addr),
                 rclk => clock_in);
 
     -- Address register
@@ -270,8 +270,8 @@ begin
 
     -- Adder and A, R registers
     ar_registers : block
-        signal a_value : std_logic_vector(A_BITS - 1 downto 0) := (others => '0');
-        signal r_value : std_logic_vector(A_BITS - 1 downto 0) := (others => '0');
+        signal a_value : signed(A_BITS - 1 downto 0) := (others => '0');
+        signal r_value : signed(A_BITS - 1 downto 0) := (others => '0');
     begin
         process (clock_in) is
             variable l : line;
@@ -281,19 +281,19 @@ begin
                     a_value(A_BITS - 1) <= reg_out;
                     a_value(A_BITS - 2 downto 0) <= a_value(A_BITS - 1 downto 1);
                     write (l, String'("A := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(signed(a_value))));
+                    write (l, Integer'(ieee.numeric_std.to_integer(a_value)));
                     writeline (output, l);
                 end if;
                 if ADD_A_TO_R = '1' then
                     r_value <= r_value + a_value;
                     write (l, String'("R := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(signed(r_value))));
+                    write (l, Integer'(ieee.numeric_std.to_integer(r_value)));
                     writeline (output, l);
                 elsif SHIFT_R_RIGHT = '1' then
                     r_value(A_BITS - 1) <= '0';
                     r_value(A_BITS - 2 downto 0) <= r_value(A_BITS - 1 downto 1);
                     write (l, String'("R := "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(signed(r_value))));
+                    write (l, Integer'(ieee.numeric_std.to_integer(r_value)));
                     writeline (output, l);
                 end if;
             end if;

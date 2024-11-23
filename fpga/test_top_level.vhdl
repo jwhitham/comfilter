@@ -30,7 +30,7 @@ begin
                 value_out => sample_value,
                 reset_out => reset);
 
-    test_filter_unit : entity filter_unit is
+    test_filter_unit : entity filter_unit
         port map (clock_in => clock,
                 reset_in => reset,
                 audio_ready_in => sample_strobe,
@@ -41,6 +41,7 @@ begin
     process is
         variable l : line;
         variable active : Boolean := false;
+        variable copy : unsigned (0 downto 0) := "0";
     begin
         wait until reset = '0';
         while done = '0' loop
@@ -50,14 +51,15 @@ begin
                 assert not active;
                 active := true;
                 write (l, String'("Data in := "));
-                write (l, Integer'(ieee.numeric_std.to_integer(sample_value)));
+                write (l, Integer'(ieee.numeric_std.to_integer(signed(sample_value))));
                 writeline (output, l);
             end if;
             if data_strobe = '1' then
                 assert active;
                 active := false;
                 write (l, String'("Data out := "));
-                write (l, Integer'(ieee.numeric_std.to_integer(data_value)));
+                copy (0) := data_value;
+                write (l, Integer'(ieee.numeric_std.to_integer(signed(copy))));
                 writeline (output, l);
             end if;
         end loop;
