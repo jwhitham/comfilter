@@ -13,15 +13,14 @@ end test_top_level;
 
 architecture structural of test_top_level is
 
-    signal clock                : std_logic := '0';
-    signal reset                : std_logic := '0';
-    signal sample_value         : std_logic_vector(14 downto 0) := (others => '0');
-    signal sample_value_neg     : std_logic := '0';
-    signal sample_strobe        : std_logic := '0';
-    signal filter_value         : std_logic_vector(10 downto 0) := (others => '0');
-    signal filter_value_neg     : std_logic := '0';
-    signal filter_finish        : std_logic := '0';
-    signal filter_ready         : std_logic := '0';
+    signal done                : std_logic := '0';
+    signal clock               : std_logic := '0';
+    signal reset               : std_logic := '0';
+
+    signal sample_value        : std_logic_vector(15 downto 0) := (others => '0');
+    signal sample_strobe       : std_logic := '0';
+    signal data_strobe         : std_logic := '0';
+    signal data_value          : std_logic := '0';
 
 begin
     test_signal_gen : entity test_signal_generator
@@ -29,8 +28,41 @@ begin
                 clock_out => clock,
                 strobe_out => sample_strobe,
                 value_out => sample_value,
-                value_negative_out => sample_value_neg,
                 reset_out => reset);
 
+    test_filter_unit : entity filter_unit is
+        port map (clock_in => clock,
+                reset_in => reset,
+                audio_ready_in => sample_strobe,
+                audio_data_in => sample_value,
+                serial_ready_out => data_strobe,
+                serial_data_out => data_value);
+
+    process is
+        variable l : line;
+        variable active : Boolean := false;
+    begin
+        wait until reset = '0';
+        while done = '0' loop
+            wait until clock = '1' and clock'event;
+            assert (data_strobe and sample_strobe) = '0';
+            if sample_strobe = '1' then
+                assert not active;
+                active := true;
+                write (l, String'("Data in := "));
+                write (l, Integer'(ieee.numeric_std.to_integer(sample_value)));
+                writeline (output, l);
+            end if;
+            if data_strobe = '1' then
+                assert active;
+                active := false;
+                write (l, String'("Data out := "));
+                write (l, Integer'(ieee.numeric_std.to_integer(data_value)));
+                writeline (output, l);
+            end if;
+        end loop;
+        write (l, String'("Reached the end"));
+        writeline (output, l);
+    end process;
 end structural;
 
