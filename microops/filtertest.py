@@ -14,7 +14,7 @@ from filtersetup import (
     )
 import execute
 from settings import FRACTIONAL_BITS, NON_FRACTIONAL_BITS
-import random, typing, struct
+import random, typing, struct, sys
 
 ACCEPTABLE_ERROR = (1.0 / (1 << (FRACTIONAL_BITS - 4)))
 VERY_SMALL_ERROR = (1.0 / (1 << FRACTIONAL_BITS)) * 1.01
@@ -311,4 +311,7 @@ def main() -> None:
     test_all(400, 0, execute.run_ops)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(1)

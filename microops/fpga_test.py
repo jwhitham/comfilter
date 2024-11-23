@@ -8,8 +8,8 @@ from pathlib import Path
 import subprocess, typing, sys
 
 RFLAGS = ["--assert-level=note"]
-FPGA_DIR = Path("fpga")
-GHDL_OUTPUT = Path("generated/output.txt")
+FPGA_DIR = Path("fpga").absolute()
+GHDL_OUTPUT = Path("generated/output.txt").absolute()
 
 def fpga_run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
     ops.generate()
@@ -27,28 +27,28 @@ def fpga_run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -
             ], cwd=FPGA_DIR)
             
     with open(GHDL_OUTPUT, "wb") as fd:
-        subprocess.check_call(["ghdl", "-r", "test_top_level"] + RFLAGS,
-                stdin=subprocess.DEVNULL, stdout=fd)
+        rc = subprocess.call(["ghdl", "-r", "test_top_level"] + RFLAGS,
+                stdin=subprocess.DEVNULL, stdout=fd, cwd=FPGA_DIR)
 
     out_values: typing.List[int] = []
     with open(GHDL_OUTPUT, "rt", encoding="utf-8") as fd:
         for line in fd:
+            if (debug > 0) or (rc != 0):
+                print(line, end="")
             fields = line.split()
             if (len(fields) == 5) and (fields[0] == "Debug") and (fields[1] == "out") and (fields[3] == "="):
-                if debug > 0:
-                    print(line.rstrip())
                 out_values.append(int(fields[4]))
+
+    if rc != 0:
+        sys.exit(1)
 
     return out_values
 
 def main() -> None:
-    filtertest.test_all(1, 0, fpga_run_ops)
+    filtertest.test_all(1, 1, fpga_run_ops)
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        sys.exit(1)
-    except subprocess.CalledProcessError:
-        print("subprocess failed")
         sys.exit(1)
