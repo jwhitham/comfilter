@@ -51,25 +51,67 @@ begin
     process is
         variable l : line;
         variable copy : unsigned (1 downto 0) := "00";
+        variable time_between_restarts : Natural := 0;
+        variable time_between_inputs   : Natural := 0;
+        constant deadline              : Natural := 2000;
+
+        procedure print_times is
+        begin
+            write (l, String'("Time since last restart = "));
+            write (l, time_between_restarts);
+            writeline (output, l);
+            write (l, String'("Time since last input = "));
+            write (l, time_between_inputs);
+            writeline (output, l);
+        end print_times;
     begin
         wait until reset = '0';
         while done = '0' loop
             wait until clock = '1' and clock'event;
             assert (data_strobe and input_strobe) = '0';
-            if input_strobe = '1' then
-                write (l, String'("Data in = "));
+            time_between_inputs := time_between_inputs + 1;
+            time_between_restarts := time_between_restarts + 1;
+            if input_ready = '1' and input_strobe = '1' then
+                write (l, String'("DATA IN "));
                 write (l, Integer'(ieee.numeric_std.to_integer(signed(input_value))));
                 writeline (output, l);
+                print_times;
+                time_between_inputs := 0;
+            end if;
+            if input_ready = '0' and input_strobe = '1' then
+                write (l, String'("ERROR - INPUT LOST "));
+                write (l, Integer'(ieee.numeric_std.to_integer(signed(input_value))));
+                writeline (output, l);
+                print_times;
+                write (l, String'("Data sent when filter was not ready for input"));
+                writeline (output, l);
+                assert False;
+            end if;
+            if time_between_inputs > deadline then
+                write (l, String'("ERROR - DEADLINE MISS"));
+                writeline (output, l);
+                print_times;
+                if input_ready = '1' then
+                    write (l, String'("Deadline miss as test signal generator did not provide data"));
+                    writeline (output, l);
+                    assert False;
+                else
+                    write (l, String'("Deadline miss as filter did not become ready for input"));
+                    writeline (output, l);
+                    assert False;
+                end if;
             end if;
             if data_strobe = '1' then
-                write (l, String'("Data out = "));
+                write (l, String'("DATA OUT "));
                 copy (0) := data_value;
                 write (l, Integer'(ieee.numeric_std.to_integer(signed(copy))));
                 writeline (output, l);
             end if;
             if restart_debug = '1' then
-                write (l, String'("Restart"));
+                write (l, String'("RESTART"));
                 writeline (output, l);
+                print_times;
+                time_between_restarts := 0;
             end if;
         end loop;
         write (l, String'("Reached the end"));

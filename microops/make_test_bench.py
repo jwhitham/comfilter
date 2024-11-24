@@ -70,10 +70,10 @@ begin
         wait until c = '1' and c'event;
 """)
         for value in in_values:
-            fd.write("""wait until r = '1'; wait until c = '1' and c'event; """)
+            fd.write("""wait until r = '1' and c = '1' and c'event; """)
             fd.write(f"""p <= x"{value:04x}"; v <= '1'; """)
             fd.write("""wait until c = '1' and c'event; """)
-            fd.write(f"""p <= g; v <= '0';\n""")
+            fd.write(f"""p <= g; v <= '0'; wait until r = '0' and c = '1' and c'event;\n""")
 
         fd.write(f"""
         wait until restart_debug_in = '1';
