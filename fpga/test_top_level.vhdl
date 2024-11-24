@@ -21,6 +21,8 @@ architecture structural of test_top_level is
 
     signal input_value          : std_logic_vector(ALL_BITS - 1 downto 0) := (others => '0');
     signal input_strobe         : std_logic := '0';
+    signal input_ready          : std_logic := '0';
+    signal restart_debug        : std_logic := '0';
     signal data_strobe          : std_logic := '0';
     signal data_value           : std_logic := '0';
 
@@ -29,6 +31,8 @@ begin
         port map (done_out => done,
                 clock_out => clock,
                 verbose_debug_out => verbose_debug,
+                input_ready_in => input_ready,
+                restart_debug_in => restart_debug,
                 strobe_out => input_strobe,
                 value_out => input_value,
                 reset_out => reset);
@@ -39,12 +43,13 @@ begin
                 verbose_debug_in => verbose_debug,
                 input_strobe_in => input_strobe,
                 input_data_in => input_value,
+                input_ready_out => input_ready,
+                restart_debug_out => restart_debug,
                 serial_ready_out => data_strobe,
                 serial_data_out => data_value);
 
     process is
         variable l : line;
-        variable active : Boolean := false;
         variable copy : unsigned (1 downto 0) := "00";
     begin
         wait until reset = '0';
@@ -52,18 +57,18 @@ begin
             wait until clock = '1' and clock'event;
             assert (data_strobe and input_strobe) = '0';
             if input_strobe = '1' then
-                assert not active;
-                active := true;
                 write (l, String'("Data in = "));
                 write (l, Integer'(ieee.numeric_std.to_integer(signed(input_value))));
                 writeline (output, l);
             end if;
             if data_strobe = '1' then
-                assert active;
-                active := false;
                 write (l, String'("Data out = "));
                 copy (0) := data_value;
                 write (l, Integer'(ieee.numeric_std.to_integer(signed(copy))));
+                writeline (output, l);
+            end if;
+            if restart_debug = '1' then
+                write (l, String'("Restart"));
                 writeline (output, l);
             end if;
         end loop;

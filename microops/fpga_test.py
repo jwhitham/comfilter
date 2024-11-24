@@ -43,6 +43,7 @@ def fpga_run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -
     if rc != 0:
         sys.exit(1)
 
+    print(end="", flush=True)
     return out_values
 
 def main() -> None:

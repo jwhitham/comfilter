@@ -16,6 +16,8 @@ entity filter_unit is
         clock_in            : in std_logic := '0';
         reset_in            : in std_logic := '0';
         verbose_debug_in    : in std_logic := '0';
+        restart_debug_out   : out std_logic := '0';
+        input_ready_out     : out std_logic := '0';
         input_strobe_in     : in std_logic := '0';
         input_data_in       : in std_logic_vector
             (FRACTIONAL_BITS + NON_FRACTIONAL_BITS - 1 downto 0) := (others => '0');
@@ -461,5 +463,7 @@ begin
     -- Output
     serial_data_out <= y_is_negative;
     serial_ready_out <= SEND_Y_TO_OUTPUT;
+    input_ready_out <= LOAD_I0_FROM_INPUT;
+    restart_debug_out <= RESTART;
 end structural;
 
