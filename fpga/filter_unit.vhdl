@@ -25,9 +25,6 @@ end filter_unit;
 
 architecture structural of filter_unit is
 
-    constant ALL_BITS           : Natural := FRACTIONAL_BITS + NON_FRACTIONAL_BITS;
-    constant A_BITS             : Natural := (FRACTIONAL_BITS * 2) + NON_FRACTIONAL_BITS;
-
     signal zero                 : std_logic := '0';
 
     signal ADD_A_TO_R           : std_logic := '0';

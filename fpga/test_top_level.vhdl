@@ -7,6 +7,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 use std.textio.all;
+use settings.all;
 
 entity test_top_level is
 end test_top_level;

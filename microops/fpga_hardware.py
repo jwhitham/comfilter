@@ -1,5 +1,8 @@
 
-from hardware import OperationList, CodeTable, ControlLine
+from hardware import (
+            OperationList, CodeTable, ControlLine,
+            ALL_BITS, A_BITS
+        )
 from settings import (
             FRACTIONAL_BITS, NON_FRACTIONAL_BITS,
         )
@@ -86,6 +89,9 @@ class FPGAOperationList(OperationList):
 constant FRACTIONAL_BITS : Natural := {FRACTIONAL_BITS};
 constant NON_FRACTIONAL_BITS : Natural := {NON_FRACTIONAL_BITS};
 constant UC_ADDR_BITS : Natural := {uc_addr_bits};
+constant ALL_BITS : Natural := {ALL_BITS};
+constant A_BITS : Natural := {A_BITS};
+
 end package settings;\n""")
 
     def dump_code(self, fd: typing.IO) -> None:
