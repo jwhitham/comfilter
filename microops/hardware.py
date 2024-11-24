@@ -7,7 +7,6 @@ import enum, typing
 
 ALL_BITS = FRACTIONAL_BITS + NON_FRACTIONAL_BITS
 A_BITS = R_BITS = (FRACTIONAL_BITS * 2) + NON_FRACTIONAL_BITS
-MICROCODE_STORE_SIZE = 0x200
 
 class MuxCode(enum.Enum):
     ZERO = 0
@@ -273,12 +272,6 @@ class OperationList:
     def generate(self) -> None:
         with open("generated/demodulator", "wt") as fd:
             self.dump_code(fd)
-        with open("generated/control_line_decoder.vhdl", "wt") as fd:
-            self.dump_control_line_decoder(fd)
-        with open("generated/microcode_store.vhdl", "wt") as fd:
-            self.dump_lattice_rom(fd)
-        with open("generated/microcode_store.test.vhdl", "wt") as fd:
-            self.dump_test_rom(fd)
 
     def get_memory_image(self) -> bytes:
         memory: typing.List[int] = []
@@ -286,102 +279,7 @@ class OperationList:
             code = op.encode()
             if code is not None:
                 memory.append(code)
-        while len(memory) < MICROCODE_STORE_SIZE:
-            memory.append(0xff)
-        assert len(memory) == MICROCODE_STORE_SIZE
-
         return bytes(memory)
-
-    def dump_code(self, fd: typing.IO) -> None:
-        fd.write("Memory map\n\n")
-        for op in self.operations:
-            op.dump_code(fd)
-        fd.write("\n\nCode table\n\n")
-        self.code_table.dump_code(fd)
-
-    def dump_control_line_decoder(self, fd: typing.IO) -> None:
-        self.code_table.dump_control_line_decoder(fd)
-
-    def dump_lattice_rom(self, fd: typing.IO) -> None:
-        fd.write("""
-library ieee;
-use ieee.std_logic_1164.all;
-
-entity microcode_store is port (
-        uc_data_out : out std_logic_vector (7 downto 0) := (others => '0');
-        uc_addr_in  : in std_logic_vector (8 downto 0) := (others => '0');
-        enable_in   : in std_logic := '0';
-        clock_in    : in std_logic := '0');
-end microcode_store;
-architecture structural of microcode_store is
-    signal one      : std_logic := '1';
-    signal unused   : std_logic_vector(8 downto 0) := (others => '0');
-begin
-
-ram512x8_inst : SB_RAM512x8
-generic map (
-""")
-        memory = self.get_memory_image()
-        # This assumes the left-most value in INIT_0 represents the
-        # byte at address 0 in the ROM; in fact, it may be byte 31.
-        k = 0
-        for i in range(16):
-            if i != 0:
-                fd.write(",\n")
-            fd.write(f'INIT_{i:X} => X"')
-            for j in range(32):
-                fd.write(f"{memory[k]:02X}")
-                k += 1
-            fd.write('"')
-        fd.write(""")
-port map (
-RDATA => uc_data_out,
-RADDR => uc_addr_in,
-RCLK => clock_in,
-RCLKE => one,
-RE => enable_in,
-WADDR => unused(8 downto 0),
-WDATA => unused(7 downto 0),
-WCLK => clock_in,
-WCLKE => unused(0),
-WE => unused(0));
-end structural;
-""")
-
-    def dump_test_rom(self, fd: typing.IO) -> None:
-        fd.write("""
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
-
-entity microcode_store is port (
-        uc_data_out : out std_logic_vector (7 downto 0) := (others => '0');
-        uc_addr_in  : in std_logic_vector (8 downto 0) := (others => '0');
-        enable_in   : in std_logic := '0';
-        clock_in    : in std_logic := '0');
-end microcode_store;
-architecture behavioural of microcode_store is
-    subtype t_word is std_logic_vector (7 downto 0);
-    type t_storage is array (0 to 511) of t_word;
-    signal storage : t_storage := (
-""")
-        memory = self.get_memory_image()
-        for (address, code) in enumerate(memory[:-1]):
-            fd.write(f'{address} => "{code:08b}",\n')
-        code = memory[-1]
-        fd.write(f'others => "{code:08b}");\n')
-        fd.write("""
-begin
-    process (clock_in)
-    begin
-        if clock_in'event and clock_in = '1' then
-            if enable_in = '1' then
-                uc_data_out <= storage (to_integer (unsigned (uc_addr_in)));
-            end if;
-        end if;
-    end process;
-end architecture behavioural;
-""")
 
 def get_shift_line(target: Register) -> ControlLine:
     if not isinstance(target, Register):
