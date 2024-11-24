@@ -7,11 +7,9 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 use std.textio.all;
+use settings.all;
 
 entity filter_unit is
-    generic (
-        FRACTIONAL_BITS    : Natural := 14;
-        NON_FRACTIONAL_BITS : Natural := 2);
     port (
         clock_in            : in std_logic := '0';
         reset_in            : in std_logic := '0';
@@ -113,8 +111,8 @@ begin
   
     -- Microcode unit
     uc : block
-        signal uc_addr      : unsigned(8 downto 0) := (others => '1');
-        signal uc_addr_next : unsigned(8 downto 0) := (others => '0');
+        signal uc_addr      : unsigned(UC_ADDR_BITS - 1 downto 0) := (others => '1');
+        signal uc_addr_next : unsigned(UC_ADDR_BITS - 1 downto 0) := (others => '0');
         signal bit_counter  : Natural range 0 to ALL_BITS - 1 := 0;
         signal uc_enable    : std_logic := '0';
         signal more_bits    : std_logic := '0';

@@ -105,55 +105,6 @@ class CodeTable:
                 raise ValueError("Too many codes are required")
         return self.table[key] | flag
 
-    def dump_control_line_decoder(self, fd: typing.IO) -> None:
-        fd.write("""
-library ieee;
-use ieee.std_logic_1164.all;
-
-entity control_line_decoder is port (
-""")
-        lines = list(ControlLine)
-        lines.sort(key = lambda cl: cl.name)
-        lines.remove(ControlLine.NOTHING)
-        for cl in lines:
-            fd.write(f"{cl.name} : out std_logic := '0';\n")
-        fd.write("""
-mux_select          : out std_logic_vector(3 downto 0);
-mux_strobe          : out std_logic;
-debug_strobe        : out std_logic;
-code_in             : in std_logic_vector(7 downto 0));
-end control_line_decoder;
-architecture structural of control_line_decoder is
-    signal enable : std_logic;
-begin
-    enable <= not code_in(7);
-    mux_strobe <= code_in(7) and not code_in(6);
-    debug_strobe <= code_in(7) and code_in(6);
-    mux_select <= code_in(3 downto 0);
-    REPEAT_FOR_ALL_BITS <= code_in(6) and enable;
-    SHIFT_A_RIGHT <= code_in(5) and enable;
-""")
-        lines.remove(ControlLine.REPEAT_FOR_ALL_BITS)
-        lines.remove(ControlLine.SHIFT_A_RIGHT)
-        fd.write("""
-process (code_in, enable) is begin
-""")
-        for cl in lines:
-            fd.write(f"{cl.name} <= '0';\n")
-        fd.write("case code_in (4 downto 0) is\n")
-        for (value, key) in sorted((value, key) for (key, value) in self.table.items()):
-            fd.write(f'when "{value:05b}" =>\n')
-            if key == "":
-                fd.write("  null;\n")
-            else:
-                for name in key.split(","):
-                    fd.write(f"  {name} <= enable;\n")
-        fd.write("""when others => null;
-end case;
-end process;
-end structural;
-""")
-
     def dump_code(self, fd: typing.IO) -> None:
         for (value, key) in sorted((value, key) for (key, value) in self.table.items()):
             fd.write(f"{value:02x} {key}\n")
@@ -220,11 +171,14 @@ class MuxOperation(Operation):
 class OperationList:
     def __init__(self) -> None:
         self.operations: typing.List[Operation] = []
-        self.code_table = CodeTable()
+        self.code_table = self.make_code_table()
         self.address = 0
 
         # Initial operation - do nothing (simplifies reset logic to have a NOP at address 0)
         self.add([])
+
+    def make_code_table(self) -> CodeTable:
+        return CodeTable()
 
     def __len__(self) -> int:
         return len(self.operations)

@@ -22,6 +22,7 @@ def fpga_run_ops(ops: FPGAOperationList, in_values: typing.List[int], debug: boo
             "../generated/control_line_decoder.vhdl",
             "../generated/microcode_store.test.vhdl",
             "../generated/test_signal_generator.vhdl",
+            "../generated/settings.vhdl",
             "shift_register.vhdl",
             "banked_shift_register.vhdl",
             "subtractor.vhdl",

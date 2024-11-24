@@ -1,11 +1,67 @@
 
-from hardware import OperationList
+from hardware import OperationList, CodeTable, ControlLine
+from settings import (
+            FRACTIONAL_BITS, NON_FRACTIONAL_BITS,
+        )
 import typing
 
 UNUSED_CODE = 0xff
 
+class FPGACodeTable(CodeTable):
+    def dump_control_line_decoder(self, fd: typing.IO) -> None:
+        fd.write("""
+library ieee;
+use ieee.std_logic_1164.all;
+
+entity control_line_decoder is port (
+""")
+        lines = list(ControlLine)
+        lines.sort(key = lambda cl: cl.name)
+        lines.remove(ControlLine.NOTHING)
+        for cl in lines:
+            fd.write(f"{cl.name} : out std_logic := '0';\n")
+        fd.write("""
+mux_select          : out std_logic_vector(3 downto 0);
+mux_strobe          : out std_logic;
+debug_strobe        : out std_logic;
+code_in             : in std_logic_vector(7 downto 0));
+end control_line_decoder;
+architecture structural of control_line_decoder is
+    signal enable : std_logic;
+begin
+    enable <= not code_in(7);
+    mux_strobe <= code_in(7) and not code_in(6);
+    debug_strobe <= code_in(7) and code_in(6);
+    mux_select <= code_in(3 downto 0);
+    REPEAT_FOR_ALL_BITS <= code_in(6) and enable;
+    SHIFT_A_RIGHT <= code_in(5) and enable;
+""")
+        lines.remove(ControlLine.REPEAT_FOR_ALL_BITS)
+        lines.remove(ControlLine.SHIFT_A_RIGHT)
+        fd.write("""
+process (code_in, enable) is begin
+""")
+        for cl in lines:
+            fd.write(f"{cl.name} <= '0';\n")
+        fd.write("case code_in (4 downto 0) is\n")
+        for (value, key) in sorted((value, key) for (key, value) in self.table.items()):
+            fd.write(f'when "{value:05b}" =>\n')
+            if key == "":
+                fd.write("  null;\n")
+            else:
+                for name in key.split(","):
+                    fd.write(f"  {name} <= enable;\n")
+        fd.write("""when others => null;
+end case;
+end process;
+end structural;
+""")
+
 
 class FPGAOperationList(OperationList):
+    def make_code_table(self) -> CodeTable:
+        return FPGACodeTable()
+
     def generate(self) -> None:
         OperationList.generate(self)
         with open("generated/control_line_decoder.vhdl", "wt") as fd:
@@ -14,12 +70,23 @@ class FPGAOperationList(OperationList):
             self.dump_lattice_rom(fd)
         with open("generated/microcode_store.test.vhdl", "wt") as fd:
             self.dump_test_rom(fd)
+        with open("generated/settings.vhdl", "wt") as fd:
+            self.dump_settings(fd)
 
     def get_uc_addr_bits(self, size: int) -> int:
         uc_addr_bits = 0
         while (1 << uc_addr_bits) < size:
             uc_addr_bits += 1
         return max(9, uc_addr_bits)
+
+    def dump_settings(self, fd: typing.IO) -> None:
+        memory = self.get_memory_image()
+        uc_addr_bits = self.get_uc_addr_bits(len(memory))
+        fd.write(f"""package settings is
+constant FRACTIONAL_BITS : Natural := {FRACTIONAL_BITS};
+constant NON_FRACTIONAL_BITS : Natural := {NON_FRACTIONAL_BITS};
+constant UC_ADDR_BITS : Natural := {uc_addr_bits};
+end package settings;\n""")
 
     def dump_code(self, fd: typing.IO) -> None:
         fd.write("Memory map\n\n")
