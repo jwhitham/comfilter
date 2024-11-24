@@ -1,6 +1,9 @@
 
+from fpga_hardware import (
+        FPGAOperationList,
+    )
 from hardware import (
-        OperationList, ALL_BITS,
+        ALL_BITS,
     )
 import filtertest, make_test_bench
 
@@ -11,7 +14,7 @@ RFLAGS = ["--assert-level=note"]
 FPGA_DIR = Path("fpga").absolute()
 GHDL_OUTPUT = Path("generated/output.txt").absolute()
 
-def fpga_run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
+def fpga_run_ops(ops: FPGAOperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
     ops.generate()
     make_test_bench.make_test_bench(in_values=in_values, verbose=debug)
     subprocess.check_call(["ghdl", "--remove"], cwd=FPGA_DIR)
@@ -48,7 +51,7 @@ def fpga_run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -
 
 def main() -> None:
     debug = 1
-    filtertest.test_all(1, debug, fpga_run_ops)
+    filtertest.test_all(1, debug, fpga_run_ops, FPGAOperationList)
 
 if __name__ == "__main__":
     try:

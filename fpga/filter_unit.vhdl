@@ -161,6 +161,11 @@ begin
                 if REPEAT_FOR_ALL_BITS = '1' and more_bits = '1' then
                     bit_counter <= bit_counter - 1;
                 end if;
+                if uc_code = x"ff" then
+                    write (l, String'("illegal instruction"));
+                    writeline (output, l);
+                    assert False;
+                end if;
             end if;
         end process;
     end block uc;

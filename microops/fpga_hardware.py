@@ -1,5 +1,9 @@
 
 from hardware import OperationList
+import typing
+
+UNUSED_CODE = 0xff
+
 
 class FPGAOperationList(OperationList):
     def generate(self) -> None:
@@ -15,7 +19,7 @@ class FPGAOperationList(OperationList):
         uc_addr_bits = 0
         while (1 << uc_addr_bits) < size:
             uc_addr_bits += 1
-        return uc_addr_bits
+        return max(9, uc_addr_bits)
 
     def dump_code(self, fd: typing.IO) -> None:
         fd.write("Memory map\n\n")
@@ -29,7 +33,7 @@ class FPGAOperationList(OperationList):
 
     def dump_lattice_rom(self, fd: typing.IO) -> None:
         memory = self.get_memory_image()
-        uc_addr_bits = min(9, self.get_uc_addr_bits(len(memory)))
+        uc_addr_bits = self.get_uc_addr_bits(len(memory))
         fd.write("""library ieee;
 use ieee.std_logic_1164.all;
 entity microcode_store is port (
@@ -44,9 +48,6 @@ architecture structural of microcode_store is
 begin\n""")
         block_size = 512
         num_blocks = (len(memory) + block_size - 1) // block_size
-        uc_store_size = num_blocks * block_size
-        while len(memory) < uc_store_size:
-            memory.append(0xff)
         k = 0
         for block in range(num_blocks):
             fd.write("ram{block} : SB_RAM512x8 generic map (\n")
@@ -57,7 +58,10 @@ begin\n""")
                     fd.write(",\n")
                 fd.write(f'INIT_{i:X} => X"')
                 for j in range(32):
-                    fd.write(f"{memory[k]:02X}")
+                    if k < len(memory):
+                        fd.write(f"{memory[k]:02X}")
+                    else:
+                        fd.write(f"{UNUSED_CODE:02X}")
                     k += 1
                 fd.write('"')
             fd.write(""")\nport map (
@@ -78,11 +82,12 @@ WE => unused(0));\n""")
             for block in range(num_blocks):
                 fd.write(f"uc_data_{block} when conv_integer("
                         f"uc_addr_in(uc_addr_bits - 1 downto 9)) = {block} else\n")
-            fd.write(f"x\"ff\";\n")
+            fd.write(f"x\"{UNUSED_CODE:02x}\";\n")
         fd.write("end structural;\n")
 
-    def dump_test_rom(self, fd: typing.IO, uc_addr_bits: int) -> None:
-        memory = self.get_memory_image(uc_addr_bits)
+    def dump_test_rom(self, fd: typing.IO) -> None:
+        memory = self.get_memory_image()
+        uc_addr_bits = self.get_uc_addr_bits(len(memory))
         fd.write(f"""
 library ieee;
 use ieee.std_logic_1164.all;
@@ -99,10 +104,9 @@ architecture behavioural of microcode_store is
     type t_storage is array (0 to {(1 << uc_addr_bits) - 1}) of t_word;
     signal storage : t_storage := (
 """)
-        for (address, code) in enumerate(memory[:-1]):
+        for (address, code) in enumerate(memory):
             fd.write(f'{address} => "{code:08b}",\n')
-        code = memory[-1]
-        fd.write(f'others => "{code:08b}");\n')
+        fd.write(f'others => x"{UNUSED_CODE:02x}");\n')
         fd.write("""
 begin
     process (clock_in)
