@@ -348,7 +348,7 @@ def test_all(scale: int, debug: int, run_ops: RunOps, make_ops: MakeOps) -> None
     test_bandpass_filter(r, debug, scale * 10, run_ops, make_ops)
     test_move_X_to_L_if_Y_is_not_negative(r, debug, scale * 10, run_ops, make_ops)
     test_set_Y_to_X_minus_reg(r, debug, scale * 10, run_ops, make_ops)
-    test_demodulator(debug, scale * 400, run_ops, make_ops)
+    test_demodulator(debug, scale * 4000, run_ops, make_ops)
 
 def main() -> None:
     scale = 10

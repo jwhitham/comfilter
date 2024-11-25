@@ -12,7 +12,7 @@ import subprocess, typing, sys
 
 RFLAGS = ["--assert-level=note"]
 FPGA_DIR = Path("fpga").absolute()
-GHDL_OUTPUT = Path("generated/output.txt").absolute()
+GHDL_OUTPUT = Path("generated/ghdl_output.txt").absolute()
 
 def fpga_run_ops(ops: FPGAOperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
     ops.generate()

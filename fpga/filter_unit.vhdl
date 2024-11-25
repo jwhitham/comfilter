@@ -461,7 +461,7 @@ begin
                 end if;
                 if SEND_Y_TO_OUTPUT = '1' then
                     write (l, String'("Debug out Y = "));
-                    write (l, Integer'(ieee.numeric_std.to_integer(signed(l_debug_value))));
+                    write (l, Integer'(ieee.numeric_std.to_integer(signed(y_debug_value))));
                     writeline (output, l);
                 end if;
             end if;
