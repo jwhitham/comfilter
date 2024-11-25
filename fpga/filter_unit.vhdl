@@ -58,6 +58,7 @@ architecture structural of filter_unit is
     signal mux_strobe           : std_logic := '0';
     signal debug_strobe         : std_logic := '0';
     signal uc_code              : std_logic_vector(7 downto 0) := (others => '0');
+    signal uc_valid             : std_logic := '0';
 
     signal bank_select          : std_logic := '0';
     signal o1_is_negative       : std_logic := '0';
@@ -104,6 +105,7 @@ begin
                 mux_select => mux_select,
                 mux_strobe => mux_strobe,
                 debug_strobe => debug_strobe,
+                enable_in => uc_valid,
                 code_in => uc_code);
   
     -- Microcode unit
@@ -111,8 +113,8 @@ begin
         signal uc_addr      : unsigned(UC_ADDR_BITS - 1 downto 0) := (others => '1');
         signal uc_addr_next : unsigned(UC_ADDR_BITS - 1 downto 0) := (others => '0');
         signal bit_counter  : Natural range 0 to ALL_BITS - 1 := 0;
-        signal uc_enable    : std_logic := '0';
         signal more_bits    : std_logic := '0';
+        signal uc_enable    : std_logic := '0';
     begin
         store : entity microcode_store 
             port map (
@@ -139,8 +141,10 @@ begin
                     writeline (output, l);
                 end if;
                 bit_counter <= ALL_BITS - 1;
+                uc_valid <= '1';
                 if reset_in = '1' or RESTART = '1' then
-                    uc_addr <= (others => '1');
+                    uc_addr <= (others => '1');     -- uc_addr_next will be 0
+                    uc_valid <= '0'; -- Next uc_code won't be valid due to control flow
                     if verbose_debug_in = '1' then
                         write (l, String'("uc_addr -- reset"));
                         writeline (output, l);
@@ -156,10 +160,15 @@ begin
                 if REPEAT_FOR_ALL_BITS = '1' and more_bits = '1' then
                     bit_counter <= bit_counter - 1;
                 end if;
-                if uc_code = x"ff" then
-                    write (l, String'("illegal instruction"));
+                if uc_valid = '0' then
+                    write (l, String'("not executed"));
                     writeline (output, l);
-                    assert False;
+                else
+                    if uc_code = x"ff" then
+                        write (l, String'("illegal instruction"));
+                        writeline (output, l);
+                        assert False;
+                    end if;
                 end if;
             end if;
         end process;

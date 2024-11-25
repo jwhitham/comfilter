@@ -19,8 +19,51 @@ VERY_SMALL_ERROR = (1.0 / (1 << FRACTIONAL_BITS)) * 1.01
 RunOps = typing.Callable[[OperationList, typing.List[int], bool], typing.List[int]]
 MakeOps = typing.Callable[[], OperationList]
 
+def test_repeat_and_reset(debug: int, run_ops: RunOps, make_ops: MakeOps) -> None:
+    print("Test repeat and reset")
+
+    # The program outputs the value that was loaded before it was restarted
+    # This shows up problems with RESTART
+    test_case_name = [
+        "RESTART is followed by a second RESTART",
+        "RESTART is followed by NOP",
+        "RESTART immediately follows a NOP, and is the end of the program",
+        "RESTART immediately follows a repeated NOP, and is the end of the program",
+        "RESTART immediately follows a register move, and is the end of the program",
+        ]
+    for i in range(len(test_case_name)):
+        title = f"Test case {i}: {test_case_name[i]}"
+        if debug > 0:
+            print(title)
+
+        ops = make_ops()
+        ops.comment(title)
+        # If the instruction at address 0 is repeated, then we see a failure
+        # with i == 0 due to too many outputs:
+        ops.debug(Debug.SEND_O1_TO_OUTPUT)
+        ops.add(ControlLine.LOAD_I0_FROM_INPUT)
+        move_reg_to_reg(ops, Register.I0, Register.O1)
+
+        # If RESTART doesn't work properly when followed by 0xff, or when preceded
+        # by a repeat, we'll see a failure with i >= 2
+        if i == 2:
+            ops.add()
+        elif i == 3:
+            ops.add(ControlLine.REPEAT_FOR_ALL_BITS)
+        ops.add(ControlLine.RESTART)
+
+        if i == 0:
+            ops.add(ControlLine.RESTART)
+        elif i == 1:
+            ops.add()
+        in_values = [1, 2, 3]
+        out_values = run_ops(ops, in_values, debug > 1)
+        if debug > 0:
+            print(out_values)
+        assert out_values == [0, 1, 2]
+
 def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: int, run_ops: RunOps, make_ops: MakeOps) -> None:
-    print(f"Test multiply accumulate")
+    print("Test multiply accumulate")
     for i in range(num_multiply_tests):
         if debug > 0:
             print(f"Test multiply accumulate {i}")
@@ -300,10 +343,11 @@ def test_demodulator(debug: int, num_compare_tests: int, run_ops: RunOps, make_o
 
 def test_all(scale: int, debug: int, run_ops: RunOps, make_ops: MakeOps) -> None:
     r = random.Random(3)
-    #test_multiply_accumulate(r, debug, scale * 10, run_ops, make_ops)
-    #test_bandpass_filter(r, debug, scale * 10, run_ops, make_ops)
-    #test_move_X_to_L_if_Y_is_not_negative(r, debug, scale * 10, run_ops, make_ops)
-    #test_set_Y_to_X_minus_reg(r, debug, scale * 10, run_ops, make_ops)
+    test_repeat_and_reset(debug, run_ops, make_ops)
+    test_multiply_accumulate(r, debug, scale * 10, run_ops, make_ops)
+    test_bandpass_filter(r, debug, scale * 10, run_ops, make_ops)
+    test_move_X_to_L_if_Y_is_not_negative(r, debug, scale * 10, run_ops, make_ops)
+    test_set_Y_to_X_minus_reg(r, debug, scale * 10, run_ops, make_ops)
     test_demodulator(debug, scale * 400, run_ops, make_ops)
 
 def main() -> None:

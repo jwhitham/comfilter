@@ -27,22 +27,23 @@ entity control_line_decoder is port (
 mux_select          : out std_logic_vector(3 downto 0);
 mux_strobe          : out std_logic;
 debug_strobe        : out std_logic;
+enable_in           : in std_logic;
 code_in             : in std_logic_vector(7 downto 0));
 end control_line_decoder;
 architecture structural of control_line_decoder is
-    signal enable : std_logic;
+    signal control_line_enable : std_logic;
 begin
-    enable <= not code_in(7);
-    mux_strobe <= code_in(7) and not code_in(6);
-    debug_strobe <= code_in(7) and code_in(6);
+    control_line_enable <= enable_in and not code_in(7);
+    mux_strobe <= enable_in and code_in(7) and not code_in(6);
+    debug_strobe <= enable_in and code_in(7) and code_in(6);
     mux_select <= code_in(3 downto 0);
-    REPEAT_FOR_ALL_BITS <= code_in(6) and enable;
-    SHIFT_A_RIGHT <= code_in(5) and enable;
+    REPEAT_FOR_ALL_BITS <= code_in(6) and control_line_enable;
+    SHIFT_A_RIGHT <= code_in(5) and control_line_enable;
 """)
         lines.remove(ControlLine.REPEAT_FOR_ALL_BITS)
         lines.remove(ControlLine.SHIFT_A_RIGHT)
         fd.write("""
-process (code_in, enable) is begin
+process (code_in, control_line_enable) is begin
 """)
         for cl in lines:
             fd.write(f"{cl.name} <= '0';\n")
@@ -53,7 +54,7 @@ process (code_in, enable) is begin
                 fd.write("  null;\n")
             else:
                 for name in key.split(","):
-                    fd.write(f"  {name} <= enable;\n")
+                    fd.write(f"  {name} <= control_line_enable;\n")
         fd.write("""when others => null;
 end case;
 end process;

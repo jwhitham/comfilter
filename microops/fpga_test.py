@@ -52,7 +52,7 @@ def fpga_run_ops(ops: FPGAOperationList, in_values: typing.List[int], debug: boo
 
 def main() -> None:
     scale = 1
-    debug = 2
+    debug = 0
     filtertest.test_all(scale, debug, fpga_run_ops, FPGAOperationList)
 
 if __name__ == "__main__":

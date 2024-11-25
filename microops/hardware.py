@@ -87,7 +87,7 @@ ControlLineTree = typing.Union[ControlLines, ControlLine, typing.Sequence]
 
 class CodeTable:
     def __init__(self) -> None:
-        self.table: typing.Dict[str, int] = {}
+        self.table: typing.Dict[str, int] = {"": 0}
 
     def encode(self, controls: ControlLines) -> None:
         controls = set(controls)
@@ -175,9 +175,6 @@ class OperationList:
         self.operations: typing.List[Operation] = []
         self.code_table = self.make_code_table()
         self.address = 0
-
-        # Initial operation - do nothing (simplifies reset logic to have a NOP at address 0)
-        self.add([])
 
     def make_code_table(self) -> CodeTable:
         return CodeTable()
