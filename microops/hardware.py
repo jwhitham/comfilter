@@ -107,7 +107,9 @@ class CodeTable:
 
     def dump_code(self, fd: typing.IO) -> None:
         for (value, key) in sorted((value, key) for (key, value) in self.table.items()):
-            fd.write(f"{value:02x} {key}\n")
+            if key == "":
+                key = "NOP"
+            fd.write(f"{value:3d} {key}\n")
 
 class Operation:
     def __init__(self, address) -> None:
@@ -224,11 +226,11 @@ class OperationList:
             yield op
 
     def generate(self) -> None:
-        with open("generated/demodulator", "wt") as fd:
+        with open("generated/disassembly.txt", "wt") as fd:
             self.dump_code(fd)
 
     def dump_code(self, fd: typing.IO) -> None:
-        fd.write("Memory map\n\n")
+        fd.write("Disassembly\n\n")
         for op in self.operations:
             op.dump_code(fd)
         fd.write("\n\nCode table\n\n")

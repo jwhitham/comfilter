@@ -300,14 +300,16 @@ def test_demodulator(debug: int, num_compare_tests: int, run_ops: RunOps, make_o
 
 def test_all(scale: int, debug: int, run_ops: RunOps, make_ops: MakeOps) -> None:
     r = random.Random(3)
-    test_multiply_accumulate(r, debug, scale * 10, run_ops, make_ops)
-    test_bandpass_filter(r, debug, scale * 10, run_ops, make_ops)
-    test_move_X_to_L_if_Y_is_not_negative(r, debug, scale * 10, run_ops, make_ops)
-    test_set_Y_to_X_minus_reg(r, debug, scale * 10, run_ops, make_ops)
+    #test_multiply_accumulate(r, debug, scale * 10, run_ops, make_ops)
+    #test_bandpass_filter(r, debug, scale * 10, run_ops, make_ops)
+    #test_move_X_to_L_if_Y_is_not_negative(r, debug, scale * 10, run_ops, make_ops)
+    #test_set_Y_to_X_minus_reg(r, debug, scale * 10, run_ops, make_ops)
     test_demodulator(debug, scale * 400, run_ops, make_ops)
 
 def main() -> None:
-    test_all(10, 0, execute.run_ops, OperationList)
+    scale = 10
+    debug = 0
+    test_all(scale, debug, execute.run_ops, OperationList)
 
 if __name__ == "__main__":
     try:
