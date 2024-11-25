@@ -51,7 +51,7 @@ def fpga_run_ops(ops: FPGAOperationList, in_values: typing.List[int], debug: boo
     return out_values
 
 def main() -> None:
-    scale = 1
+    scale = 3
     debug = 0
     filtertest.test_all(scale, debug, fpga_run_ops, FPGAOperationList)
 
