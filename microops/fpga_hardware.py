@@ -94,13 +94,6 @@ constant A_BITS : Natural := {A_BITS};
 
 end package settings;\n""")
 
-    def dump_code(self, fd: typing.IO) -> None:
-        fd.write("Memory map\n\n")
-        for op in self.operations:
-            op.dump_code(fd)
-        fd.write("\n\nCode table\n\n")
-        self.code_table.dump_code(fd)
-
     def dump_control_line_decoder(self, fd: typing.IO) -> None:
         self.code_table.dump_control_line_decoder(fd)
 

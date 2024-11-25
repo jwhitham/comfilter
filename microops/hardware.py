@@ -227,6 +227,13 @@ class OperationList:
         with open("generated/demodulator", "wt") as fd:
             self.dump_code(fd)
 
+    def dump_code(self, fd: typing.IO) -> None:
+        fd.write("Memory map\n\n")
+        for op in self.operations:
+            op.dump_code(fd)
+        fd.write("\n\nCode table\n\n")
+        self.code_table.dump_code(fd)
+
     def get_memory_image(self) -> bytes:
         memory: typing.List[int] = []
         for op in self.operations:
