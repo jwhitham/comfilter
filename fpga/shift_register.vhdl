@@ -1,13 +1,13 @@
 
-
-library work;
-use work.all;
-
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 use std.textio.all;
+
+library work;
+use work.all;
+use settings.all;
 
 entity shift_register is
     generic (
@@ -19,7 +19,6 @@ entity shift_register is
         debug_out           : out std_logic_vector(size - 1 downto 0) := (others => '0');
         shift_right_in      : in std_logic := '0';
         reg_in              : in std_logic := '0';
-        verbose_debug_in    : in std_logic := '0';
         clock_in            : in std_logic := '0');
 end shift_register;
 
@@ -39,7 +38,7 @@ begin
                 new_value(size - 1) := reg_in;
                 new_value(size - 2 downto 0) := value(size - 1 downto 1);
                 value <= new_value;
-                if verbose_debug_in = '1' then
+                if VERBOSE_DEBUG then
                     write (l, name);
                     write (l, String'(" := "));
                     write (l, Integer'(ieee.numeric_std.to_integer(signed(new_value))));

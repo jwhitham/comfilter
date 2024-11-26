@@ -254,7 +254,7 @@ begin
             variable print_i0 : Boolean := false;
         begin
             if clock_in = '1' and clock_in'event then
-                print_i0 := '0';
+                print_i0 := false;
                 if LOAD_I0_FROM_INPUT = '1' then
                     new_i0_value := input_data_in;
                     i0_value <= new_i0_value;
@@ -282,7 +282,6 @@ begin
                 reg_out => i1_out,
                 shift_right_in => SHIFT_I1_RIGHT,
                 reg_in => reg_out,
-                verbose_debug_in => verbose_debug_in,
                 negative_out => open,
                 clock_in => clock_in);
     i2_register : entity shift_register
@@ -291,7 +290,6 @@ begin
                 reg_out => i2_out,
                 shift_right_in => SHIFT_I2_RIGHT,
                 reg_in => reg_out,
-                verbose_debug_in => verbose_debug_in,
                 negative_out => open,
                 clock_in => clock_in);
     o1_register : entity banked_shift_register
@@ -300,7 +298,6 @@ begin
                 reg_out => o1_out,
                 shift_right_in => SHIFT_O1_RIGHT,
                 reg_in => reg_out,
-                verbose_debug_in => verbose_debug_in,
                 bank_select_in => bank_select,
                 debug_out => o1_debug_value,
                 negative_out => o1_is_negative,
@@ -311,7 +308,6 @@ begin
                 reg_out => o2_out,
                 shift_right_in => SHIFT_O2_RIGHT,
                 reg_in => reg_out,
-                verbose_debug_in => verbose_debug_in,
                 bank_select_in => bank_select,
                 negative_out => open,
                 clock_in => clock_in);
@@ -321,7 +317,6 @@ begin
                 reg_out => l_out,
                 shift_right_in => SHIFT_L_RIGHT,
                 reg_in => reg_out,
-                verbose_debug_in => verbose_debug_in,
                 bank_select_in => bank_select,
                 debug_out => l_debug_value,
                 negative_out => open,
@@ -336,10 +331,10 @@ begin
             variable l : line;
             variable new_a_value : signed(A_BITS - 1 downto 0) := (others => '0');
             variable new_r_value : signed(A_BITS - 1 downto 0) := (others => '0');
-            variable print_r     : std_logic := '0';
+            variable print_r     : Boolean := false;
         begin
             if clock_in = '1' and clock_in'event then
-                print_r := '0';
+                print_r := false;
                 if SHIFT_A_RIGHT = '1' then
                     new_a_value(A_BITS - 1) := reg_out;
                     new_a_value(A_BITS - 2 downto 0) := a_value(A_BITS - 1 downto 1);
@@ -353,14 +348,14 @@ begin
                 if ADD_A_TO_R = '1' then
                     new_r_value := r_value + a_value;
                     r_value <= new_r_value;
-                    print_r := verbose_debug_in;
+                    print_r := VERBOSE_DEBUG;
                 elsif SHIFT_R_RIGHT = '1' then
                     new_r_value(A_BITS - 1) := '0';
                     new_r_value(A_BITS - 2 downto 0) := r_value(A_BITS - 1 downto 1);
                     r_value <= new_r_value;
-                    print_r := verbose_debug_in;
+                    print_r := VERBOSE_DEBUG;
                 end if;
-                if print_r = '1' then
+                if print_r then
                     write (l, String'("R := "));
                     write (l, Integer'(ieee.numeric_std.to_integer(new_r_value)));
                     writeline (output, l);
