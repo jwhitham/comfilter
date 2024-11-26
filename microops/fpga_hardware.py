@@ -102,7 +102,7 @@ end package settings;\n""")
     def dump_lattice_rom(self, fd: typing.IO) -> None:
         memory = self.get_memory_image()
         uc_addr_bits = self.get_uc_addr_bits(len(memory))
-        fd.write("""library ieee;
+        fd.write(f"""library ieee;
 use ieee.std_logic_1164.all;
 entity microcode_store is port (
         uc_data_out : out std_logic_vector (7 downto 0) := (others => '0');
@@ -118,7 +118,7 @@ begin\n""")
         num_blocks = (len(memory) + block_size - 1) // block_size
         k = 0
         for block in range(num_blocks):
-            fd.write("ram{block} : SB_RAM512x8 generic map (\n")
+            fd.write(f"ram{block} : SB_RAM512x8 generic map (\n")
             # This assumes the left-most value in INIT_0 represents the
             # byte at address 0 in the ROM; in fact, it may be byte 31.
             for i in range(16):
@@ -132,7 +132,7 @@ begin\n""")
                         fd.write(f"{UNUSED_CODE:02X}")
                     k += 1
                 fd.write('"')
-            fd.write(""")\nport map (
+            fd.write(f""")\nport map (
 RDATA => uc_data_{block},
 RADDR => uc_addr_in(8 downto 0),
 RCLK => clock_in,

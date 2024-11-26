@@ -58,9 +58,6 @@ begin
             write (l, String'("Time since last restart = "));
             write (l, time_between_restarts);
             writeline (output, l);
-            write (l, String'("Time since last input = "));
-            write (l, time_between_inputs);
-            writeline (output, l);
         end print_times;
     begin
         wait until reset = '0' and clock = '1' and clock'event;
@@ -69,10 +66,9 @@ begin
             time_between_inputs := time_between_inputs + 1;
             time_between_restarts := time_between_restarts + 1;
             if input_ready = '1' and input_strobe = '1' then
-                write (l, String'("DATA IN "));
+                write (l, String'("Data in = "));
                 write (l, Integer'(ieee.numeric_std.to_integer(signed(input_value))));
                 writeline (output, l);
-                print_times;
                 time_between_inputs := 0;
             end if;
             if input_ready = '0' and input_strobe = '1' then
@@ -99,14 +95,12 @@ begin
                 end if;
             end if;
             if data_strobe = '1' then
-                write (l, String'("DATA OUT "));
+                write (l, String'("Data out = "));
                 copy (0) := data_value;
                 write (l, Integer'(ieee.numeric_std.to_integer(signed(copy))));
                 writeline (output, l);
             end if;
             if restart_debug = '1' then
-                write (l, String'("RESTART"));
-                writeline (output, l);
                 print_times;
                 time_between_restarts := 0;
             end if;

@@ -160,8 +160,10 @@ begin
                     bit_counter <= bit_counter - 1;
                 end if;
                 if uc_valid = '0' then
-                    write (l, String'("not executed"));
-                    writeline (output, l);
+                    if VERBOSE_DEBUG then
+                        write (l, String'("not executed"));
+                        writeline (output, l);
+                    end if;
                 else
                     if uc_code = x"ff" then
                         write (l, String'("illegal instruction"));
