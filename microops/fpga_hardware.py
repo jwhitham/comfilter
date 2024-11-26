@@ -92,7 +92,7 @@ constant NON_FRACTIONAL_BITS : Natural := {NON_FRACTIONAL_BITS};
 constant UC_ADDR_BITS : Natural := {uc_addr_bits};
 constant ALL_BITS : Natural := {ALL_BITS};
 constant A_BITS : Natural := {A_BITS};
-constant VERBOSE_DEBUG : Boolean := {DEBUG};
+constant VERBOSE_DEBUG : Boolean := {DEBUG > 1};
 
 end package settings;\n""")
 
