@@ -58,6 +58,9 @@ begin
             end if;
             wait for {CLOCK_PERIOD_NS - (CLOCK_PERIOD_NS // 2)} ns;
         end loop;
+        clock <= '1';
+        wait for {CLOCK_PERIOD_NS // 2} ns;
+        clock <= '0';
         wait;
     end process;
 

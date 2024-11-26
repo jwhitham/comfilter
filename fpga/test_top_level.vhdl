@@ -63,9 +63,8 @@ begin
             writeline (output, l);
         end print_times;
     begin
-        wait until reset = '0';
+        wait until reset = '0' and clock = '1' and clock'event;
         while done = '0' loop
-            wait until clock = '1' and clock'event;
             assert (data_strobe and input_strobe) = '0';
             time_between_inputs := time_between_inputs + 1;
             time_between_restarts := time_between_restarts + 1;
@@ -111,8 +110,9 @@ begin
                 print_times;
                 time_between_restarts := 0;
             end if;
+            wait until clock = '1' and clock'event;
         end loop;
-        write (l, String'("Reached the end"));
+        write (l, String'("THE END"));
         writeline (output, l);
     end process;
 end structural;

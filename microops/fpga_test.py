@@ -39,6 +39,7 @@ def fpga_run_ops(ops: OperationList, in_values: typing.List[int]) -> typing.List
 
     out_values: typing.List[int] = []
     mask = (1 << ALL_BITS) - 1
+    end_ok = False
     with open(GHDL_OUTPUT, "rt", encoding="utf-8") as fd:
         for line in fd:
             if (DEBUG > 1) or (rc != 0):
@@ -46,8 +47,13 @@ def fpga_run_ops(ops: OperationList, in_values: typing.List[int]) -> typing.List
             fields = line.split()
             if (len(fields) == 5) and (fields[0] == "Debug") and (fields[1] == "out") and (fields[3] == "="):
                 out_values.append((int(fields[4]) + mask + 1) & mask)
+            if (len(fields) == 2) and (fields[0] == "THE") and (fields[1] == "END"):
+                end_ok = True
 
     if rc != 0:
+        sys.exit(1)
+    if not end_ok:
+        print("Output does not contain 'THE END'")
         sys.exit(1)
 
     print(end="", flush=True)
