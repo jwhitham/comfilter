@@ -3,7 +3,10 @@ from fpga_hardware import (
         FPGAOperationList,
     )
 from hardware import (
-        ALL_BITS,
+        ALL_BITS, OperationList,
+    )
+from settings import (
+        FPGA_TEST_SCALE, DEBUG,
     )
 import filtertest, make_test_bench
 
@@ -14,8 +17,8 @@ RFLAGS = ["--assert-level=note"]
 FPGA_DIR = Path("fpga").absolute()
 GHDL_OUTPUT = Path("generated/ghdl_output.txt").absolute()
 
-def fpga_run_ops(ops: FPGAOperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
-    ops.generate(debug)
+def fpga_run_ops(ops: OperationList, in_values: typing.List[int]) -> typing.List[int]:
+    ops.generate()
     make_test_bench.make_test_bench(in_values=in_values)
     subprocess.check_call(["ghdl", "--remove"], cwd=FPGA_DIR)
     subprocess.check_call(["ghdl", "-a", "--work=work",
@@ -38,7 +41,7 @@ def fpga_run_ops(ops: FPGAOperationList, in_values: typing.List[int], debug: boo
     mask = (1 << ALL_BITS) - 1
     with open(GHDL_OUTPUT, "rt", encoding="utf-8") as fd:
         for line in fd:
-            if debug or (rc != 0):
+            if (DEBUG > 1) or (rc != 0):
                 print(line, end="")
             fields = line.split()
             if (len(fields) == 5) and (fields[0] == "Debug") and (fields[1] == "out") and (fields[3] == "="):
@@ -51,9 +54,7 @@ def fpga_run_ops(ops: FPGAOperationList, in_values: typing.List[int], debug: boo
     return out_values
 
 def main() -> None:
-    scale = 3
-    debug = 0
-    filtertest.test_all(scale, debug, fpga_run_ops, FPGAOperationList)
+    filtertest.test_all(FPGA_TEST_SCALE, fpga_run_ops, FPGAOperationList)
 
 if __name__ == "__main__":
     try:

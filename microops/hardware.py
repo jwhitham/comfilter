@@ -89,7 +89,7 @@ class CodeTable:
     def __init__(self) -> None:
         self.table: typing.Dict[str, int] = {"": 0}
 
-    def encode(self, controls: ControlLines) -> None:
+    def encode(self, controls: ControlLines) -> int:
         controls = set(controls)
         flag = 0
         if ControlLine.REPEAT_FOR_ALL_BITS in controls:
@@ -110,6 +110,9 @@ class CodeTable:
             if key == "":
                 key = "NOP"
             fd.write(f"{value:3d} {key}\n")
+
+    def dump_control_line_decoder(self, fd: typing.IO) -> None:
+        pass
 
 class Operation:
     def __init__(self, address) -> None:
@@ -222,7 +225,7 @@ class OperationList:
         for op in self.operations:
             yield op
 
-    def generate(self, debug: bool) -> None:
+    def generate(self) -> None:
         with open("generated/disassembly.txt", "wt") as fd:
             self.dump_code(fd)
 

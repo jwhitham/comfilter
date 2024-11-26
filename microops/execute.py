@@ -6,6 +6,7 @@ from hardware import (
         SHIFT_CONTROL_LINE,
         ALL_BITS, A_BITS, R_BITS,
     )
+from settings import DEBUG
 from filtersetup import (
         make_float,
     )
@@ -147,7 +148,7 @@ def execute_debug(debug: Debug, inf: RegFile,
     if debug == Debug.SEND_L_TO_OUTPUT:
         out_values.append(inf[Register.L])
 
-def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
+def run_ops(ops: OperationList, in_values: typing.List[int]) -> typing.List[int]:
     reg_file: RegFile = {}
     for gr in Register:
         reg_file[gr] = 0
@@ -160,27 +161,27 @@ def run_ops(ops: OperationList, in_values: typing.List[int], debug: bool) -> typ
         op = ops[op_index]
         next_step = NextStep.NEXT
         if isinstance(op, ControlOperation):
-            if debug:
+            if DEBUG > 1:
                 print(f"  op: {op.address} {op}")
             previous_reg_file = reg_file
             (next_step, reg_file) = execute_control(op.controls,
                 previous_reg_file, reverse_in_values, out_values)
-            if debug:
+            if DEBUG > 1:
                 for r in reg_file.keys():
                     if reg_file[r] != previous_reg_file[r]:
                         print(f"   reg {r.name}: {previous_reg_file[r]:08x} -> {reg_file[r]:08x}")
 
         elif isinstance(op, MuxOperation):
-            if debug:
+            if DEBUG > 1:
                 print(f"  op: {op.address} {op}")
             previous_reg_file = reg_file
             (next_step, reg_file) = execute_mux(op.source, previous_reg_file)
         elif isinstance(op, DebugOperation):
-            if debug:
+            if DEBUG > 1:
                 print(f" op: {op.address} {op}")
             execute_debug(op.debug, reg_file, out_values)
         else:
-            if debug:
+            if DEBUG > 1:
                 print(f" {op}")
 
         if next_step == NextStep.RESTART:

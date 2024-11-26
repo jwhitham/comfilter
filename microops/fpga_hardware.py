@@ -4,7 +4,7 @@ from hardware import (
             ALL_BITS, A_BITS
         )
 from settings import (
-            FRACTIONAL_BITS, NON_FRACTIONAL_BITS,
+            FRACTIONAL_BITS, NON_FRACTIONAL_BITS, DEBUG,
         )
 import typing
 
@@ -66,8 +66,8 @@ class FPGAOperationList(OperationList):
     def make_code_table(self) -> CodeTable:
         return FPGACodeTable()
 
-    def generate(self, debug: bool) -> None:
-        OperationList.generate(self, debug)
+    def generate(self) -> None:
+        OperationList.generate(self)
         with open("generated/control_line_decoder.vhdl", "wt") as fd:
             self.dump_control_line_decoder(fd)
         with open("generated/microcode_store.vhdl", "wt") as fd:
@@ -75,7 +75,7 @@ class FPGAOperationList(OperationList):
         with open("generated/microcode_store.test.vhdl", "wt") as fd:
             self.dump_test_rom(fd)
         with open("generated/settings.vhdl", "wt") as fd:
-            self.dump_settings(fd, debug)
+            self.dump_settings(fd)
 
     def get_uc_addr_bits(self, size: int) -> int:
         uc_addr_bits = 0
@@ -83,7 +83,7 @@ class FPGAOperationList(OperationList):
             uc_addr_bits += 1
         return max(9, uc_addr_bits)
 
-    def dump_settings(self, fd: typing.IO, debug: bool) -> None:
+    def dump_settings(self, fd: typing.IO) -> None:
         memory = self.get_memory_image()
         uc_addr_bits = self.get_uc_addr_bits(len(memory))
         fd.write(f"""package settings is
@@ -92,7 +92,7 @@ constant NON_FRACTIONAL_BITS : Natural := {NON_FRACTIONAL_BITS};
 constant UC_ADDR_BITS : Natural := {uc_addr_bits};
 constant ALL_BITS : Natural := {ALL_BITS};
 constant A_BITS : Natural := {A_BITS};
-constant VERBOSE_DEBUG : Boolean := {debug};
+constant VERBOSE_DEBUG : Boolean := {DEBUG};
 
 end package settings;\n""")
 

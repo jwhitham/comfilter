@@ -281,7 +281,7 @@ def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[fl
 def main() -> None:
     ops = OperationList()
     demodulator(ops)
-    ops.generate(False)
+    ops.generate()
 
 if __name__ == "__main__":
     main()

@@ -10,16 +10,18 @@ from filtersetup import (
         set_X_to_abs_O1, set_Y_to_X_minus_reg,
         move_X_to_L_if_Y_is_not_negative,
     )
+from settings import (
+        FRACTIONAL_BITS, NON_FRACTIONAL_BITS, MICROOPS_TEST_SCALE, DEBUG,
+    )
 import execute
-from settings import FRACTIONAL_BITS, NON_FRACTIONAL_BITS
 import random, typing, struct, sys
 
 ACCEPTABLE_ERROR = (1.0 / (1 << (FRACTIONAL_BITS - 4)))
 VERY_SMALL_ERROR = (1.0 / (1 << FRACTIONAL_BITS)) * 1.01
-RunOps = typing.Callable[[OperationList, typing.List[int], bool], typing.List[int]]
+RunOps = typing.Callable[[OperationList, typing.List[int]], typing.List[int]]
 MakeOps = typing.Callable[[], OperationList]
 
-def test_repeat_and_reset(debug: int, run_ops: RunOps, make_ops: MakeOps) -> None:
+def test_repeat_and_reset(run_ops: RunOps, make_ops: MakeOps) -> None:
     print("Test repeat and reset")
 
     # The program outputs the value that was loaded before it was restarted
@@ -33,7 +35,7 @@ def test_repeat_and_reset(debug: int, run_ops: RunOps, make_ops: MakeOps) -> Non
         ]
     for i in range(len(test_case_name)):
         title = f"Test case {i}: {test_case_name[i]}"
-        if debug > 0:
+        if DEBUG > 0:
             print(title)
 
         ops = make_ops()
@@ -57,15 +59,15 @@ def test_repeat_and_reset(debug: int, run_ops: RunOps, make_ops: MakeOps) -> Non
         elif i == 1:
             ops.add()
         in_values = [1, 2, 3]
-        out_values = run_ops(ops, in_values, debug > 1)
-        if debug > 0:
+        out_values = run_ops(ops, in_values)
+        if DEBUG > 0:
             print(out_values)
         assert out_values == [0, 1, 2]
 
-def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: int, run_ops: RunOps, make_ops: MakeOps) -> None:
+def test_multiply_accumulate(r: random.Random, num_multiply_tests: int, run_ops: RunOps, make_ops: MakeOps) -> None:
     print("Test multiply accumulate")
     for i in range(num_multiply_tests):
-        if debug > 0:
+        if DEBUG > 0:
             print(f"Test multiply accumulate {i}")
         ops = make_ops()
         expect = 0.0
@@ -82,7 +84,7 @@ def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: i
             v1f = make_float(v1i)
             if abs(expect + (v0f * v1f)) < 2.0:
                 expect += v0f * v1f
-                if debug > 0:
+                if DEBUG > 0:
                     print(f" + {v0f:1.6f} * {v1f:1.6f} = {v0i:04x} * {v1i:04x} = {expect:1.6f}")
 
                 v1f_list.append(v1f)
@@ -94,12 +96,12 @@ def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: i
         else:
             multiply_accumulate(ops, v1f_list)
         ops.add(ControlLine.RESTART)
-        out_values = run_ops(ops, v0i_list, debug > 1)
+        out_values = run_ops(ops, v0i_list)
         assert len(out_values) == 1
         ri = out_values[0]
         rf = make_float(ri)
         error = abs(rf - expect)
-        if debug > 0:
+        if DEBUG > 0:
             print(f" result {rf:1.6f} {ri:04x} expect {expect:1.6f} {make_fixed(expect):04x}")
             print(f" error {error:1.6f} ops {len(ops)} via_regs {via_regs}")
         if via_regs:
@@ -107,10 +109,10 @@ def test_multiply_accumulate(r: random.Random, debug: int, num_multiply_tests: i
         else:
             assert error < VERY_SMALL_ERROR
 
-def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int, run_ops: RunOps, make_ops: MakeOps) -> None:
+def test_bandpass_filter(r: random.Random, num_filter_tests: int, run_ops: RunOps, make_ops: MakeOps) -> None:
     print(f"Test bandpass filter")
     for i in range(num_filter_tests):
-        if debug > 0:
+        if DEBUG > 0:
             print(f"Test bandpass filter {i}")
         ops = make_ops()
         a1 = ((r.random() * 1.2) - 0.6)
@@ -133,7 +135,7 @@ def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int, ru
                 attempts_left -= 1
                 
             inputs.append(i0i)
-            if debug > 1:
+            if DEBUG > 1:
                 print(f" step {j} i0 = {make_fixed(i0):04x} * {make_fixed(b0):04x}", end="")
                 print(f" i1 = {make_fixed(i1):04x} ", end="")
                 print(f" i2 = {make_fixed(i2):04x} * {make_fixed(b2):04x}", end="")
@@ -158,7 +160,7 @@ def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int, ru
         #b0 =   5.859375e-03 b1 =   0.000000e+00 b2 =  -5.859375e-03 (fixed_t 9)
 
         ops.add(ControlLine.RESTART)
-        out_values = run_ops(ops, inputs, debug > 1)
+        out_values = run_ops(ops, inputs)
         assert len(out_values) == len(inputs)
         assert len(expect_values) == len(inputs)
         for j in range(len(inputs)):
@@ -166,11 +168,11 @@ def test_bandpass_filter(r: random.Random, debug: int, num_filter_tests: int, ru
             rf = make_float(ri)
             i0 = make_float(inputs[j])
             error = abs(rf - expect_values[j])
-            if debug > 0:
+            if DEBUG > 0:
                 print(f" step {j} input {i0:1.6f} result {rf:1.6f} expected {expect_values[j]:1.6f} error {error:1.6f}")
             assert error < ACCEPTABLE_ERROR
 
-def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_update_tests: int, run_ops: RunOps, make_ops: MakeOps) -> None:
+def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, num_update_tests: int, run_ops: RunOps, make_ops: MakeOps) -> None:
     print("Test move X to L if Y is not negative")
     for i in range(num_update_tests):
         ops = make_ops()
@@ -193,7 +195,7 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
 
         xi = make_fixed(xf)
         yi = make_fixed(yf)
-        if debug > 0:
+        if DEBUG > 0:
             print(f" O1 = {o1i:04x} L = {li:04x} X = {xi:04x} Y = {yi:04x}", end="")
 
         expect_li = li
@@ -202,12 +204,12 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
 
         if yf >= 0.0:
             expect_li = xi
-            if debug > 0:
+            if DEBUG > 0:
                 print(f" use abs(O1) =", end="")
         else:
-            if debug > 0:
+            if DEBUG > 0:
                 print(f" use L       =", end="")
-        if debug > 0:
+        if DEBUG > 0:
             print(f" {expect_li:04x} X = {expect_xi:04x}")
 
         # Load input 
@@ -234,19 +236,19 @@ def test_move_X_to_L_if_Y_is_not_negative(r: random.Random, debug: int, num_upda
         ops.add(ControlLine.RESTART)
 
         # run
-        out_values = run_ops(ops, inputs, debug > 1)
+        out_values = run_ops(ops, inputs)
         assert len(out_values) == 3
 
         result_li = out_values[0]
         result_o1i = out_values[1]
         result_xi = out_values[2]
-        if debug > 0:
+        if DEBUG > 0:
             print(f" result L = {result_li:04x} result X = {result_xi:04x}")
         assert expect_li == result_li
         assert expect_o1i == result_o1i
         assert expect_xi == result_xi
 
-def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: int, run_ops: RunOps, make_ops: MakeOps) -> None:
+def test_set_Y_to_X_minus_reg(r: random.Random, num_update_tests: int, run_ops: RunOps, make_ops: MakeOps) -> None:
     print("Test Y = X - reg")
     for i in range(num_update_tests):
         ops = make_ops()
@@ -273,13 +275,13 @@ def test_set_Y_to_X_minus_reg(r: random.Random, debug: int, num_update_tests: in
         ops.add(ControlLine.RESTART)
 
         # run
-        out_values = run_ops(ops, inputs, debug > 1)
+        out_values = run_ops(ops, inputs)
         assert len(out_values) == 1
         result_yi = out_values[0]
 
 
 
-def test_demodulator(debug: int, num_compare_tests: int, run_ops: RunOps, make_ops: MakeOps) -> None:
+def test_demodulator(num_compare_tests: int, run_ops: RunOps, make_ops: MakeOps) -> None:
     print(f"Test demodulator")
     ops = make_ops()
     demodulator(ops)
@@ -298,7 +300,7 @@ def test_demodulator(debug: int, num_compare_tests: int, run_ops: RunOps, make_o
                 expect_out_values.append(fields[i + 1] >> test_vector_shift)
             test_vector_data = fd.read(test_vector_size)
 
-    out_values = run_ops(ops, in_values, debug > 1)
+    out_values = run_ops(ops, in_values)
     assert len(out_values) == len(expect_out_values)
     correct = 0
     for i in range(len(in_values)):
@@ -315,7 +317,7 @@ def test_demodulator(debug: int, num_compare_tests: int, run_ops: RunOps, make_o
         expect_lower_rc = expect_out_values[(i * out_values_per_in_value) + 3]
         expect_out_bit = expect_out_values[(i * out_values_per_in_value) + 4] & 1
 
-        if debug > 0:
+        if DEBUG > 0:
             print(f"step {i} in {in_values[i]:04x}")
         for (name, expect, actual) in [
                     ("upper_bp", expect_upper_bandpass, actual_upper_bandpass),
@@ -325,14 +327,14 @@ def test_demodulator(debug: int, num_compare_tests: int, run_ops: RunOps, make_o
                 ]:
             fexpect = make_float(expect)
             factual = make_float(actual)
-            if debug > 0:
+            if DEBUG > 0:
                 print(f" {name} expect {expect:04x} {fexpect:8.5f}", end="")
                 print(f" actual {actual:04x} {factual:8.5f} ", end="")
             error = abs(fexpect - factual)
-            if debug > 0:
+            if DEBUG > 0:
                 print(f" error {error:1.6f}")
             assert error < VERY_SMALL_ERROR
-        if debug > 0:
+        if DEBUG > 0:
             error = expect_out_bit ^ actual_out_bit
             print(f" out bit  expect {expect_out_bit} actual {actual_out_bit} error {error} Y {actual_y:04x}")
         if expect_out_bit == actual_out_bit:
@@ -341,19 +343,17 @@ def test_demodulator(debug: int, num_compare_tests: int, run_ops: RunOps, make_o
     print(f"{correct} bits out of {len(in_values)} matched expectations")
     assert correct > (len(in_values) * 0.99)
 
-def test_all(scale: int, debug: int, run_ops: RunOps, make_ops: MakeOps) -> None:
+def test_all(scale: int, run_ops: RunOps, make_ops: MakeOps) -> None:
     r = random.Random(3)
-    test_repeat_and_reset(debug, run_ops, make_ops)
-    test_multiply_accumulate(r, debug, scale * 10, run_ops, make_ops)
-    test_bandpass_filter(r, debug, scale * 10, run_ops, make_ops)
-    test_move_X_to_L_if_Y_is_not_negative(r, debug, scale * 10, run_ops, make_ops)
-    test_set_Y_to_X_minus_reg(r, debug, scale * 10, run_ops, make_ops)
-    test_demodulator(debug, scale * 4000, run_ops, make_ops)
+    test_repeat_and_reset(run_ops, make_ops)
+    test_multiply_accumulate(r, scale * 10, run_ops, make_ops)
+    test_bandpass_filter(r, scale * 10, run_ops, make_ops)
+    test_move_X_to_L_if_Y_is_not_negative(r, scale * 10, run_ops, make_ops)
+    test_set_Y_to_X_minus_reg(r, scale * 10, run_ops, make_ops)
+    test_demodulator(scale * 4000, run_ops, make_ops)
 
 def main() -> None:
-    scale = 10
-    debug = 0
-    test_all(scale, debug, execute.run_ops, OperationList)
+    test_all(MICROOPS_TEST_SCALE, execute.run_ops, OperationList)
 
 if __name__ == "__main__":
     try:
