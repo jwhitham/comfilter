@@ -77,8 +77,15 @@ begin
             fd.write(f"""p <= g; v <= '0'; wait until r = '0' and c = '1' and c'event;\n""")
 
         fd.write(f"""
-        wait until restart_debug_in = '1';
-        wait until c = '1' and c'event;
+        if VERBOSE_DEBUG then
+            write (l, String'("end of test data - waiting for restart_debug_in"));
+            writeline (output, l);
+        end if;
+        wait until restart_debug_in = '1' and c = '1' and c'event;
+        if VERBOSE_DEBUG then
+            write (l, String'("end of test data - setting done = 1"));
+            writeline (output, l);
+        end if;
         done <= '1';
         wait;
     end process;
