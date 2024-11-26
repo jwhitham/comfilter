@@ -222,7 +222,7 @@ class OperationList:
         for op in self.operations:
             yield op
 
-    def generate(self) -> None:
+    def generate(self, debug: bool) -> None:
         with open("generated/disassembly.txt", "wt") as fd:
             self.dump_code(fd)
 

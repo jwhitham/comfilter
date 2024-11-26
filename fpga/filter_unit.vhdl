@@ -1,19 +1,18 @@
 
-library work;
-use work.all;
-
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 use std.textio.all;
+
+library work;
+use work.all;
 use settings.all;
 
 entity filter_unit is
     port (
         clock_in            : in std_logic := '0';
         reset_in            : in std_logic := '0';
-        verbose_debug_in    : in std_logic := '0';
         restart_debug_out   : out std_logic := '0';
         input_ready_out     : out std_logic := '0';
         input_strobe_in     : in std_logic := '0';
@@ -135,7 +134,7 @@ begin
             variable l : line;
         begin
             if clock_in = '1' and clock_in'event then
-                if verbose_debug_in = '1' then
+                if VERBOSE_DEBUG then
                     write (l, String'("uc_code = "));
                     write (l, Integer'(ieee.numeric_std.to_integer(unsigned(uc_code))));
                     writeline (output, l);
@@ -145,13 +144,13 @@ begin
                 if reset_in = '1' or RESTART = '1' then
                     uc_addr <= (others => '1');     -- uc_addr_next will be 0
                     uc_valid <= '0'; -- Next uc_code won't be valid due to control flow
-                    if verbose_debug_in = '1' then
+                    if VERBOSE_DEBUG then
                         write (l, String'("uc_addr -- reset"));
                         writeline (output, l);
                     end if;
                 elsif uc_enable = '1' then
                     uc_addr <= uc_addr_next;
-                    if verbose_debug_in = '1' then
+                    if VERBOSE_DEBUG then
                         write (l, String'("uc_addr := "));
                         write (l, Integer'(ieee.numeric_std.to_integer(uc_addr_next)));
                         writeline (output, l);
@@ -200,7 +199,6 @@ begin
                     reg_out => x_out,
                     shift_right_in => SHIFT_X_RIGHT,
                     reg_in => x_mux,
-                    verbose_debug_in => verbose_debug_in,
                     debug_out => x_debug_value,
                     negative_out => open,
                     clock_in => clock_in);
@@ -241,7 +239,6 @@ begin
                     reg_out => y_out,
                     shift_right_in => SHIFT_Y_RIGHT,
                     reg_in => y_in,
-                    verbose_debug_in => verbose_debug_in,
                     debug_out => y_debug_value,
                     negative_out => y_is_negative,
                     clock_in => clock_in);
@@ -254,21 +251,21 @@ begin
         process (clock_in) is
             variable l : line;
             variable new_i0_value : std_logic_vector(ALL_BITS - 1 downto 0) := (others => '0');
-            variable print_i0 : std_logic := '0';
+            variable print_i0 : Boolean := false;
         begin
             if clock_in = '1' and clock_in'event then
                 print_i0 := '0';
                 if LOAD_I0_FROM_INPUT = '1' then
                     new_i0_value := input_data_in;
                     i0_value <= new_i0_value;
-                    print_i0 := verbose_debug_in;
+                    print_i0 := VERBOSE_DEBUG;
                 elsif SHIFT_I0_RIGHT = '1' then
                     new_i0_value(ALL_BITS - 1) := reg_out;
                     new_i0_value(ALL_BITS - 2 downto 0) := i0_value(ALL_BITS - 1 downto 1);
                     i0_value <= new_i0_value;
-                    print_i0 := verbose_debug_in;
+                    print_i0 := VERBOSE_DEBUG;
                 end if;
-                if print_i0 = '1' then
+                if print_i0 then
                     write (l, String'("I0 := "));
                     write (l, Integer'(ieee.numeric_std.to_integer(signed(new_i0_value))));
                     writeline (output, l);
@@ -347,7 +344,7 @@ begin
                     new_a_value(A_BITS - 1) := reg_out;
                     new_a_value(A_BITS - 2 downto 0) := a_value(A_BITS - 1 downto 1);
                     a_value <= new_a_value;
-                    if verbose_debug_in = '1' then
+                    if VERBOSE_DEBUG then
                         write (l, String'("A := "));
                         write (l, Integer'(ieee.numeric_std.to_integer(new_a_value)));
                         writeline (output, l);
@@ -422,7 +419,7 @@ begin
                         when others =>
                             null;
                     end case;
-                    if verbose_debug_in = '1' then
+                    if VERBOSE_DEBUG then
                         write (l, String'("mux select = "));
                         write (l, ieee.numeric_std.to_integer(unsigned(mux_select)));
                         writeline (output, l);

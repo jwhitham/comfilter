@@ -15,14 +15,14 @@ FPGA_DIR = Path("fpga").absolute()
 GHDL_OUTPUT = Path("generated/ghdl_output.txt").absolute()
 
 def fpga_run_ops(ops: FPGAOperationList, in_values: typing.List[int], debug: bool) -> typing.List[int]:
-    ops.generate()
-    make_test_bench.make_test_bench(in_values=in_values, verbose=debug)
+    ops.generate(debug)
+    make_test_bench.make_test_bench(in_values=in_values)
     subprocess.check_call(["ghdl", "--remove"], cwd=FPGA_DIR)
     subprocess.check_call(["ghdl", "-a", "--work=work",
+            "../generated/settings.vhdl",
             "../generated/control_line_decoder.vhdl",
             "../generated/microcode_store.test.vhdl",
             "../generated/test_signal_generator.vhdl",
-            "../generated/settings.vhdl",
             "shift_register.vhdl",
             "banked_shift_register.vhdl",
             "subtractor.vhdl",

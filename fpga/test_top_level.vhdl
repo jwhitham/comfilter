@@ -1,12 +1,12 @@
 
-library work;
-use work.all;
-
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 use std.textio.all;
+
+library work;
+use work.all;
 use settings.all;
 
 entity test_top_level is
@@ -18,7 +18,6 @@ architecture structural of test_top_level is
     signal done                 : std_logic := '0';
     signal clock                : std_logic := '0';
     signal reset                : std_logic := '0';
-    signal verbose_debug        : std_logic := '0';
 
     signal input_value          : std_logic_vector(ALL_BITS - 1 downto 0) := (others => '0');
     signal input_strobe         : std_logic := '0';
@@ -31,7 +30,6 @@ begin
     test_signal_gen : entity test_signal_generator
         port map (done_out => done,
                 clock_out => clock,
-                verbose_debug_out => verbose_debug,
                 input_ready_in => input_ready,
                 restart_debug_in => restart_debug,
                 strobe_out => input_strobe,
@@ -41,7 +39,6 @@ begin
     test_filter_unit : entity filter_unit
         port map (clock_in => clock,
                 reset_in => reset,
-                verbose_debug_in => verbose_debug,
                 input_strobe_in => input_strobe,
                 input_data_in => input_value,
                 input_ready_out => input_ready,
