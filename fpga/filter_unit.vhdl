@@ -118,7 +118,7 @@ begin
         store : entity microcode_store 
             port map (
                     uc_data_out => uc_code,
-                    uc_addr_in => std_logic_vector(uc_addr_next),
+                    uc_addr_in => std_logic_vector(uc_addr),
                     enable_in => uc_enable,
                     clock_in => clock_in);
 
@@ -142,7 +142,7 @@ begin
                 bit_counter <= ALL_BITS - 1;
                 uc_valid <= '1';
                 if reset_in = '1' or RESTART = '1' then
-                    uc_addr <= (others => '1');     -- uc_addr_next will be 0
+                    uc_addr <= (others => '0');
                     uc_valid <= '0'; -- Next uc_code won't be valid due to control flow
                     if VERBOSE_DEBUG then
                         write (l, String'("uc_addr -- reset"));
