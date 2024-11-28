@@ -394,7 +394,7 @@ begin
         reg_mux(7) <= i0_out; -- I0 = 7
         reg_mux(8) <= i1_out; -- I1 = 8
         reg_mux(9) <= i2_out; -- I2 = 9
-        reg_mux(15 downto 10) <= '1'; -- ONE = 10
+        reg_mux(15 downto 10) <= (others => '1'); -- ONE = 10
         reg_out <= reg_mux(mux_register);
 
         process (clock_in) is
