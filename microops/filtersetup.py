@@ -13,6 +13,9 @@ from hardware import (
         OperationList, Register, ControlLine,
         ALL_BITS, A_BITS, R_BITS,
     )
+from fpga_hardware import (
+        FPGAOperationList,
+    )
 import enum, math, typing
 
 def make_fixed(value: float) -> int:
@@ -279,7 +282,7 @@ def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[fl
     ops.debug(Debug.SEND_O1_TO_OUTPUT)
 
 def main() -> None:
-    ops = OperationList()
+    ops = FPGAOperationList()
     demodulator(ops)
     ops.generate()
 

@@ -19,6 +19,7 @@ class MuxCode(enum.Enum):
     I0 = 7
     I1 = 8
     I2 = 9
+    ONE = 10
     BANK_SWITCH = 14
     L_OR_X = 15
 
@@ -33,6 +34,7 @@ class Register(enum.Enum):
     I0 = MuxCode.I0.value
     I1 = MuxCode.I1.value
     I2 = MuxCode.I2.value
+    ONE = MuxCode.ONE.value
     # Hidden registers
     LS = -1
     O1S = -2

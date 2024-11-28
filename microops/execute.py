@@ -154,6 +154,7 @@ def run_ops(ops: OperationList, in_values: typing.List[int]) -> typing.List[int]
         reg_file[gr] = 0
     for sr in SpecialRegister:
         reg_file[sr] = 0
+    reg_file[Register.ONE] = 1
     op_index = 0
     out_values: typing.List[int] = []
     reverse_in_values = list(reversed(in_values))
