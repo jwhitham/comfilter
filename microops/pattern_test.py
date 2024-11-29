@@ -6,8 +6,8 @@ from hardware import (
 from fpga_hardware import (
         FPGAOperationList,
     )
-from execute import (
-        run_ops,
+from fpga_test import (
+        fpga_run_ops,
     )
 import typing
 
@@ -27,10 +27,10 @@ def output_pattern_from_input(ops: OperationList) -> None:
     ops.add(ControlLine.RESTART)
 
 def test_output_pattern_from_input() -> None:
-    ops = OperationList()
+    ops = FPGAOperationList()
     output_pattern_from_input(ops)
     in_values = [0x155, 0x299, 0x0fe]
-    out_values = run_ops(ops, in_values)
+    out_values = fpga_run_ops(ops, in_values)
     assert len(out_values) == (len(in_values) * NUM_TEST_BITS)
     for i in range(len(in_values)):
         for j in range(NUM_TEST_BITS):
@@ -39,6 +39,7 @@ def test_output_pattern_from_input() -> None:
             assert actual == expect
 
 def output_pattern_from_rom(ops: OperationList, pattern: typing.List[int]) -> None:
+    ops.add(ControlLine.LOAD_I0_FROM_INPUT)
     for data in pattern:
         for i in range(NUM_TEST_BITS):
             if (data >> i) & 1:
@@ -52,10 +53,10 @@ def output_pattern_from_rom(ops: OperationList, pattern: typing.List[int]) -> No
     ops.add(ControlLine.RESTART)
 
 def test_output_pattern_from_rom() -> None:
-    ops = OperationList()
+    ops = FPGAOperationList()
     pattern = [0x155, 0x299, 0x0fe]
     output_pattern_from_rom(ops, pattern)
-    out_values = run_ops(ops, [])
+    out_values = fpga_run_ops(ops, [1])
     assert len(out_values) == (len(pattern) * NUM_TEST_BITS)
     for i in range(len(pattern)):
         for j in range(NUM_TEST_BITS):
@@ -65,7 +66,7 @@ def test_output_pattern_from_rom() -> None:
 
 def main() -> None:
     ops = FPGAOperationList()
-    output_pattern_from_rom(ops, [((ord(data) | 0x100) << 1) for data in "Hi!"])
+    output_pattern_from_rom(ops, [0x155, 0x299, 0x0fe])
     ops.generate()
     test_output_pattern_from_input()
     test_output_pattern_from_rom()

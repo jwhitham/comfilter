@@ -66,8 +66,8 @@ begin
     test_A1 <= serial_ready;
     test_D3 <= reset;
     test_B1 <= clock_2;
-    input_value <= (others => dummy);
-    input_strobe <= dummy;
+    input_value <= (others => '1');
+    input_strobe <= '1';
     lcols_out (0) <= '0';
     lcols_out (3 downto 1) <= (others => '1');
     lrows_out (0) <= reset;
