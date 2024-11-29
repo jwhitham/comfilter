@@ -55,7 +55,7 @@ process (code_in, control_line_enable) is begin
             else:
                 for name in key.split(","):
                     fd.write(f"  {name} <= control_line_enable;\n")
-        fd.write("""when others => null;
+        fd.write("""when others => RESTART <= control_line_enable;
 end case;
 end process;
 end structural;
@@ -155,18 +155,19 @@ architecture structural of microcode_store is
         k = 0
         for block in range(num_blocks):
             fd.write(f"ram{block} : SB_RAM512x8 generic map (\n")
-            # This assumes the left-most value in INIT_0 represents the
-            # byte at address 0 in the ROM; in fact, it may be byte 31.
+            # The right-most value in INIT_0 represents the byte at address 0 in the ROM
             for i in range(16):
                 if i != 0:
                     fd.write(",\n")
                 fd.write(f'INIT_{i:X} => X"')
+                k += 31
                 for j in range(32):
                     if k < len(memory):
                         fd.write(f"{memory[k]:02X}")
                     else:
                         fd.write(f"{UNUSED_CODE:02X}")
-                    k += 1
+                    k -= 1
+                k += 32
                 fd.write('"')
             fd.write(f""")\nport map (
 RDATA => uc_data_{block},
