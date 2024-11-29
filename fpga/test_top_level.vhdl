@@ -14,7 +14,6 @@ end test_top_level;
 
 architecture structural of test_top_level is
 
-    constant ALL_BITS           : Natural := 16;
     signal done                 : std_logic := '0';
     signal clock                : std_logic := '0';
     signal reset                : std_logic := '0';

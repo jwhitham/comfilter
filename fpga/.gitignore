@@ -1,1 +1,6 @@
-output.txt
+test_signal_generator.vhdl
+*.cf
+project/*_Implmnt
+*.log
+*.tcl
+*.bak

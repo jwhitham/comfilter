@@ -113,9 +113,45 @@ end microcode_store;
 architecture structural of microcode_store is
     signal one      : std_logic := '1';
     signal unused   : std_logic_vector(8 downto 0) := (others => '0');
-begin\n""")
+
+    component SB_RAM512x8 is
+        generic (
+            INIT_0 : std_logic_vector(255 downto 0);
+            INIT_1 : std_logic_vector(255 downto 0);
+            INIT_2 : std_logic_vector(255 downto 0);
+            INIT_3 : std_logic_vector(255 downto 0);
+            INIT_4 : std_logic_vector(255 downto 0);
+            INIT_5 : std_logic_vector(255 downto 0);
+            INIT_6 : std_logic_vector(255 downto 0);
+            INIT_7 : std_logic_vector(255 downto 0);
+            INIT_8 : std_logic_vector(255 downto 0);
+            INIT_9 : std_logic_vector(255 downto 0);
+            INIT_A : std_logic_vector(255 downto 0);
+            INIT_B : std_logic_vector(255 downto 0);
+            INIT_C : std_logic_vector(255 downto 0);
+            INIT_D : std_logic_vector(255 downto 0);
+            INIT_E : std_logic_vector(255 downto 0);
+            INIT_F : std_logic_vector(255 downto 0));
+        port (
+            RDATA       : out std_logic_vector (7 downto 0);
+            RADDR       : in std_logic_vector (8 downto 0);
+            WADDR       : in std_logic_vector (8 downto 0);
+            WDATA       : in std_logic_vector (7 downto 0);
+            RCLKE       : in std_logic;
+            RCLK        : in std_logic;
+            RE          : in std_logic;
+            WCLKE       : in std_logic;
+            WCLK        : in std_logic;
+            WE          : in std_logic);
+    end component SB_RAM512x8;
+""")
+
         block_size = 512
         num_blocks = (len(memory) + block_size - 1) // block_size
+        for block in range(num_blocks):
+            fd.write(f"signal uc_data_{block} : std_logic_vector(7 downto 0) := (others => '0');\n")
+        fd.write(f"begin\n")
+
         k = 0
         for block in range(num_blocks):
             fd.write(f"ram{block} : SB_RAM512x8 generic map (\n")
