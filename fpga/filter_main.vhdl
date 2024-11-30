@@ -33,25 +33,18 @@ architecture structural of filter_main is
     signal reset_count          : reset_count_t := 15;
     subtype slow_count_t is Natural range 0 to 4799;
     signal slow_count           : slow_count_t := 0;
-    signal clock                : std_logic := '0';
     signal clock_2              : std_logic := '0';
-    signal dummy                : std_logic := '0';
     signal reset                : std_logic := '1';
     signal test_A3_copy         : std_logic := '0';
     signal test_A2_copy         : std_logic := '0';
     signal test_C3_copy         : std_logic := '0';
 
-    signal serial_ready         : std_logic := '0';
-    signal serial_data          : std_logic := '0';
-    signal input_ready          : std_logic := '0';
-    signal restart_debug        : std_logic := '0';
-    signal data_strobe          : std_logic := '0';
-    signal data_value           : std_logic := '0';
     signal serial_shift_register: std_logic_vector(7 downto 0) := (others => '0');
     signal uc_code              : std_logic_vector(7 downto 0) := (others => '0');
 
     signal uc_addr      : unsigned(UC_ADDR_BITS - 1 downto 0) := (others => '1');
     signal uc_enable    : std_logic := '1';
+    signal flip         : std_logic := '1';
 
     component microcode_store is port (
             uc_data_out : out std_logic_vector (7 downto 0) := (others => '0');
@@ -73,16 +66,19 @@ begin
     begin
         if clock_2 = '1' and clock_2'event then
             test_A2_copy <= '0';
-            test_A3_copy <= serial_shift_register(0);
+            test_A3_copy <= serial_shift_register(0) xor flip;
             test_C3_copy <= '0';
 
             if cycle = 0 then
                 serial_shift_register <= uc_code;
-                uc_addr <= uc_addr + 1;
                 test_A2_copy <= '1';
                 cycle <= 7;
-                if uc_addr = 0 then
+                if uc_addr = 250 then
                     test_C3_copy <= '1';
+                    flip <= not flip;
+                    uc_addr <= 0;
+                else
+                    uc_addr <= uc_addr + 1;
                 end if;
             else
                 cycle <= cycle - 1;
@@ -94,20 +90,21 @@ begin
                     
     test_A3 <= test_A3_copy;
     test_A2 <= test_A2_copy;
-    test_A1 <= serial_ready;
+    test_A1 <= reset;
     test_C3 <= test_C3_copy;
     test_D3 <= reset;
     test_B1 <= clock_2;
 
     lcols_out (0) <= '0';
     lcols_out (3 downto 1) <= (others => '1');
-    lrows_out (0) <= reset;
-    lrows_out (1) <= clock_2;
-    lrows_out (2) <= test_A3_copy;
-    lrows_out (3) <= test_A2_copy;
-    lrows_out (4) <= serial_ready;
-    lrows_out (5) <= test_C3_copy;
-    lrows_out (6) <= dummy;
+--    lrows_out (0) <= reset;
+--    lrows_out (1) <= clock_2;
+--    lrows_out (2) <= test_A3_copy;
+--    lrows_out (3) <= test_A2_copy;
+--    lrows_out (4) <= reset;
+--    lrows_out (5) <= test_C3_copy;
+--    lrows_out (6) <= flip;
+    lrows_out (7 downto 0) <= std_logic_vector(uc_addr) (7 downto 0);
 
     process (clock_in) is
     begin
@@ -121,7 +118,6 @@ begin
                         reset <= '1';
                         reset_count <= reset_count - 1;
                     end if;
-                    dummy <= not dummy;
                 end if;
                 slow_count <= 4799;
             else
