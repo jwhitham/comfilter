@@ -4,7 +4,7 @@ Version=Lattice Semiconductor Corporation iCEcube - Release: 2020.12.27943 - Bui
 ProjectName=filter
 Vendor=SiliconBlue
 Synthesis=synplify
-ProjectVFiles=filter_pll.vhd=work,filter_top.vhdl=work,../filter_main.vhdl=work,../../generated/settings.vhdl=work,../microcode_store.v
+ProjectVFiles=filter_pll.vhd=work,filter_top.vhdl=work,../filter_main.vhdl=work,../../generated/settings.vhdl=work,../../generated/microcode_store.vhdl
 ProjectCFiles=syn_config.sdc
 CurImplementation=filter_Implmnt
 Implementations=filter_Implmnt
@@ -19,9 +19,9 @@ DevicePower=
 NetlistFile=filter_Implmnt/filter.edf
 AdditionalEDIFFile=
 IPEDIFFile=
-DesignLib=
-DesignView=
-DesignCell=
+DesignLib=filter_Implmnt/sbt/netlist/oadb-filter_top
+DesignView=_ep
+DesignCell=filter_top
 SynthesisSDCFile=filter_Implmnt/filter.scf
 UserPinConstraintFile=
 UserSDCFile=

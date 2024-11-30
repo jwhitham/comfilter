@@ -70,7 +70,7 @@ class FPGAOperationList(OperationList):
         OperationList.generate(self)
         with open("generated/control_line_decoder.vhdl", "wt") as fd:
             self.dump_control_line_decoder(fd)
-        with open("generated/microcode_store.v", "wt") as fd:
+        with open("generated/microcode_store.vhdl", "wt") as fd:
             self.dump_lattice_rom(fd)
         with open("generated/microcode_store.test.vhdl", "wt") as fd:
             self.dump_test_rom(fd)
@@ -102,38 +102,65 @@ end package settings;\n""")
     def dump_lattice_rom(self, fd: typing.IO) -> None:
         memory = self.get_memory_image()
         uc_addr_bits = self.get_uc_addr_bits(len(memory))
-        fd.write(f"""
-module microcode_store (uc_data_out, uc_addr_in, enable_in, clock_in);
-    input clock_in;
-    input enable_in;
-    input [{uc_addr_bits - 1}:0] uc_addr_in;
-    output [7:0] uc_data_out;
+        fd.write(f"""library ieee;
+use ieee.std_logic_1164.all;
+entity microcode_store is port (
+        uc_data_out : out std_logic_vector (7 downto 0) := (others => '0');
+        uc_addr_in  : in std_logic_vector ({uc_addr_bits - 1} downto 0) := (others => '0');
+        enable_in   : in std_logic := '0';
+        clock_in    : in std_logic := '0');
+end microcode_store;
+architecture structural of microcode_store is
+    signal one      : std_logic := '1';
+    signal unused   : std_logic_vector(8 downto 0) := (others => '0');
 
-    wire one = 1'b1;
-    wire unused [8:0] = 9'b0;\n""")
+    component SB_RAM512x8 is
+        generic (
+            INIT_0 : std_logic_vector(255 downto 0);
+            INIT_1 : std_logic_vector(255 downto 0);
+            INIT_2 : std_logic_vector(255 downto 0);
+            INIT_3 : std_logic_vector(255 downto 0);
+            INIT_4 : std_logic_vector(255 downto 0);
+            INIT_5 : std_logic_vector(255 downto 0);
+            INIT_6 : std_logic_vector(255 downto 0);
+            INIT_7 : std_logic_vector(255 downto 0);
+            INIT_8 : std_logic_vector(255 downto 0);
+            INIT_9 : std_logic_vector(255 downto 0);
+            INIT_A : std_logic_vector(255 downto 0);
+            INIT_B : std_logic_vector(255 downto 0);
+            INIT_C : std_logic_vector(255 downto 0);
+            INIT_D : std_logic_vector(255 downto 0);
+            INIT_E : std_logic_vector(255 downto 0);
+            INIT_F : std_logic_vector(255 downto 0));
+        port (
+            RDATA       : out std_logic_vector (7 downto 0);
+            RADDR       : in std_logic_vector (8 downto 0);
+            WADDR       : in std_logic_vector (8 downto 0);
+            WDATA       : in std_logic_vector (7 downto 0);
+            RCLKE       : in std_logic;
+            RCLK        : in std_logic;
+            RE          : in std_logic;
+            WCLKE       : in std_logic;
+            WCLK        : in std_logic;
+            WE          : in std_logic);
+    end component SB_RAM512x8;
+""")
 
         block_size = 512
         num_blocks = (len(memory) + block_size - 1) // block_size
         for block in range(num_blocks):
-            fd.write(f"wire uc_data_{block} [7:0];\n")
+            fd.write(f"signal uc_data_{block} : std_logic_vector(7 downto 0) := (others => '0');\n")
+        fd.write(f"begin\n")
 
         row_size = 32
         k = 0
         for block in range(num_blocks):
-            fd.write(f"""SB_RAM512x8 ram{block} (
-.RDATA(uc_data_{block}[7:0]),
-.RADDR(uc_addr_in[8:0]),
-.RCLK(clock_in),
-.RCLKE(one),
-.RE(enable_in),
-.WADDR(unused[8:0]),
-.WCLK(clock_in),
-.WCLKE(unused[0]),
-.WDATA(unused[7:0]),
-.WE(unused[0]));\n""")
+            fd.write(f"ram{block} : SB_RAM512x8 generic map (\n")
             # The right-most value in INIT_0 represents the byte at address 0 in the ROM
             for i in range(16):
-                fd.write(f"defparam ram{block}.INIT_{i:X} = 256'h")
+                if i != 0:
+                    fd.write(",\n")
+                fd.write(f'INIT_{i:X} => X"')
                 k += row_size
                 for j in range(row_size):
                     k -= 1
@@ -142,22 +169,27 @@ module microcode_store (uc_data_out, uc_addr_in, enable_in, clock_in);
                     else:
                         fd.write(f"{UNUSED_CODE:02X}")
                 k += row_size
-                fd.write(";\n")
-        high_bits = uc_addr_bits - 9
-        if high_bits <= 0:
-            fd.write(f"assign uc_data_out[7:0] = uc_data_0[7:0];\n")
+                fd.write('"')
+            fd.write(f""")\nport map (
+RDATA => uc_data_{block},
+RADDR => uc_addr_in(8 downto 0),
+RCLK => clock_in,
+RCLKE => one,
+RE => enable_in,
+WADDR => unused(8 downto 0),
+WDATA => unused(7 downto 0),
+WCLK => clock_in,
+WCLKE => unused(0),
+WE => unused(0));\n""")
+        if uc_addr_bits <= 9:
+            fd.write("uc_data_out <= uc_data_0;\n")
         else:
-            fd.write(f"always @(uc_addr_in")
+            fd.write("uc_data_out <=\n")
             for block in range(num_blocks):
-                fd.write(f", uc_data_{block}")
-
-            fd.write(f") begin\ncase(uc_addr_in[{uc_addr_bits - 1}:9])\n")
-            fmt_string = "{}'b{:0" + str(high_bits) + 'b} : uc_data_out [7:0] = uc_data_{} [7:0];\n'
-            for block in range(1 << high_bits):
-                block = min(block, num_blocks - 1)
-                fd.write(fmt_string.format(high_bits, block, block))
-            fd.write("endcase\nend\n")
-        fd.write("endmodule\n")
+                fd.write(f"uc_data_{block} when conv_integer("
+                        f"uc_addr_in(uc_addr_bits - 1 downto 9)) = {block} else\n")
+            fd.write(f"x\"{UNUSED_CODE:02x}\";\n")
+        fd.write("end structural;\n")
 
     def dump_test_rom(self, fd: typing.IO) -> None:
         memory = self.get_memory_image()
