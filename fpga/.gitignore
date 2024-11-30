@@ -4,3 +4,4 @@ project/*_Implmnt
 *.log
 *.tcl
 *.bak
+*.o

@@ -27,6 +27,8 @@ end filter_main;
 
 architecture structural of filter_main is
 
+    subtype cycle_count_t is Natural range 0 to 7;
+    signal cycle                : cycle_count_t := 7;
     subtype reset_count_t is Natural range 0 to 15;
     signal reset_count          : reset_count_t := 15;
     subtype slow_count_t is Natural range 0 to 4799;
@@ -41,33 +43,56 @@ architecture structural of filter_main is
 
     signal serial_ready         : std_logic := '0';
     signal serial_data          : std_logic := '0';
-    signal input_value          : std_logic_vector(ALL_BITS - 1 downto 0) := (others => '0');
-    signal input_strobe         : std_logic := '0';
     signal input_ready          : std_logic := '0';
     signal restart_debug        : std_logic := '0';
     signal data_strobe          : std_logic := '0';
     signal data_value           : std_logic := '0';
+    signal serial_shift_register: std_logic_vector(7 downto 0) := (others => '0');
+    signal uc_code              : std_logic_vector(7 downto 0) := (others => '0');
+
+    signal uc_addr      : unsigned(UC_ADDR_BITS - 1 downto 0) := (others => '1');
+    signal uc_enable    : std_logic := '1';
 
 begin
-    ifu : entity filter_unit
-        port map (clock_in => clock_2,
-                reset_in => reset,
-                input_strobe_in => input_strobe,
-                input_data_in => input_value,
-                input_ready_out => test_A3_copy,
-                restart_debug_out => test_A2_copy,
-                serial_ready_out => serial_ready,
-                serial_data_out => serial_data);
+    store : entity microcode_store 
+        port map (
+                uc_data_out => uc_code,
+                uc_addr_in => std_logic_vector(uc_addr),
+                enable_in => uc_enable,
+                clock_in => clock_2);
 
+    uc_enable <= '1';
+
+    process (clock_2) is
+    begin
+        if clock_2 = '1' and clock_2'event then
+            test_A2_copy <= '0';
+            test_A3_copy <= serial_shift_register(0);
+            test_C3_copy <= '0';
+
+            if cycle = 0 then
+                serial_shift_register <= uc_code;
+                uc_addr <= uc_addr + 1;
+                test_A2_copy <= '1';
+                cycle <= 7;
+                if uc_addr = 0 then
+                    test_C3_copy <= '1';
+                end if;
+            else
+                cycle <= cycle - 1;
+                serial_shift_register (6 downto 0) <= serial_shift_register (7 downto 1);
+                serial_shift_register (7) <= '1';
+            end if;
+        end if;
+    end process;
+                    
     test_A3 <= test_A3_copy;
     test_A2 <= test_A2_copy;
-    test_C3 <= test_C3_copy;
-
     test_A1 <= serial_ready;
+    test_C3 <= test_C3_copy;
     test_D3 <= reset;
     test_B1 <= clock_2;
-    input_value <= (others => '1');
-    input_strobe <= '1';
+
     lcols_out (0) <= '0';
     lcols_out (3 downto 1) <= (others => '1');
     lrows_out (0) <= reset;
@@ -77,15 +102,6 @@ begin
     lrows_out (4) <= serial_ready;
     lrows_out (5) <= test_C3_copy;
     lrows_out (6) <= dummy;
-
-    process (clock_2) is
-    begin
-        if clock_2 = '1' and clock_2'event then
-            if serial_ready = '1' then
-                test_C3_copy <= serial_data;
-            end if;
-        end if;
-    end process;
 
     process (clock_in) is
     begin

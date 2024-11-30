@@ -64,12 +64,17 @@ def test_output_pattern_from_rom() -> None:
             expect = (pattern[i] >> j) & 1
             assert actual == expect
 
+class CounterROMTest(FPGAOperationList):
+    def get_memory_image(self) -> bytes:
+        return bytes([x & 0xff for x in range(512)])
+
 def main() -> None:
     ops = FPGAOperationList()
     output_pattern_from_rom(ops, [0x155, 0x299, 0x0fe])
     ops.generate()
     test_output_pattern_from_input()
     test_output_pattern_from_rom()
+    CounterROMTest().generate()
 
 
 if __name__ == "__main__":

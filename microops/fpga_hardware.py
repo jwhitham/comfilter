@@ -152,6 +152,7 @@ architecture structural of microcode_store is
             fd.write(f"signal uc_data_{block} : std_logic_vector(7 downto 0) := (others => '0');\n")
         fd.write(f"begin\n")
 
+        row_size = 32
         k = 0
         for block in range(num_blocks):
             fd.write(f"ram{block} : SB_RAM512x8 generic map (\n")
@@ -160,14 +161,14 @@ architecture structural of microcode_store is
                 if i != 0:
                     fd.write(",\n")
                 fd.write(f'INIT_{i:X} => X"')
-                k += 31
-                for j in range(32):
+                k += row_size
+                for j in range(row_size):
+                    k -= 1
                     if k < len(memory):
                         fd.write(f"{memory[k]:02X}")
                     else:
                         fd.write(f"{UNUSED_CODE:02X}")
-                    k -= 1
-                k += 32
+                k += row_size
                 fd.write('"')
             fd.write(f""")\nport map (
 RDATA => uc_data_{block},
