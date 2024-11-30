@@ -44,16 +44,9 @@ architecture structural of filter_main is
 
     signal uc_addr      : unsigned(UC_ADDR_BITS - 1 downto 0) := (others => '1');
     signal uc_enable    : std_logic := '1';
-    signal flip         : std_logic := '1';
 
-    component microcode_store is port (
-            uc_data_out : out std_logic_vector (7 downto 0) := (others => '0');
-            uc_addr_in  : in std_logic_vector (8 downto 0) := (others => '0');
-            enable_in   : in std_logic := '0';
-            clock_in    : in std_logic := '0');
-    end component microcode_store;
 begin
-    store : microcode_store 
+    store : entity microcode_store 
         port map (
                 uc_data_out => uc_code,
                 uc_addr_in => std_logic_vector(uc_addr),
@@ -66,7 +59,7 @@ begin
     begin
         if clock_2 = '1' and clock_2'event then
             test_A2_copy <= '0';
-            test_A3_copy <= serial_shift_register(0) xor flip;
+            test_A3_copy <= serial_shift_register(0);
             test_C3_copy <= '0';
 
             if cycle = 0 then
@@ -75,7 +68,6 @@ begin
                 cycle <= 7;
                 if uc_addr = 250 then
                     test_C3_copy <= '1';
-                    flip <= not flip;
                     uc_addr <= 0;
                 else
                     uc_addr <= uc_addr + 1;
@@ -97,14 +89,12 @@ begin
 
     lcols_out (0) <= '0';
     lcols_out (3 downto 1) <= (others => '1');
---    lrows_out (0) <= reset;
---    lrows_out (1) <= clock_2;
---    lrows_out (2) <= test_A3_copy;
---    lrows_out (3) <= test_A2_copy;
---    lrows_out (4) <= reset;
---    lrows_out (5) <= test_C3_copy;
---    lrows_out (6) <= flip;
-    lrows_out (7 downto 0) <= std_logic_vector(uc_addr) (7 downto 0);
+    lrows_out (0) <= reset;
+    lrows_out (1) <= clock_2;
+    lrows_out (2) <= test_A3_copy;
+    lrows_out (3) <= test_A2_copy;
+    lrows_out (4) <= reset;
+    lrows_out (5) <= test_C3_copy;
 
     process (clock_in) is
     begin
