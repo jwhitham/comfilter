@@ -53,8 +53,14 @@ architecture structural of filter_main is
     signal uc_addr      : unsigned(UC_ADDR_BITS - 1 downto 0) := (others => '1');
     signal uc_enable    : std_logic := '1';
 
+    component microcode_store is port (
+            uc_data_out : out std_logic_vector (7 downto 0) := (others => '0');
+            uc_addr_in  : in std_logic_vector (8 downto 0) := (others => '0');
+            enable_in   : in std_logic := '0';
+            clock_in    : in std_logic := '0');
+    end component microcode_store;
 begin
-    store : entity microcode_store 
+    store : microcode_store 
         port map (
                 uc_data_out => uc_code,
                 uc_addr_in => std_logic_vector(uc_addr),

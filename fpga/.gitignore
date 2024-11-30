@@ -5,3 +5,4 @@ project/*_Implmnt
 *.tcl
 *.bak
 *.o
+*.json
