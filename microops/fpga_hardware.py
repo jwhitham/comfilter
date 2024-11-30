@@ -115,7 +115,7 @@ module microcode_store (uc_data_out, uc_addr_in, enable_in, clock_in);
         block_size = 512
         num_blocks = (len(memory) + block_size - 1) // block_size
         for block in range(num_blocks):
-            fd.write(f"wire uc_data_{block} [7:0] = 8'b0;\n")
+            fd.write(f"wire uc_data_{block} [7:0];\n")
 
         row_size = 32
         k = 0
@@ -145,10 +145,14 @@ module microcode_store (uc_data_out, uc_addr_in, enable_in, clock_in);
                 fd.write(";\n")
         high_bits = uc_addr_bits - 9
         if high_bits <= 0:
-            fd.write("assign uc_data_out = uc_data_0;\n")
+            fd.write(f"assign uc_data_out[7:0] = uc_data_0[7:0];\n")
         else:
-            fd.write(f"always @(uc_addr_in) begin\ncase(uc_addr_in[{uc_addr_bits - 1}:9])\n")
-            fmt_string = "{}'b{:0" + str(high_bits) + 'b} : uc_data_out = uc_data_{};\n'
+            fd.write(f"always @(uc_addr_in")
+            for block in range(num_blocks):
+                fd.write(f", uc_data_{block}")
+
+            fd.write(f") begin\ncase(uc_addr_in[{uc_addr_bits - 1}:9])\n")
+            fmt_string = "{}'b{:0" + str(high_bits) + 'b} : uc_data_out [7:0] = uc_data_{} [7:0];\n'
             for block in range(1 << high_bits):
                 block = min(block, num_blocks - 1)
                 fd.write(fmt_string.format(high_bits, block, block))
