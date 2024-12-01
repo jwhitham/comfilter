@@ -47,6 +47,8 @@ def output_pattern_from_input(ops: OperationList) -> None:
     ops.add(ControlLine.REPEAT_FOR_ALL_BITS)
     ops.add(ControlLine.RESTART)
 
+    output_pattern_from_rom(ops, [0xab, 0xcd])
+
 def test_output_pattern_from_input() -> None:
     ops = FPGAOperationList()
     output_pattern_from_input(ops)

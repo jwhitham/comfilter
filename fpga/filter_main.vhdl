@@ -51,6 +51,7 @@ architecture structural of filter_main is
     signal restart_debug        : std_logic := '0';
     signal data_strobe          : std_logic := '0';
     signal data_value           : std_logic := '0';
+    signal i0_debug             : std_logic := '0';
 
     constant byte_array_size    : Natural := 8;
     subtype byte_t is std_logic_vector(7 downto 0);
@@ -75,6 +76,7 @@ begin
                 input_strobe_in => input_strobe,
                 input_data_in => input_value,
                 input_ready_out => test_A3_copy,
+                i0_debug_out => i0_debug,
                 restart_debug_out => test_A2_copy,
                 serial_ready_out => serial_ready,
                 serial_data_out => serial_data);
@@ -84,7 +86,7 @@ begin
     test_C3 <= test_C3_copy;
 
     test_A1 <= serial_ready;
-    test_D3 <= reset;
+    test_D3 <= i0_debug;
     test_B1 <= clock_2;
     lcols_out (0) <= '0';
     lcols_out (3 downto 1) <= (others => '1');
@@ -94,6 +96,7 @@ begin
     lrows_out (3) <= not test_A2_copy;
     lrows_out (4) <= not serial_ready;
     lrows_out (5) <= not test_C3_copy;
+    lrows_out (6) <= not i0_debug;
 
     process (clock_2) is
     begin
