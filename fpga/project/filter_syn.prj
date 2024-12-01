@@ -4,9 +4,14 @@
 
 add_file -vhdl -lib work "filter_pll.vhd" 
 add_file -vhdl -lib work "filter_top.vhdl" 
+add_file -vhdl -lib work "../banked_shift_register.vhdl" 
 add_file -vhdl -lib work "../filter_main.vhdl" 
-add_file -vhdl -lib work "../../generated/settings.vhdl" 
+add_file -vhdl -lib work "../filter_unit.vhdl" 
+add_file -vhdl -lib work "../shift_register.vhdl" 
+add_file -vhdl -lib work "../subtractor.vhdl" 
+add_file -vhdl -lib work "../../generated/control_line_decoder.vhdl" 
 add_file -vhdl -lib work "../../generated/microcode_store.vhdl" 
+add_file -vhdl -lib work "../../generated/settings.vhdl" 
 add_file -constraint -lib work "syn_config.sdc"
 #implementation: "filter_Implmnt"
 impl -add filter_Implmnt -type fpga
