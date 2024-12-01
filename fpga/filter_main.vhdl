@@ -36,7 +36,7 @@ architecture structural of filter_main is
     signal reset_count          : reset_count_t := 15;
     subtype slow_count_t is Natural range 0 to divider_period - 1;
     signal slow_count           : slow_count_t := 0;
-    signal clock                : std_logic := '0';
+    signal clock_div            : std_logic := '0';
     signal clock_2              : std_logic := '0';
     signal reset                : std_logic := '1';
     signal test_A3_copy         : std_logic := '0';
@@ -59,6 +59,11 @@ architecture structural of filter_main is
     type byte_array_t is array (byte_index_t) of byte_t;
     signal input_index          : byte_index_t := 0;
 
+    component SB_GB
+        port (USER_SIGNAL_TO_GLOBAL_BUFFER:in std_logic;
+                GLOBAL_BUFFER_OUTPUT:out std_logic);
+    end component;
+
     constant input_rom : byte_array_t :=
         (0 => x"48",
          1 => x"65",
@@ -71,7 +76,7 @@ architecture structural of filter_main is
 
 begin
     ifu : entity filter_unit
-        port map (clock_in => clock_2,
+        port map (clock_in => clock_div,
                 reset_in => reset,
                 input_strobe_in => input_strobe,
                 input_data_in => input_value,
@@ -87,29 +92,29 @@ begin
 
     test_A1 <= serial_ready;
     test_D3 <= i0_debug;
-    test_B1 <= clock_2;
+    test_B1 <= clock_div;
     lcols_out (0) <= '0';
     lcols_out (3 downto 1) <= (others => '1');
     lrows_out (0) <= not reset;
-    lrows_out (1) <= not clock_2;
+    lrows_out (1) <= not clock_div;
     lrows_out (2) <= not test_A3_copy;
     lrows_out (3) <= not test_A2_copy;
     lrows_out (4) <= not serial_ready;
     lrows_out (5) <= not test_C3_copy;
     lrows_out (6) <= not i0_debug;
 
-    process (clock_2) is
+    process (clock_div) is
     begin
-        if clock_2 = '1' and clock_2'event then
+        if clock_div = '1' and clock_div'event then
             if serial_ready = '1' then
                 test_C3_copy <= serial_data;
             end if;
         end if;
     end process;
 
-    process (clock_2) is
+    process (clock_div) is
     begin
-        if clock_2 = '1' and clock_2'event then
+        if clock_div = '1' and clock_div'event then
             if test_A2_copy = '1' then
                 if input_index = byte_array_size - 1 then
                     input_index <= 0;
@@ -123,6 +128,11 @@ begin
     input_value(7 downto 0) <= input_rom (input_index);
     input_value(ALL_BITS - 1 downto 8) <= (others => '1');
     input_strobe <= '1';
+
+    clock_buffer : SB_GB
+        port map (
+            USER_SIGNAL_TO_GLOBAL_BUFFER => clock_2, 
+            GLOBAL_BUFFER_OUTPUT => clock_div);
 
     process (clock_in) is
     begin
