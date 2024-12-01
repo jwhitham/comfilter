@@ -42,6 +42,7 @@ architecture structural of filter_main is
     signal test_A3_copy         : std_logic := '0';
     signal test_A2_copy         : std_logic := '0';
     signal test_C3_copy         : std_logic := '0';
+    signal test_B1_copy         : std_logic := '0';
 
     signal serial_ready         : std_logic := '0';
     signal serial_data          : std_logic := '0';
@@ -92,7 +93,7 @@ begin
 
     test_A1 <= serial_ready;
     test_D3 <= i0_debug;
-    test_B1 <= clock_div;
+    test_B1 <= test_B1_copy;
     lcols_out (0) <= '0';
     lcols_out (3 downto 1) <= (others => '1');
     lrows_out (0) <= not reset;
@@ -102,6 +103,7 @@ begin
     lrows_out (4) <= not serial_ready;
     lrows_out (5) <= not test_C3_copy;
     lrows_out (6) <= not i0_debug;
+    lrows_out (7) <= not test_B1_copy;
 
     process (clock_div) is
     begin
@@ -115,19 +117,21 @@ begin
     process (clock_div) is
     begin
         if clock_div = '1' and clock_div'event then
-            if test_A2_copy = '1' then
+            input_strobe <= '0';
+            input_value <= (others => '0');
+            test_B1_copy <= '0';
+            if test_A3_copy = '1' and input_strobe = '0' then
+                input_strobe <= '1';
+                input_value (7 downto 0) <= input_rom (input_index);
                 if input_index = byte_array_size - 1 then
                     input_index <= 0;
+                    test_B1_copy <= '1';
                 else
                     input_index <= input_index + 1;
                 end if;
             end if;
         end if;
     end process;
-
-    input_value(7 downto 0) <= input_rom (input_index);
-    input_value(ALL_BITS - 1 downto 8) <= (others => '1');
-    input_strobe <= '1';
 
     clock_buffer : SB_GB
         port map (
