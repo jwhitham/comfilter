@@ -27,13 +27,17 @@ end filter_main;
 
 architecture structural of filter_main is
 
+
+    -- 4800 = 10kHz -> 2500 baud
+    -- 1250 = 38.4kHz -> 9600 baud
+    constant divider_period     : Natural := 1250;
+
     subtype reset_count_t is Natural range 0 to 15;
     signal reset_count          : reset_count_t := 15;
-    subtype slow_count_t is Natural range 0 to 4799;
+    subtype slow_count_t is Natural range 0 to divider_period - 1;
     signal slow_count           : slow_count_t := 0;
     signal clock                : std_logic := '0';
     signal clock_2              : std_logic := '0';
-    signal dummy                : std_logic := '0';
     signal reset                : std_logic := '1';
     signal test_A3_copy         : std_logic := '0';
     signal test_A2_copy         : std_logic := '0';
@@ -70,13 +74,12 @@ begin
     input_strobe <= '1';
     lcols_out (0) <= '0';
     lcols_out (3 downto 1) <= (others => '1');
-    lrows_out (0) <= reset;
-    lrows_out (1) <= clock_2;
-    lrows_out (2) <= test_A3_copy;
-    lrows_out (3) <= test_A2_copy;
-    lrows_out (4) <= serial_ready;
-    lrows_out (5) <= test_C3_copy;
-    lrows_out (6) <= dummy;
+    lrows_out (0) <= not reset;
+    lrows_out (1) <= not clock_2;
+    lrows_out (2) <= not test_A3_copy;
+    lrows_out (3) <= not test_A2_copy;
+    lrows_out (4) <= not serial_ready;
+    lrows_out (5) <= not test_C3_copy;
 
     process (clock_2) is
     begin
@@ -99,9 +102,8 @@ begin
                         reset <= '1';
                         reset_count <= reset_count - 1;
                     end if;
-                    dummy <= not dummy;
                 end if;
-                slow_count <= 4799;
+                slow_count <= divider_period - 1;
             else
                 slow_count <= slow_count - 1;
             end if;
