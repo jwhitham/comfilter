@@ -39,7 +39,9 @@ def test_output_pattern_from_input() -> None:
             assert actual == expect
 
 def output_pattern_from_rom(ops: OperationList, pattern: typing.List[int]) -> None:
+    # input is not used
     ops.add(ControlLine.LOAD_I0_FROM_INPUT)
+
     # prepare by zeroing X register
     ops.mux(Register.ZERO)
     ops.add(ControlLine.SET_X_IN_TO_REG_OUT)
@@ -72,22 +74,8 @@ def output_pattern_from_rom(ops: OperationList, pattern: typing.List[int]) -> No
     ops.add(ControlLine.REPEAT_FOR_ALL_BITS)
     ops.add(ControlLine.RESTART)
 
-def test_output_pattern_from_rom() -> None:
-    return # TODO
-    ops = FPGAOperationList()
-    pattern = [0x55, 0x99, 0xfe]
-    output_pattern_from_rom(ops, pattern)
-    out_values = fpga_run_ops(ops, [1])
-    assert len(out_values) == (len(pattern) * NUM_TEST_BITS)
-    for i in range(len(pattern)):
-        for j in range(NUM_TEST_BITS):
-            actual = out_values[j + (i * NUM_TEST_BITS)] >> (ALL_BITS - 1)
-            expect = (pattern[i] >> j) & 1
-            assert actual == expect
-
 def main() -> None:
     test_output_pattern_from_input()
-    test_output_pattern_from_rom()
     ops = FPGAOperationList()
     output_pattern_from_rom(ops, list(b"Hi!"))
     ops.generate()
