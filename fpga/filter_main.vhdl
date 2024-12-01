@@ -52,6 +52,22 @@ architecture structural of filter_main is
     signal data_strobe          : std_logic := '0';
     signal data_value           : std_logic := '0';
 
+    constant byte_array_size    : Natural := 8;
+    subtype byte_t is std_logic_vector(7 downto 0);
+    subtype byte_index_t is Natural range 0 to byte_array_size - 1;
+    type byte_array_t is array (byte_index_t) of byte_t;
+    signal input_index          : byte_index_t := 0;
+
+    constant input_rom : byte_array_t :=
+        (0 => x"48",
+         1 => x"65",
+         2 => x"6c",
+         3 => x"6c",
+         4 => x"6f",
+         5 => x"21",
+         6 => x"0d",
+         7 => x"0a");
+
 begin
     ifu : entity filter_unit
         port map (clock_in => clock_2,
@@ -70,8 +86,6 @@ begin
     test_A1 <= serial_ready;
     test_D3 <= reset;
     test_B1 <= clock_2;
-    input_value <= (others => '1');
-    input_strobe <= '1';
     lcols_out (0) <= '0';
     lcols_out (3 downto 1) <= (others => '1');
     lrows_out (0) <= not reset;
@@ -89,6 +103,23 @@ begin
             end if;
         end if;
     end process;
+
+    process (clock_2) is
+    begin
+        if clock_2 = '1' and clock_2'event then
+            if test_A2_copy = '1' then
+                if input_index = byte_array_size - 1 then
+                    input_index <= 0;
+                else
+                    input_index <= input_index + 1;
+                end if;
+            end if;
+        end if;
+    end process;
+
+    input_value(7 downto 0) <= input_rom (input_index);
+    input_value(ALL_BITS - 1 downto 8) <= (others => '1');
+    input_strobe <= '1';
 
     process (clock_in) is
     begin

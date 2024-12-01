@@ -14,7 +14,10 @@ import typing
 def out_bit(ops: OperationList, r: Register) -> None:
     ops.mux(r)
     ops.add(ControlLine.SET_X_IN_TO_X_AND_CLEAR_Y_BORROW)
-    ops.add(ControlLine.SHIFT_Y_RIGHT, ControlLine.SHIFT_I0_RIGHT)
+    if r == Register.I0:
+        ops.add(ControlLine.SHIFT_Y_RIGHT, ControlLine.SHIFT_I0_RIGHT)
+    else:
+        ops.add(ControlLine.SHIFT_Y_RIGHT)
     ops.add(ControlLine.SEND_Y_TO_OUTPUT)
 
 def output_pattern_from_input(ops: OperationList) -> None:
@@ -34,7 +37,7 @@ def output_pattern_from_input(ops: OperationList) -> None:
 
     # start bit is 0
     out_bit(ops, Register.ZERO)
-    # 8 bits starting at LSB
+    # 8 bits
     for i in range(8):
         out_bit(ops, Register.I0)
     # stop bit is 1
@@ -77,10 +80,10 @@ def output_pattern_from_rom(ops: OperationList, pattern: typing.List[int]) -> No
 
 def main() -> None:
     ops = FPGAOperationList()
-    output_pattern_from_input(ops)
+    output_pattern_from_rom(ops, list(b"Hello\r\n"))
     ops.generate()
     ops = FPGAOperationList()
-    output_pattern_from_rom(ops, list(b"Hello\r\n"))
+    output_pattern_from_input(ops)
     ops.generate()
 
 
