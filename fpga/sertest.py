@@ -40,7 +40,7 @@ def main() -> None:
     sync(ser)
     
     print("connected to FPGA", flush=True)
-    ser.write(b"T\x00\x00")
+    ser.write(b"T\x00\x09")
     data = ser.read(1)
     if data == b"":
         print("No data received from FPGA within timeout", flush=True)

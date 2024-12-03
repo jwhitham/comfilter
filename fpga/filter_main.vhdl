@@ -44,6 +44,8 @@ architecture structural of filter_main is
     signal uart_strobe_out      : std_logic := '0';
     signal uart_ready_out       : std_logic := '0';
 
+    signal count                : unsigned(3 downto 0) := 0;
+
     type test_state_t is (READY, LOAD_LOW, LOAD_HIGH, WAIT_RESULT);
     signal test_state           : test_state_t := READY;
 begin
@@ -87,7 +89,7 @@ begin
                         lrows_out <= not uart_data_out;
                         if uart_data_out = x"54" then -- T -> begin test
                             if input_ready = '1' then
-                                uart_data_in <= x"ff"; -- undefined initial state
+                                uart_data_in <= x"00"; -- initial state
                                 test_state <= LOAD_HIGH;
                             else
                                 uart_data_in <= x"66"; -- f -> fail (not ready)
@@ -102,7 +104,8 @@ begin
                     test_C3 <= '1';
                     if uart_strobe_out = '1' then
                         lrows_out <= not uart_data_out;
-                        input_value (15 downto 8) <= uart_data_in;
+                        input_value (15 downto 8) <= uart_data_out;
+                        input_value (7 downto 0) <= uart_data_out;
                         test_state <= LOAD_LOW;
                     end if;
                 when LOAD_LOW =>
@@ -110,22 +113,29 @@ begin
                     test_C3 <= '1';
                     if uart_strobe_out = '1' then
                         lrows_out <= not uart_data_out;
-                        input_value (7 downto 0) <= uart_data_in;
+                        input_value (7 downto 0) <= uart_data_out;
                         input_strobe <= '1'; -- should start processing
+                        count <= 0;
                         test_state <= WAIT_RESULT;
                     end if;
                 when WAIT_RESULT =>
-                    input_value <= (others => '0');
                     if serial_ready = '1' then -- got a bit, shift it
                         uart_data_in (7 downto 1) <= uart_data_in (6 downto 0);
                         uart_data_in (0) <= serial_data;
                         lrows_out (7 downto 1) <= not uart_data_in (6 downto 0);
                         lrows_out (0) <= not serial_data;
+                        if count /= 15 then
+                            count <= count + 1;
+                        end if;
                         test_D3 <= serial_data;
                     end if;
                     if restart_debug = '1' then -- rebooted
                         lrows_out <= not uart_data_in;
-                        uart_data_in (7 downto 4) <= x"3"; -- output last 4 bits received
+                        if count = 0 then
+                            uart_data_in <= x"6e"; -- n -> no data
+                        elsif count = 15 then
+                            uart_data_in <= x"6f"; -- o -> overwhelming data
+                        end if;
                         uart_strobe_in <= '1';
                         test_state <= READY;
                     end if;

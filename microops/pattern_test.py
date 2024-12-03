@@ -38,7 +38,7 @@ def output_pattern_from_input(ops: OperationList) -> None:
     # start bit is 0
     out_bit(ops, Register.ZERO)
     # 8 bits
-    for i in range(8):
+    for i in range(4):
         out_bit(ops, Register.I0)
     # stop bit is 1
     out_bit(ops, Register.ONE)
@@ -50,9 +50,9 @@ def output_pattern_from_input(ops: OperationList) -> None:
 def test_output_pattern_from_input() -> None:
     ops = FPGAOperationList()
     output_pattern_from_input(ops)
-    in_values = [0x55, 0x99, 0xfe, 0x41, 0xa5]
+    in_values = [0x5, 0x9, 0xf, 0x1, 0xa]
     out_values = fpga_run_ops(ops, in_values)
-    assert len(out_values) == (len(in_values) * 11)
+    assert len(out_values) == (len(in_values) * 7)
     out_bits = [bit >> (ALL_BITS - 1) for bit in out_values]
     j = 0
     for i in range(len(in_values)):
@@ -60,7 +60,7 @@ def test_output_pattern_from_input() -> None:
         j += 1
         assert out_bits[j] == 0     # start bit
         j += 1
-        for k in range(8):
+        for k in range(4):
             assert out_bits[j] == ((in_values[i] >> k) & 1)     # data bit
             j += 1
         assert out_bits[j] == 1     # stop bit
