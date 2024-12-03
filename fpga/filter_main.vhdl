@@ -13,7 +13,7 @@ entity filter_main is
     port (
         clock_in            : in std_logic;
 
-        test_A3             : out std_logic := '0';  -- serial input
+        test_A3             : in std_logic := '0';  -- serial input
         test_A2             : out std_logic := '0';  -- serial output
         test_A1             : out std_logic := '0';  -- state machine READY or LOAD_LOW
         test_C3             : out std_logic := '0';  -- state machine LOAD_LOW or LOAD_HIGH
@@ -44,8 +44,8 @@ architecture structural of filter_main is
     signal uart_strobe_out      : std_logic := '0';
     signal uart_ready_out       : std_logic := '0';
 
-    type test_state_t is (READY_OUT, LOAD_LOW, LOAD_HIGH, WAIT_RESULT);
-    signal test_state           : test_state_t := READY_OUT;
+    type test_state_t is (READY, LOAD_LOW, LOAD_HIGH, WAIT_RESULT);
+    signal test_state           : test_state_t := READY;
 begin
     ifu : entity filter_unit
         port map (clock_in => clock_in,
@@ -87,7 +87,7 @@ begin
                         lrows_out <= not uart_data_out;
                         if uart_data_out = x"54" then -- T -> begin test
                             if input_ready = '1' then
-                                uart_data_in <= x"75" -- u -> undefined initial state
+                                uart_data_in <= x"ff"; -- undefined initial state
                                 test_state <= LOAD_HIGH;
                             else
                                 uart_data_in <= x"66"; -- f -> fail (not ready)
@@ -118,13 +118,14 @@ begin
                     input_value <= (others => '0');
                     if serial_ready = '1' then -- got a bit, shift it
                         uart_data_in (7 downto 1) <= uart_data_in (6 downto 0);
-                        uart_data_in (0) <= serial_data_out;
+                        uart_data_in (0) <= serial_data;
                         lrows_out (7 downto 1) <= not uart_data_in (6 downto 0);
-                        lrows_out (0) <= not serial_data_out;
-                        test_D3 <= serial_data_out;
+                        lrows_out (0) <= not serial_data;
+                        test_D3 <= serial_data;
                     end if;
                     if restart_debug = '1' then -- rebooted
                         lrows_out <= not uart_data_in;
+                        uart_data_in (7 downto 4) <= x"3"; -- output last 4 bits received
                         uart_strobe_in <= '1';
                         test_state <= READY;
                     end if;

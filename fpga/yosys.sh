@@ -8,6 +8,14 @@ export PATH=/opt/oss-cad-suite/bin:/opt/ghdl/bin:$PATH
 ghdl --remove
 ghdl -a --work=work  \
     ../generated/settings.vhdl \
+    ../generated/microcode_store.test.vhdl \
+    ../generated/control_line_decoder.vhdl \
+    shift_register.vhdl \
+    banked_shift_register.vhdl \
+    subtractor.vhdl \
+    filter_unit.vhdl \
+    pulse_gen.vhdl \
+    uart.vhdl \
     filter_main.vhdl \
     project/filter_pll.vhd \
     project/filter_top.vhdl

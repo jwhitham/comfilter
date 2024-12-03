@@ -9,7 +9,7 @@ entity filter_top is
     port (
         clk12MHz            : in std_logic;
 
-        test_A3             : out std_logic := '0';
+        test_A3             : in std_logic := '0';
         test_A2             : out std_logic := '0';
         test_A1             : out std_logic := '0';
         test_C3             : out std_logic := '0';
