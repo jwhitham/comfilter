@@ -11,6 +11,9 @@ from settings import (
 from filter_implementation import (
         demodulator,
     )
+from test_vector import (
+        TestVector,
+    )
 
 from pathlib import Path
 import typing, sys, struct, math
@@ -40,21 +43,11 @@ def main() -> None:
     print("Create demodulator")
     ops = FPGAOperationList()
     demodulator(ops)
+    ops.generate()
 
     print("Read test vector")
-    expect_out_values = []
-    in_values = []
-    out_values_per_in_value = 5
-    with open("generated/test_vector", "rb") as fd:
-        test_vector_format = "<I" + ("I" * out_values_per_in_value)
-        test_vector_size = struct.calcsize(test_vector_format)
-        test_vector_shift = 32 - (NON_FRACTIONAL_BITS + FRACTIONAL_BITS)
-        test_vector_data = fd.read(test_vector_size)
-        while len(test_vector_data) == test_vector_size:
-            fields = struct.unpack(test_vector_format, test_vector_data)
-            in_values.append(fields[0] >> test_vector_shift)
-            expect_out_values.append((fields[out_values_per_in_value] >> test_vector_shift) & 1)
-            test_vector_data = fd.read(test_vector_size)
+    test_vector = TestVector(1 << 30)
+
 
     print("Open serial port", flush=True)
     ser = serial.serial_for_url(SERIAL_PORT, do_not_open=True, exclusive=True)
@@ -77,15 +70,15 @@ def main() -> None:
 
     max_block_size = 100
     out_values = []
-    for i in range(0, len(in_values), max_block_size):
-        print(f"Begin test {i}", flush=True)
+    for i in range(0, len(test_vector.in_values), max_block_size):
+        print(f"Data capture {i}", flush=True)
         block = []
-        block_size = min(max_block_size, len(in_values) - i)
+        block_size = min(max_block_size, len(test_vector.in_values) - i)
         for j in range(i, i + block_size):
             block.append(b"T")
-            block.append(struct.pack(">H", in_value)))
+            block.append(struct.pack(">H", test_vector.in_values[j]))
 
-        ser.write(b"".join(block)
+        ser.write(b"".join(block))
         data = ser.read(block_size)
 
         for value in data:
@@ -99,11 +92,11 @@ def main() -> None:
         if len(data) != block_size:
             raise TestError(f"Expected {block_size} bytes, received {len(data)}")
 
-            
-    with open(GHDL_OUTPUT, "wb") as fd:
-        rc = subprocess.call(["ghdl", "-r", "test_top_level"] + RFLAGS,
-                stdin=subprocess.DEVNULL, stdout=fd, cwd=FPGA_DIR)
 
+    print("Compare", flush=True)
+    out_vector = test_vector.substitute_new_out_bits(out_values)
+    compare_demodulator_output(test_vector, out_vector)
+            
 
 if __name__ == "__main__":
     try:

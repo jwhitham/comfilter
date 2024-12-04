@@ -2,6 +2,7 @@
 from func_hardware import (
         ALL_BITS,
     )
+from copy import copy
 import typing, struct
 
 OUT_VALUES_PER_IN_VALUE = 5
@@ -23,6 +24,14 @@ class OutVector:
         self.out_values: typing.List[OutItem] = []
         for i in range(0, len(all_values), OUT_VALUES_PER_IN_VALUE):
             self.out_values.append(OutItem(all_values[i:i + OUT_VALUES_PER_IN_VALUE]))
+
+    def substitute_new_out_bits(self, out_bit_values: typing.List[int]) -> "OutVector":
+        new_vector = OutVector([])
+        for (out_bit, item) in zip(out_bit_values, self.out_values):
+            item = copy(item)
+            item.out_bit = out_bit
+            new_vector.out_values.append(item)
+        return new_vector
 
 class TestVector(OutVector):
     def __init__(self, num_compare_tests: int) -> None:
