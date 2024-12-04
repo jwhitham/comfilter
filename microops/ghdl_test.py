@@ -6,7 +6,7 @@ from func_hardware import (
         ALL_BITS, OperationList,
     )
 from settings import (
-        FPGA_TEST_SCALE, DEBUG,
+        GHDL_TEST_SCALE, DEBUG,
     )
 import func_test
 
@@ -151,7 +151,7 @@ def ghdl_run_ops(ops: OperationList, in_values: typing.List[int]) -> typing.List
     return out_values
 
 def main() -> None:
-    func_test.test_all(FPGA_TEST_SCALE, ghdl_run_ops, FPGAOperationList)
+    func_test.test_all(GHDL_TEST_SCALE, ghdl_run_ops, FPGAOperationList)
 
 if __name__ == "__main__":
     try:

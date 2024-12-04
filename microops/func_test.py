@@ -14,7 +14,7 @@ from pattern_test_implementation import (
         output_pattern_from_input,
     )
 from settings import (
-        FRACTIONAL_BITS, NON_FRACTIONAL_BITS, MICROOPS_TEST_SCALE, DEBUG,
+        FRACTIONAL_BITS, NON_FRACTIONAL_BITS, FUNC_TEST_SCALE, DEBUG,
     )
 import func_execute
 import random, typing, struct, sys
@@ -381,7 +381,7 @@ def test_all(scale: int, run_ops: RunOps, make_ops: MakeOps) -> None:
     test_demodulator(scale * 4000, run_ops, make_ops)
 
 def main() -> None:
-    test_all(MICROOPS_TEST_SCALE, func_execute.run_ops, OperationList)
+    test_all(FUNC_TEST_SCALE, func_execute.run_ops, OperationList)
 
 if __name__ == "__main__":
     try:
