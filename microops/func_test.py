@@ -16,6 +16,9 @@ from pattern_test_implementation import (
 from settings import (
         FRACTIONAL_BITS, NON_FRACTIONAL_BITS, FUNC_TEST_SCALE, DEBUG,
     )
+from test_vector import (
+        TestVector, OutVector,
+    )
 import func_execute
 import random, typing, struct, sys
 
@@ -305,68 +308,50 @@ def test_set_Y_to_X_minus_reg(r: random.Random, num_update_tests: int, run_ops: 
         result_yi = out_values[0]
 
 
-
 def test_demodulator(num_compare_tests: int, run_ops: RunOps, make_ops: MakeOps) -> None:
     print(f"Test demodulator", flush=True)
     ops = make_ops()
     demodulator(ops)
-    in_values: typing.List[int] = []
-    expect_out_values = []
-    out_values_per_in_value = 5
-    with open("generated/test_vector", "rb") as fd:
-        test_vector_format = "<I" + ("I" * out_values_per_in_value)
-        test_vector_size = struct.calcsize(test_vector_format)
-        test_vector_shift = 32 - (NON_FRACTIONAL_BITS + FRACTIONAL_BITS)
-        test_vector_data = fd.read(test_vector_size)
-        while (len(test_vector_data) == test_vector_size) and (len(in_values) < num_compare_tests):
-            fields = struct.unpack(test_vector_format, test_vector_data)
-            in_values.append(fields[0] >> test_vector_shift)
-            for i in range(out_values_per_in_value):
-                expect_out_values.append(fields[i + 1] >> test_vector_shift)
-            test_vector_data = fd.read(test_vector_size)
 
-    out_values = run_ops(ops, in_values)
-    assert len(out_values) == len(expect_out_values)
+    test_vector = TestVector(num_compare_tests)
+    out_vector = OutVector(run_ops(ops, test_vector.in_values))
+    compare_demodulator_output(test_vector, out_vector)
+
+
+def compare_demodulator_output(test_vector: TestVector, out_vector: OutVector) -> None:
+    assert len(test_vector.in_values) == len(test_vector.out_values)
+    assert len(out_vector.out_values) == len(test_vector.out_values)
     correct = 0
-    for i in range(len(in_values)):
-        actual_upper_bandpass = out_values[(i * out_values_per_in_value) + 0]
-        actual_upper_rc = out_values[(i * out_values_per_in_value) + 1]
-        actual_lower_bandpass = out_values[(i * out_values_per_in_value) + 2]
-        actual_lower_rc = out_values[(i * out_values_per_in_value) + 3]
-        actual_y = out_values[(i * out_values_per_in_value) + 4]
-        actual_out_bit = actual_y >> (ALL_BITS - 1)
-
-        expect_upper_bandpass = expect_out_values[(i * out_values_per_in_value) + 0]
-        expect_upper_rc = expect_out_values[(i * out_values_per_in_value) + 1]
-        expect_lower_bandpass = expect_out_values[(i * out_values_per_in_value) + 2]
-        expect_lower_rc = expect_out_values[(i * out_values_per_in_value) + 3]
-        expect_out_bit = expect_out_values[(i * out_values_per_in_value) + 4] & 1
+    for i in range(len(test_vector.in_values)):
+        actual = out_vector.out_values[i]
+        expect = test_vector.out_values[i]
+        in_value = test_vector.in_values[i]
 
         if DEBUG > 0:
-            print(f"step {i} in {in_values[i]:04x}")
-        for (name, expect, actual) in [
-                    ("upper_bp", expect_upper_bandpass, actual_upper_bandpass),
-                    ("upper_rc", expect_upper_rc, actual_upper_rc),
-                    ("lower_bp", expect_lower_bandpass, actual_lower_bandpass),
-                    ("lower_rc", expect_lower_rc, actual_lower_rc),
+            print(f"step {i} in {in_value:04x}")
+        for (name, iexpect, iactual) in [
+                    ("upper_bp", expect.upper_bandpass, actual.upper_bandpass),
+                    ("upper_rc", expect.upper_rc, actual.upper_rc),
+                    ("lower_bp", expect.lower_bandpass, actual.lower_bandpass),
+                    ("lower_rc", expect.lower_rc, actual.lower_rc),
                 ]:
-            fexpect = make_float(expect)
-            factual = make_float(actual)
+            fexpect = make_float(iexpect)
+            factual = make_float(iactual)
             if DEBUG > 0:
-                print(f" {name} expect {expect:04x} {fexpect:8.5f}", end="")
-                print(f" actual {actual:04x} {factual:8.5f} ", end="")
+                print(f" {name} expect {iexpect:04x} {fexpect:8.5f}", end="")
+                print(f" actual {iactual:04x} {factual:8.5f} ", end="")
             error = abs(fexpect - factual)
             if DEBUG > 0:
                 print(f" error {error:1.6f}")
             assert error < VERY_SMALL_ERROR
         if DEBUG > 0:
-            error = expect_out_bit ^ actual_out_bit
-            print(f" out bit  expect {expect_out_bit} actual {actual_out_bit} error {error} Y {actual_y:04x}")
-        if expect_out_bit == actual_out_bit:
+            error = expect.out_bit ^ actual.out_bit
+            print(f" out bit  expect {expect.out_bit} actual {actual.out_bit} error {error} Y {actual.y:04x}")
+        if expect.out_bit == actual.out_bit:
             correct += 1
    
-    print(f"{correct} bits out of {len(in_values)} matched expectations")
-    assert correct > (len(in_values) * 0.99)
+    print(f"{correct} bits out of {len(test_vector.in_values)} matched expectations")
+    assert correct > (len(test_vector.in_values) * 0.99)
 
 
 
