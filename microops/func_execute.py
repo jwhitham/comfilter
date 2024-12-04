@@ -1,5 +1,5 @@
 
-from hardware import (
+from func_hardware import (
         ControlLine, ControlLines,
         OperationList, Register, ControlOperation,
         DebugOperation, Debug, MuxOperation, MuxCode,
@@ -7,7 +7,7 @@ from hardware import (
         ALL_BITS, A_BITS, R_BITS,
     )
 from settings import DEBUG
-from filtersetup import (
+from filter_implementation import (
         make_float,
     )
 import enum, typing

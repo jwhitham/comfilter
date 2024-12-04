@@ -8,7 +8,7 @@ from settings import (
         FILTER_WIDTH,
         SAMPLE_RATE,
     )
-from hardware import (
+from func_hardware import (
         get_shift_line, Debug, MuxCode,
         OperationList, Register, ControlLine,
         ALL_BITS, A_BITS, R_BITS,

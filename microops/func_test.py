@@ -1,9 +1,9 @@
 
-from hardware import (
+from func_hardware import (
         OperationList, Register, ControlLine, Debug, MuxCode,
         ALL_BITS,
     )
-from filtersetup import (
+from filter_implementation import (
         make_fixed, make_float,
         multiply_accumulate, filter_step, demodulator,
         multiply_accumulate_via_regs, move_reg_to_reg,
@@ -13,7 +13,7 @@ from filtersetup import (
 from settings import (
         FRACTIONAL_BITS, NON_FRACTIONAL_BITS, MICROOPS_TEST_SCALE, DEBUG,
     )
-import execute
+import func_execute
 import random, typing, struct, sys
 
 ACCEPTABLE_ERROR = (1.0 / (1 << (FRACTIONAL_BITS - 4)))
@@ -353,7 +353,7 @@ def test_all(scale: int, run_ops: RunOps, make_ops: MakeOps) -> None:
     test_demodulator(scale * 4000, run_ops, make_ops)
 
 def main() -> None:
-    test_all(MICROOPS_TEST_SCALE, execute.run_ops, OperationList)
+    test_all(MICROOPS_TEST_SCALE, func_execute.run_ops, OperationList)
 
 if __name__ == "__main__":
     try:

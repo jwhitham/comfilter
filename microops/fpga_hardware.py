@@ -1,5 +1,5 @@
 
-from hardware import (
+from func_hardware import (
             OperationList, CodeTable, ControlLine,
             ALL_BITS, A_BITS
         )

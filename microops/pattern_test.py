@@ -1,13 +1,13 @@
 
-from hardware import (
+from func_hardware import (
         OperationList, Register, ControlLine,
         ALL_BITS,
     )
 from fpga_hardware import (
         FPGAOperationList,
     )
-from fpga_test import (
-        fpga_run_ops,
+from ghdl_test import (
+        ghdl_run_ops,
     )
 import typing
 
@@ -51,7 +51,7 @@ def test_output_pattern_from_input() -> None:
     ops = FPGAOperationList()
     output_pattern_from_input(ops)
     in_values = [0x55, 0x99, 0xfe, 0x41, 0xa5]
-    out_values = fpga_run_ops(ops, in_values)
+    out_values = ghdl_run_ops(ops, in_values)
     assert len(out_values) == (len(in_values) * 11)
     out_bits = [bit >> (ALL_BITS - 1) for bit in out_values]
     j = 0
