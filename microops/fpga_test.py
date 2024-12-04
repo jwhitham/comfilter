@@ -14,6 +14,9 @@ from filter_implementation import (
 from test_vector import (
         TestVector,
     )
+from func_test import (
+        compare_demodulator_output,
+    )
 
 from pathlib import Path
 import typing, sys, struct, math
@@ -46,7 +49,7 @@ def main() -> None:
     ops.generate()
 
     print("Read test vector")
-    test_vector = TestVector(1 << 30)
+    test_vector = TestVector(int(1e6))
 
 
     print("Open serial port", flush=True)
@@ -68,7 +71,7 @@ def main() -> None:
     sync(ser)
     
 
-    max_block_size = 100
+    max_block_size = 500
     out_values = []
     for i in range(0, len(test_vector.in_values), max_block_size):
         print(f"Data capture {i}", flush=True)

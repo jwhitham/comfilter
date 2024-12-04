@@ -4,7 +4,7 @@ Version=Lattice Semiconductor Corporation iCEcube - Release: 2020.12.27943 - Bui
 ProjectName=filter
 Vendor=SiliconBlue
 Synthesis=synplify
-ProjectVFiles=filter_pll.vhd=work,filter_top.vhdl=work,../banked_shift_register.vhdl=work,../filter_main.vhdl=work,../filter_unit.vhdl=work,../shift_register.vhdl=work,../subtractor.vhdl=work,../../generated/control_line_decoder.vhdl=work,../../generated/microcode_store.vhdl=work,../../generated/settings.vhdl=work,../pulse_gen.vhdl,../uart.vhdl
+ProjectVFiles=filter_pll.vhd=work,filter_top.vhdl=work,../banked_shift_register.vhdl=work,../filter_main.vhdl=work,../filter_unit.vhdl=work,../shift_register.vhdl=work,../subtractor.vhdl=work,../../generated/control_line_decoder.vhdl=work,../../generated/microcode_store.vhdl=work,../../generated/settings.vhdl=work,../pulse_gen.vhdl=work,../uart.vhdl=work
 ProjectCFiles=syn_config.sdc
 CurImplementation=filter_Implmnt
 Implementations=filter_Implmnt
