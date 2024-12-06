@@ -1,5 +1,3 @@
-// Suggested compile command: gcc -o siggen.exe siggen.c -Wall -Werror -g  -O -lm
-//
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>

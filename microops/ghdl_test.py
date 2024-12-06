@@ -26,11 +26,11 @@ def make_test_bench(in_values: typing.List[int]) -> None:
 library ieee;
 use ieee.std_logic_1164.all;
 
-use std.textio.all;
 
 library work;
 use work.all;
 use settings.all;
+use debug_textio.all;
 
 entity test_signal_generator is
     port (
@@ -113,6 +113,8 @@ def ghdl_run_ops(ops: OperationList, in_values: typing.List[int]) -> typing.List
     make_test_bench(in_values=in_values)
     subprocess.check_call(["ghdl", "--remove"], cwd=FPGA_DIR)
     subprocess.check_call(["ghdl", "-a", "--work=work",
+            "debug_textio.vhdl",
+            "debug_textio-body.vhdl",
             "../generated/settings.vhdl",
             "../generated/control_line_decoder.vhdl",
             "../generated/microcode_store.test.vhdl",

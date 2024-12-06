@@ -1,5 +1,3 @@
-// Suggested compile command: g++ -o sigdec.exe sigdec.cpp -Wall -Werror -g  -O -lm -std=c++17
-//
 #include <stdio.h>
 #include <string.h>
 #include <cstdint>

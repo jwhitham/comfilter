@@ -3,11 +3,10 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-use debug_textio.all;
-
 library work;
 use work.all;
 use settings.all;
+use debug_textio.all;
 
 entity filter_unit is
     port (
