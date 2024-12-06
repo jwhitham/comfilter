@@ -49,7 +49,7 @@ def main() -> None:
     ops.generate()
 
     print("Read test vector")
-    test_vector = TestVector(int(1e6))
+    test_vector = TestVector(int(1e9))
 
 
     print("Open serial port", flush=True)

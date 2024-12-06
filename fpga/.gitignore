@@ -1,6 +1,6 @@
 test_signal_generator.vhdl
 *.cf
-project/*_Implmnt
+*_Implmnt
 *.log
 *.tcl
 *.bak

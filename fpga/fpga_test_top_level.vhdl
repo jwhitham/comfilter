@@ -9,7 +9,7 @@ library work;
 use work.all;
 use settings.all;
 
-entity filter_main is
+entity fpga_test_top_level is
     port (
         clock_in            : in std_logic;
 
@@ -23,9 +23,9 @@ entity filter_main is
         -- LED outputs
         lcols_out           : out std_logic_vector (3 downto 0) := "0000";
         lrows_out           : out std_logic_vector (7 downto 0) := "00000000");
-end filter_main;
+end fpga_test_top_level;
 
-architecture structural of filter_main is
+architecture structural of fpga_test_top_level is
 
     subtype reset_count_t is Natural range 0 to 15;
     signal reset_count          : reset_count_t := 15;
