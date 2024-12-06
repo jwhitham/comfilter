@@ -14,6 +14,8 @@ add_file -vhdl -lib work "../subtractor.vhdl"
 add_file -vhdl -lib work "../uart.vhdl" 
 add_file -vhdl -lib work "fpga_test_project_pll.vhd" 
 add_file -vhdl -lib work "fpga_test_project_top.vhdl" 
+add_file -vhdl -lib work "../debug_textio-body.vhdl" 
+add_file -vhdl -lib work "../debug_textio.vhdl" 
 #implementation: "fpga_test_project_Implmnt"
 impl -add fpga_test_project_Implmnt -type fpga
 
