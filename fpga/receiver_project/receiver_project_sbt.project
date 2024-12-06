@@ -4,7 +4,7 @@ Version=Lattice Semiconductor Corporation iCEcube - Release: 2020.12.27943 - Bui
 ProjectName=receiver_project
 Vendor=SiliconBlue
 Synthesis=synplify
-ProjectVFiles=../../generated/control_line_decoder.vhdl=work,../../generated/microcode_store.vhdl=work,../../generated/settings.vhdl=work,../banked_shift_register.vhdl=work,../filter_unit.vhdl=work,../shift_register.vhdl=work,../subtractor.vhdl=work,../receiver_main.vhdl,receiver_project_pll.vhd=work,receiver_project_top.vhdl=work,../input_decoder.vhdl,../packet_decoder.vhdl,../channel_decoder.vhdl,../debug_textio-body.vhdl,../debug_textio.vhdl
+ProjectVFiles=../../generated/control_line_decoder.vhdl=work,../../generated/microcode_store.vhdl=work,../../generated/settings.vhdl=work,../banked_shift_register.vhdl=work,../filter_unit.vhdl=work,../shift_register.vhdl=work,../subtractor.vhdl=work,../receiver_main.vhdl=work,receiver_project_pll.vhd=work,receiver_project_top.vhdl=work,../input_decoder.vhdl=work,../packet_decoder.vhdl=work,../channel_decoder.vhdl=work,../debug_textio-body.vhdl=work,../debug_textio.vhdl=work
 ProjectCFiles=
 CurImplementation=receiver_project_Implmnt
 Implementations=receiver_project_Implmnt
