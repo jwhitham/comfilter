@@ -46,9 +46,9 @@ architecture structural of receiver_main is
 
     -- filter
     signal restart_debug        : std_logic := '0';
-    signal i0_debug             : std_logic := '1';
     signal serial_ready         : std_logic := '0';
     signal serial_data          : std_logic := '0';
+    signal serial_copy          : std_logic := '0';
     signal input_value          : std_logic_vector(ALL_BITS - 1 downto 0) := (others => '0');
     signal input_strobe         : std_logic := '0';
     signal input_ready          : std_logic := '0';
@@ -97,12 +97,11 @@ begin
                 input_strobe_in => input_strobe,
                 input_data_in => input_value,
                 input_ready_out => input_ready,
-                i0_debug_out => i0_debug,
                 restart_debug_out => restart_debug,
                 serial_ready_out => serial_ready,
                 serial_data_out => serial_data);
 
-    lrows_out (0) <= not i0_debug;
+    lrows_out (0) <= serial_copy;
     lrows_out (1) <= not input_ready;
     lrows_out (2) <= not input_strobe;
     lrows_out (3) <= not restart_debug;
@@ -110,16 +109,17 @@ begin
     lrows_out (5) <= not sync (1);
     lrows_out (6) <= not sync (2);
     lrows_out (7) <= not sync (3);
-    lcols_out (0) <= '0';
+    lcols_out (0) <= not raw_data(26);
     lcols_out (3 downto 1) <= (others => '1');
+    serial_out <= serial_copy;
 
     process (clock_in) is
     begin
         if clock_in = '1' and clock_in'event then
             if reset = '1' then
-                serial_out <= '1';
+                serial_copy <= '1';
             elsif serial_ready = '1' then
-                serial_out <= serial_data;
+                serial_copy <= serial_data;
             end if;
         end if;
     end process;

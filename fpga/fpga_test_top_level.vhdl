@@ -18,7 +18,7 @@ entity fpga_test_top_level is
         test_A1             : out std_logic := '0';  -- state machine READY or LOAD_LOW
         test_C3             : out std_logic := '0';  -- state machine LOAD_LOW or LOAD_HIGH
         test_D3             : out std_logic := '0';  -- last serial bit from filter
-        test_B1             : out std_logic := '0';  -- i0 debug out
+        test_B1             : out std_logic := '0';  -- waiting
 
         -- LED outputs
         lcols_out           : out std_logic_vector (3 downto 0) := "0000";
@@ -55,7 +55,6 @@ begin
                 input_strobe_in => input_strobe,
                 input_data_in => input_value,
                 input_ready_out => input_ready,
-                i0_debug_out => test_B1,
                 restart_debug_out => restart_debug,
                 serial_ready_out => serial_ready,
                 serial_data_out => serial_data);
@@ -82,6 +81,7 @@ begin
             input_strobe <= '0';
             test_A1 <= '0';
             test_C3 <= '0';
+            test_B1 <= '0';
             case test_state is
                 when READY =>
                     test_A1 <= '1';
@@ -119,6 +119,7 @@ begin
                         test_state <= WAIT_RESULT;
                     end if;
                 when WAIT_RESULT =>
+                    test_B1 <= '1';
                     if serial_ready = '1' then -- got a bit, shift it
                         uart_data_in (7 downto 1) <= uart_data_in (6 downto 0);
                         uart_data_in (0) <= serial_data;
