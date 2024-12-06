@@ -1,8 +1,0 @@
-#define UPPER_FREQUENCY         (22000.0)
-#define LOWER_FREQUENCY         (21000.0)
-#define BAUD_RATE               (300.0)
-#define FRACTIONAL_BITS         (14)
-#define NON_FRACTIONAL_BITS     (2)
-#define RC_DECAY_PER_BIT        (0.1)
-#define FILTER_WIDTH            (1000.0)
-#define SAMPLE_RATE             (48000)
