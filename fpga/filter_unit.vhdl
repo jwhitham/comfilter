@@ -5,7 +5,7 @@ use ieee.numeric_std.all;
 
 library work;
 use work.all;
-use settings.all;
+use filter_unit_settings.all;
 use debug_textio.all;
 
 entity filter_unit is
@@ -80,7 +80,7 @@ begin
     zero <= '0';
 
     -- Control store and decoder
-    test_cl_decoder : entity control_line_decoder
+    cl_decoder : entity filter_unit_control_line_decoder
         port map (
                 ADD_A_TO_R => ADD_A_TO_R,
                 LOAD_I0_FROM_INPUT => LOAD_I0_FROM_INPUT,
@@ -114,7 +114,7 @@ begin
         signal more_bits    : std_logic := '0';
         signal uc_enable    : std_logic := '0';
     begin
-        store : entity microcode_store 
+        store : entity filter_unit_microcode_store 
             port map (
                     uc_data_out => uc_code,
                     uc_addr_in => std_logic_vector(uc_addr),
@@ -195,7 +195,10 @@ begin
             else negated;
 
         sr : entity shift_register
-            generic map (name => "X", size => ALL_BITS)
+            generic map (
+                    name => "X",
+                    size => ALL_BITS,
+                    verbose_debug => VERBOSE_DEBUG)
             port map (
                     reg_out => x_out,
                     shift_right_in => SHIFT_X_RIGHT,
@@ -235,7 +238,10 @@ begin
                     d_out => y_in,
                     clock_in => clock_in);
         sr : entity shift_register
-            generic map (name => "Y", size => ALL_BITS)
+            generic map (
+                    name => "Y",
+                    size => ALL_BITS,
+                    verbose_debug => VERBOSE_DEBUG)
             port map (
                     reg_out => y_out,
                     shift_right_in => SHIFT_Y_RIGHT,
@@ -278,7 +284,10 @@ begin
 
     -- Other registers
     i1_register : entity shift_register
-        generic map (name => "I1", size => ALL_BITS)
+        generic map (
+                name => "I1",
+                size => ALL_BITS,
+                verbose_debug => VERBOSE_DEBUG)
         port map (
                 reg_out => i1_out,
                 shift_right_in => SHIFT_I1_RIGHT,
@@ -286,7 +295,10 @@ begin
                 negative_out => open,
                 clock_in => clock_in);
     i2_register : entity shift_register
-        generic map (name => "I2", size => ALL_BITS)
+        generic map (
+                name => "I2",
+                size => ALL_BITS,
+                verbose_debug => VERBOSE_DEBUG)
         port map (
                 reg_out => i2_out,
                 shift_right_in => SHIFT_I2_RIGHT,
@@ -294,7 +306,10 @@ begin
                 negative_out => open,
                 clock_in => clock_in);
     o1_register : entity banked_shift_register
-        generic map (name => "O1", size => ALL_BITS)
+        generic map (
+                name => "O1",
+                size => ALL_BITS,
+                verbose_debug => VERBOSE_DEBUG)
         port map (
                 reg_out => o1_out,
                 shift_right_in => SHIFT_O1_RIGHT,
@@ -304,7 +319,10 @@ begin
                 negative_out => o1_is_negative,
                 clock_in => clock_in);
     o2_register : entity banked_shift_register
-        generic map (name => "O2", size => ALL_BITS)
+        generic map (
+                name => "O2",
+                size => ALL_BITS,
+                verbose_debug => VERBOSE_DEBUG)
         port map (
                 reg_out => o2_out,
                 shift_right_in => SHIFT_O2_RIGHT,
@@ -313,7 +331,10 @@ begin
                 negative_out => open,
                 clock_in => clock_in);
     l_register : entity banked_shift_register
-        generic map (name => "L", size => ALL_BITS)
+        generic map (
+                name => "L",
+                size => ALL_BITS,
+                verbose_debug => VERBOSE_DEBUG)
         port map (
                 reg_out => l_out,
                 shift_right_in => SHIFT_L_RIGHT,

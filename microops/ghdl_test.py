@@ -6,7 +6,7 @@ from func_hardware import (
         ALL_BITS, OperationList,
     )
 from settings import (
-        GHDL_TEST_SCALE, DEBUG,
+        GHDL_TEST_SCALE, DEBUG, FILTER_UNIT_PREFIX,
     )
 import func_test
 
@@ -19,9 +19,9 @@ GHDL_OUTPUT = Path("generated/ghdl_output.txt").absolute()
 CLOCK_FREQUENCY_HZ = 100e6
 CLOCK_PERIOD_NS = int(math.floor(1e9 / CLOCK_FREQUENCY_HZ))
 
-def make_test_bench(in_values: typing.List[int]) -> None:
+def make_test_bench(in_values: typing.List[int], prefix: str) -> None:
     # generate test bench
-    with open("generated/test_signal_generator.vhdl", "wt") as fd:
+    with open(f"generated/{prefix}_signal_generator.vhdl", "wt") as fd:
         fd.write(f"""
 library ieee;
 use ieee.std_logic_1164.all;
@@ -29,10 +29,10 @@ use ieee.std_logic_1164.all;
 
 library work;
 use work.all;
-use settings.all;
+use {prefix}_settings.all;
 use debug_textio.all;
 
-entity test_signal_generator is
+entity {prefix}_signal_generator is
     port (
         done_out            : out std_logic;
         clock_out           : out std_logic;
@@ -42,9 +42,9 @@ entity test_signal_generator is
         restart_debug_in    : in std_logic;
         value_out           : out std_logic_vector({ALL_BITS - 1} downto 0)
     );
-end test_signal_generator;
+end {prefix}_signal_generator;
 
-architecture structural of test_signal_generator is
+architecture structural of {prefix}_signal_generator is
     constant g : std_logic_vector(15 downto 0) := x"cccc";
     signal p : std_logic_vector(15 downto 0) := x"0000";
     signal done : std_logic := '0';
@@ -109,25 +109,26 @@ end structural;
 """)
 
 def ghdl_run_ops(ops: OperationList, in_values: typing.List[int]) -> typing.List[int]:
-    ops.generate()
-    make_test_bench(in_values=in_values)
+    prefix = FILTER_UNIT_PREFIX
+    ops.generate(prefix)
+    make_test_bench(in_values=in_values, prefix=prefix)
     subprocess.check_call(["ghdl", "--remove"], cwd=FPGA_DIR)
     subprocess.check_call(["ghdl", "-a", "--work=work",
             "debug_textio.vhdl",
             "debug_textio-body.vhdl",
-            "../generated/settings.vhdl",
-            "../generated/control_line_decoder.vhdl",
-            "../generated/microcode_store.test.vhdl",
-            "../generated/test_signal_generator.vhdl",
+            f"../generated/{prefix}_settings.vhdl",
+            f"../generated/{prefix}_control_line_decoder.vhdl",
+            f"../generated/{prefix}_microcode_store.test.vhdl",
+            f"../generated/{prefix}_signal_generator.vhdl",
             "shift_register.vhdl",
             "banked_shift_register.vhdl",
             "subtractor.vhdl",
             "filter_unit.vhdl",
-            "test_top_level.vhdl",
+            "ghdl_test_top_level.vhdl",
             ], cwd=FPGA_DIR)
             
     with open(GHDL_OUTPUT, "wb") as fd:
-        rc = subprocess.call(["ghdl", "-r", "test_top_level"] + RFLAGS,
+        rc = subprocess.call(["ghdl", "-r", "ghdl_test_top_level"] + RFLAGS,
                 stdin=subprocess.DEVNULL, stdout=fd, cwd=FPGA_DIR)
 
     out_values: typing.List[int] = []

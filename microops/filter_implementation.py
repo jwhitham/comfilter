@@ -7,6 +7,7 @@ from settings import (
         RC_DECAY_PER_BIT,
         FILTER_WIDTH,
         SAMPLE_RATE,
+        FILTER_UNIT_PREFIX,
     )
 from func_hardware import (
         get_shift_line, Debug, MuxCode,
@@ -284,7 +285,7 @@ def multiply_accumulate_via_regs(ops: OperationList, test_values: typing.List[fl
 def main() -> None:
     ops = FPGAOperationList()
     demodulator(ops)
-    ops.generate()
+    ops.generate(FILTER_UNIT_PREFIX)
 
 if __name__ == "__main__":
     main()

@@ -227,8 +227,8 @@ class OperationList:
         for op in self.operations:
             yield op
 
-    def generate(self) -> None:
-        with open("generated/disassembly.txt", "wt") as fd:
+    def generate(self, prefix: str) -> None:
+        with open(f"generated/{prefix}_disassembly.txt", "wt") as fd:
             self.dump_code(fd)
 
     def dump_code(self, fd: typing.IO) -> None:

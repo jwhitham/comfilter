@@ -8,7 +8,7 @@ use ieee.numeric_std.all;
 
 library work;
 use work.all;
-use settings.all;
+use filter_unit_settings.all;
 
 entity receiver_main is
     port (

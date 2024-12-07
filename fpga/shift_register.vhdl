@@ -5,13 +5,13 @@ use ieee.numeric_std.all;
 
 library work;
 use work.all;
-use settings.all;
 use debug_textio.all;
 
 entity shift_register is
     generic (
-        name        : String;
-        size        : Natural);
+        name          : String;
+        size          : Natural;
+        verbose_debug : Boolean := false);
     port (
         reg_out             : out std_logic := '0';
         negative_out        : out std_logic := '0';
@@ -37,7 +37,7 @@ begin
                 new_value(size - 1) := reg_in;
                 new_value(size - 2 downto 0) := value(size - 1 downto 1);
                 value <= new_value;
-                if VERBOSE_DEBUG then
+                if verbose_debug then
                     write (l, name);
                     write (l, String'(" := "));
                     write (l, Integer'(ieee.numeric_std.to_integer(signed(new_value))));

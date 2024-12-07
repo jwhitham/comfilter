@@ -5,7 +5,7 @@ use ieee.numeric_std.all;
 
 library work;
 use work.all;
-use settings.all;
+use filter_unit_settings.all;
 
 entity fpga_test_top_level is
     port (

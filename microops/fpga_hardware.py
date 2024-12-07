@@ -11,26 +11,26 @@ import typing
 UNUSED_CODE = 0xff
 
 class FPGACodeTable(CodeTable):
-    def dump_control_line_decoder(self, fd: typing.IO) -> None:
-        fd.write("""
+    def dump_control_line_decoder(self, fd: typing.IO, prefix: str) -> None:
+        fd.write(f"""
 library ieee;
 use ieee.std_logic_1164.all;
 
-entity control_line_decoder is port (
+entity {prefix}_control_line_decoder is port (
 """)
         lines = list(ControlLine)
         lines.sort(key = lambda cl: cl.name)
         lines.remove(ControlLine.NOTHING)
         for cl in lines:
             fd.write(f"{cl.name} : out std_logic := '0';\n")
-        fd.write("""
+        fd.write(f"""
 mux_select          : out std_logic_vector(3 downto 0);
 mux_strobe          : out std_logic;
 debug_strobe        : out std_logic;
 enable_in           : in std_logic;
 code_in             : in std_logic_vector(7 downto 0));
-end control_line_decoder;
-architecture structural of control_line_decoder is
+end {prefix}_control_line_decoder;
+architecture structural of {prefix}_control_line_decoder is
     signal control_line_enable : std_logic;
 begin
     control_line_enable <= enable_in and not code_in(7);
@@ -66,16 +66,16 @@ class FPGAOperationList(OperationList):
     def make_code_table(self) -> CodeTable:
         return FPGACodeTable()
 
-    def generate(self) -> None:
-        OperationList.generate(self)
-        with open("generated/control_line_decoder.vhdl", "wt") as fd:
-            self.dump_control_line_decoder(fd)
-        with open("generated/microcode_store.vhdl", "wt") as fd:
-            self.dump_lattice_rom(fd)
-        with open("generated/microcode_store.test.vhdl", "wt") as fd:
-            self.dump_test_rom(fd)
-        with open("generated/settings.vhdl", "wt") as fd:
-            self.dump_settings(fd)
+    def generate(self, prefix: str) -> None:
+        OperationList.generate(self, prefix)
+        with open(f"generated/{prefix}_control_line_decoder.vhdl", "wt") as fd:
+            self.dump_control_line_decoder(fd, prefix)
+        with open(f"generated/{prefix}_microcode_store.vhdl", "wt") as fd:
+            self.dump_lattice_rom(fd, prefix)
+        with open(f"generated/{prefix}_microcode_store.test.vhdl", "wt") as fd:
+            self.dump_test_rom(fd, prefix)
+        with open(f"generated/{prefix}_settings.vhdl", "wt") as fd:
+            self.dump_settings(fd, prefix)
 
     def get_uc_addr_bits(self, size: int) -> int:
         uc_addr_bits = 0
@@ -83,10 +83,10 @@ class FPGAOperationList(OperationList):
             uc_addr_bits += 1
         return max(9, uc_addr_bits)
 
-    def dump_settings(self, fd: typing.IO) -> None:
+    def dump_settings(self, fd: typing.IO, prefix: str) -> None:
         memory = self.get_memory_image()
         uc_addr_bits = self.get_uc_addr_bits(len(memory))
-        fd.write(f"""package settings is
+        fd.write(f"""package {prefix}_settings is
 constant FRACTIONAL_BITS : Natural := {FRACTIONAL_BITS};
 constant NON_FRACTIONAL_BITS : Natural := {NON_FRACTIONAL_BITS};
 constant UC_ADDR_BITS : Natural := {uc_addr_bits};
@@ -94,23 +94,23 @@ constant ALL_BITS : Natural := {ALL_BITS};
 constant A_BITS : Natural := {A_BITS};
 constant VERBOSE_DEBUG : Boolean := {DEBUG > 1};
 
-end package settings;\n""")
+end package {prefix}_settings;\n""")
 
-    def dump_control_line_decoder(self, fd: typing.IO) -> None:
-        self.code_table.dump_control_line_decoder(fd)
+    def dump_control_line_decoder(self, fd: typing.IO, prefix: str) -> None:
+        self.code_table.dump_control_line_decoder(fd, prefix)
 
-    def dump_lattice_rom(self, fd: typing.IO) -> None:
+    def dump_lattice_rom(self, fd: typing.IO, prefix: str) -> None:
         memory = self.get_memory_image()
         uc_addr_bits = self.get_uc_addr_bits(len(memory))
         fd.write(f"""library ieee;
 use ieee.std_logic_1164.all;
-entity microcode_store is port (
+entity {prefix}_microcode_store is port (
         uc_data_out : out std_logic_vector (7 downto 0) := (others => '0');
         uc_addr_in  : in std_logic_vector ({uc_addr_bits - 1} downto 0) := (others => '0');
         enable_in   : in std_logic := '0';
         clock_in    : in std_logic := '0');
-end microcode_store;
-architecture structural of microcode_store is
+end {prefix}_microcode_store;
+architecture structural of {prefix}_microcode_store is
     signal one      : std_logic := '1';
     signal unused   : std_logic_vector(8 downto 0) := (others => '0');
 
@@ -191,7 +191,7 @@ WE => unused(0));\n""")
             fd.write(f"x\"{UNUSED_CODE:02x}\";\n")
         fd.write("end structural;\n")
 
-    def dump_test_rom(self, fd: typing.IO) -> None:
+    def dump_test_rom(self, fd: typing.IO, prefix: str) -> None:
         memory = self.get_memory_image()
         uc_addr_bits = self.get_uc_addr_bits(len(memory))
         fd.write(f"""
@@ -199,13 +199,13 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-entity microcode_store is port (
+entity {prefix}_microcode_store is port (
         uc_data_out : out std_logic_vector (7 downto 0) := (others => '0');
         uc_addr_in  : in std_logic_vector ({uc_addr_bits - 1} downto 0) := (others => '0');
         enable_in   : in std_logic := '0';
         clock_in    : in std_logic := '0');
-end microcode_store;
-architecture behavioural of microcode_store is
+end {prefix}_microcode_store;
+architecture behavioural of {prefix}_microcode_store is
     subtype t_word is std_logic_vector (7 downto 0);
     type t_storage is array (0 to {(1 << uc_addr_bits) - 1}) of t_word;
     signal storage : t_storage := (

@@ -5,13 +5,13 @@ use ieee.numeric_std.all;
 
 library work;
 use work.all;
-use settings.all;
+use filter_unit_settings.all;
 use debug_textio.all;
 
-entity test_top_level is
-end test_top_level;
+entity ghdl_test_top_level is
+end ghdl_test_top_level;
 
-architecture structural of test_top_level is
+architecture structural of ghdl_test_top_level is
 
     signal done                 : std_logic := '0';
     signal clock                : std_logic := '0';
@@ -25,7 +25,7 @@ architecture structural of test_top_level is
     signal data_value           : std_logic := '0';
 
 begin
-    test_signal_gen : entity test_signal_generator
+    test_signal_gen : entity filter_unit_signal_generator
         port map (done_out => done,
                 clock_out => clock,
                 input_ready_in => input_ready,

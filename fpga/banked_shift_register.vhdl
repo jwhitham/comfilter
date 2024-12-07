@@ -11,8 +11,9 @@ use debug_textio.all;
 
 entity banked_shift_register is
     generic (
-        name        : String;
-        size        : Natural);
+        name          : String;
+        size          : Natural;
+        verbose_debug : Boolean := false);
     port (
         reg_out             : out std_logic := '0';
         negative_out        : out std_logic := '0';
@@ -29,7 +30,10 @@ architecture structural of banked_shift_register is
     signal debug_b0, debug_b1            : std_logic_vector(size - 1 downto 0) := (others => '0');
 begin
     b0 : entity shift_register
-        generic map (name => name & "_b0", size => size)
+        generic map (
+            name => name & "_b0",
+            size => size,
+            verbose_debug => verbose_debug)
         port map (
             reg_out => reg_b0,
             negative_out => negative_b0,
@@ -39,7 +43,10 @@ begin
             clock_in => clock_in);
 
     b1 : entity shift_register
-        generic map (name => name & "_b1", size => size)
+        generic map (
+            name => name & "_b1",
+            size => size,
+            verbose_debug => verbose_debug)
         port map (
             reg_out => reg_b1,
             negative_out => negative_b1,
