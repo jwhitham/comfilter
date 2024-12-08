@@ -2,9 +2,6 @@
 #-- Project file C:\Users\jackd\Documents\Software projects\spdif\fpga\projects\receiver_project\receiver_project_syn.prj
 #project files
 
-add_file -vhdl -lib work "../../generated/control_line_decoder.vhdl" 
-add_file -vhdl -lib work "../../generated/microcode_store.vhdl" 
-add_file -vhdl -lib work "../../generated/settings.vhdl" 
 add_file -vhdl -lib work "../banked_shift_register.vhdl" 
 add_file -vhdl -lib work "../filter_unit.vhdl" 
 add_file -vhdl -lib work "../shift_register.vhdl" 
@@ -17,6 +14,9 @@ add_file -vhdl -lib work "../packet_decoder.vhdl"
 add_file -vhdl -lib work "../channel_decoder.vhdl" 
 add_file -vhdl -lib work "../debug_textio-body.vhdl" 
 add_file -vhdl -lib work "../debug_textio.vhdl" 
+add_file -vhdl -lib work "../../generated/filter_unit_control_line_decoder.vhdl" 
+add_file -vhdl -lib work "../../generated/filter_unit_microcode_store.vhdl" 
+add_file -vhdl -lib work "../../generated/filter_unit_settings.vhdl" 
 #implementation: "receiver_project_Implmnt"
 impl -add receiver_project_Implmnt -type fpga
 

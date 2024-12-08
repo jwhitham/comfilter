@@ -4,7 +4,7 @@ Version=Lattice Semiconductor Corporation iCEcube - Release: 2020.12.27943 - Bui
 ProjectName=fpga_test_project
 Vendor=SiliconBlue
 Synthesis=synplify
-ProjectVFiles=../../generated/control_line_decoder.vhdl=work,../../generated/microcode_store.vhdl=work,../../generated/settings.vhdl=work,../banked_shift_register.vhdl=work,../filter_unit.vhdl=work,../fpga_test_top_level.vhdl=work,../pulse_gen.vhdl=work,../shift_register.vhdl=work,../subtractor.vhdl=work,../uart.vhdl=work,fpga_test_project_pll.vhd=work,fpga_test_project_top.vhdl=work,../debug_textio-body.vhdl,../debug_textio.vhdl
+ProjectVFiles=../banked_shift_register.vhdl=work,../filter_unit.vhdl=work,../fpga_test_top_level.vhdl=work,../pulse_gen.vhdl=work,../shift_register.vhdl=work,../subtractor.vhdl=work,../uart.vhdl=work,fpga_test_project_pll.vhd=work,fpga_test_project_top.vhdl=work,../debug_textio-body.vhdl=work,../debug_textio.vhdl=work,../../generated/filter_unit_control_line_decoder.vhdl=work,../../generated/filter_unit_microcode_store.vhdl=work,../../generated/filter_unit_settings.vhdl=work
 ProjectCFiles=
 CurImplementation=fpga_test_project_Implmnt
 Implementations=fpga_test_project_Implmnt
