@@ -70,12 +70,10 @@ class FPGAOperationList(OperationList):
         OperationList.generate(self, prefix)
         with open(f"generated/{prefix}_control_line_decoder.vhdl", "wt") as fd:
             self.dump_control_line_decoder(fd, prefix)
-        ##with open(f"generated/{prefix}_microcode_store.vhdl", "wt") as fd:
-        #    self.dump_lattice_rom(fd, prefix)
-        #with open(f"generated/{prefix}_microcode_store.test.vhdl", "wt") as fd:
-        #    self.dump_test_rom(fd, prefix)
         with open(f"generated/{prefix}_microcode_store.vhdl", "wt") as fd:
-            self.dump_inferred_rom(fd, prefix)
+            self.dump_lattice_rom(fd, prefix)
+        with open(f"generated/{prefix}_microcode_store.test.vhdl", "wt") as fd:
+            self.dump_test_rom(fd, prefix)
         with open(f"generated/{prefix}_settings.vhdl", "wt") as fd:
             self.dump_settings(fd, prefix)
 
@@ -100,73 +98,6 @@ end package {prefix}_settings;\n""")
 
     def dump_control_line_decoder(self, fd: typing.IO, prefix: str) -> None:
         self.code_table.dump_control_line_decoder(fd, prefix)
-
-    def dump_inferred_rom(self, fd: typing.IO, prefix: str) -> None:
-        memory = self.get_memory_image()
-        uc_addr_bits = self.get_uc_addr_bits(len(memory))
-        fd.write(f"""
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
-entity {prefix}_microcode_store is port (
-        uc_data_out : out std_logic_vector (7 downto 0) := (others => '0');
-        uc_addr_in  : in std_logic_vector ({uc_addr_bits - 1} downto 0) := (others => '0');
-        enable_in   : in std_logic := '0';
-        clock_in    : in std_logic := '0');
-end {prefix}_microcode_store;
-architecture rtl of {prefix}_microcode_store is
-    constant addr_width : Natural := 9;
-    constant data_width : Natural := 8;
-    type t_mem_type is array ((2 ** addr_width) - 1 downto 0) of std_logic_vector(data_width - 1 downto 0);
-    signal uc_addr : unsigned (addr_width - 1 downto 0) := (others => '0');
-""")
-        block_size = 512
-        num_blocks = (len(memory) + block_size - 1) // block_size
-        j = 0
-        for block in range(num_blocks):
-            fd.write(f"signal uc_data_{block} : std_logic_vector (data_width - 1 downto 0);\n")
-            fd.write(f"signal uc_mem_{block} : t_mem_type := (\n")
-            for i in range(block_size - 1):
-                if j < len(memory):
-                    fd.write(f'{i} => x"{memory[j]:02x}",\n')
-                    j += 1
-            if j < len(memory):
-                fd.write(f'others => x"{memory[j]:02x}");\n')
-                j += 1
-            else:
-                fd.write(f'others => x"{UNUSED_CODE:02x}");\n')
-        if uc_addr_bits > 9:
-            fd.write(f"signal top_addr_reg : unsigned ({uc_addr_bits} - 1 downto addr_width) := (others => '0');\n")
-        fd.write("begin\n")
-        for block in range(num_blocks):
-            fd.write(f"""
-uc_ram_{block} : process (clock_in)
-begin
-    if clock_in'event and clock_in = '1' then
-        if enable_in = '1' then
-            uc_data_{block} <= uc_mem_{block} (to_integer (uc_addr));
-        end if;
-    end if;
-end process;""")
-        fd.write("uc_addr <= unsigned(uc_addr_in (addr_width - 1 downto 0));\n")
-        if uc_addr_bits <= 9:
-            fd.write("uc_data_out <= uc_data_0;\n")
-        else:
-            fd.write(f"""
-process (clock_in)
-begin
-    if clock_in'event and clock_in = '1' then
-        if enable_in = '1' then
-            top_addr_reg <= unsigned(uc_addr_in ({uc_addr_bits} - 1 downto addr_width));
-        end if;
-    end if;
-end process;
-uc_data_out <=
-""")
-            for block in range(num_blocks):
-                fd.write(f"uc_data_{block} when to_integer (top_addr_reg) = {block} else\n")
-            fd.write(f"x\"{UNUSED_CODE:02x}\";\n")
-        fd.write("end rtl;\n")
 
     def dump_lattice_rom(self, fd: typing.IO, prefix: str) -> None:
         memory = self.get_memory_image()

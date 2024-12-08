@@ -118,7 +118,7 @@ def ghdl_run_ops(ops: OperationList, in_values: typing.List[int]) -> typing.List
             "debug_textio-body.vhdl",
             f"../generated/{prefix}_settings.vhdl",
             f"../generated/{prefix}_control_line_decoder.vhdl",
-            f"../generated/{prefix}_microcode_store.vhdl",
+            f"../generated/{prefix}_microcode_store.test.vhdl",
             f"../generated/{prefix}_signal_generator.vhdl",
             "shift_register.vhdl",
             "banked_shift_register.vhdl",
