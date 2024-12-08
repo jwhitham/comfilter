@@ -6,7 +6,7 @@ from func_hardware import (
         ALL_BITS, OperationList,
     )
 from settings import (
-        DEBUG, SERIAL_PORT,
+        DEBUG, SERIAL_PORT, FILTER_UNIT_PREFIX,
     )
 from filter_implementation import (
         demodulator,
@@ -46,7 +46,7 @@ def main() -> None:
     print("Create demodulator")
     ops = FPGAOperationList()
     demodulator(ops)
-    ops.generate()
+    ops.generate(FILTER_UNIT_PREFIX)
 
     print("Read test vector")
     test_vector = TestVector(int(1e9))
