@@ -3,8 +3,8 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-library work;
-use work.all;
+library comfilter;
+use comfilter.all;
 use filter_unit_settings.all;
 
 entity fpga_test_top_level is

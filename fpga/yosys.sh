@@ -6,7 +6,7 @@ python microops/pattern_test.py
 cd fpga
 export PATH=/opt/oss-cad-suite/bin:/opt/ghdl/bin:$PATH
 ghdl --remove
-ghdl -a --work=work  \
+ghdl -a --work=comfilter  \
     ../generated/settings.vhdl \
     ../generated/microcode_store.test.vhdl \
     ../generated/control_line_decoder.vhdl \

@@ -1,5 +1,4 @@
 generated/*
-fpga/test/generated/*
-work-obj93.cf
+comfilter-obj93.cf
 __pycache__
 .mypy_cache

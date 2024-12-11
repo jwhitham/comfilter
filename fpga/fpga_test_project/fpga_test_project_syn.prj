@@ -5,23 +5,23 @@
 
 
 #project files
-add_file -vhdl -lib work "../banked_shift_register.vhdl"
-add_file -vhdl -lib work "../filter_unit.vhdl"
-add_file -vhdl -lib work "../fpga_test_top_level.vhdl"
-add_file -vhdl -lib work "../pulse_gen.vhdl"
-add_file -vhdl -lib work "../shift_register.vhdl"
-add_file -vhdl -lib work "../subtractor.vhdl"
-add_file -vhdl -lib work "../uart.vhdl"
-add_file -vhdl -lib work "fpga_test_project_pll.vhd"
-add_file -vhdl -lib work "fpga_test_project_top.vhdl"
-add_file -vhdl -lib work "../debug_textio-body.vhdl"
-add_file -vhdl -lib work "../debug_textio.vhdl"
-add_file -vhdl -lib work "../../generated/filter_unit_control_line_decoder.vhdl"
-add_file -vhdl -lib work "../../generated/filter_unit_microcode_store.vhdl"
-add_file -vhdl -lib work "../../generated/filter_unit_settings.vhdl"
 
 
 
+add_file -vhdl -lib comfilter "../banked_shift_register.vhdl" 
+add_file -vhdl -lib comfilter "../filter_unit.vhdl" 
+add_file -vhdl -lib comfilter "../fpga_test_top_level.vhdl" 
+add_file -vhdl -lib comfilter "../pulse_gen.vhdl" 
+add_file -vhdl -lib comfilter "../shift_register.vhdl" 
+add_file -vhdl -lib comfilter "../subtractor.vhdl" 
+add_file -vhdl -lib comfilter "../uart.vhdl" 
+add_file -vhdl -lib comfilter "fpga_test_project_pll.vhd" 
+add_file -vhdl -lib comfilter "fpga_test_project_top.vhdl" 
+add_file -vhdl -lib comfilter "../debug_textio-body.vhdl" 
+add_file -vhdl -lib comfilter "../debug_textio.vhdl" 
+add_file -vhdl -lib comfilter "../../generated/filter_unit_control_line_decoder.vhdl" 
+add_file -vhdl -lib comfilter "../../generated/filter_unit_microcode_store.vhdl" 
+add_file -vhdl -lib comfilter "../../generated/filter_unit_settings.vhdl" 
 #implementation: "fpga_test_project_Implmnt"
 impl -add fpga_test_project_Implmnt -type fpga
 
@@ -35,7 +35,7 @@ set_option -project_relative_includes 1
 set_option -technology SBTiCE40
 set_option -part iCE40HX8K
 set_option -package CB132
-set_option -speed_grade ""
+set_option -speed_grade 
 set_option -part_companion ""
 
 #compilation/mapping options
@@ -79,4 +79,5 @@ set_option -write_apr_constraint 1
 
 #set result format/file last
 project -result_file "fpga_test_project_Implmnt/fpga_test_project.edf"
-impl -active "fpga_test_project_Implmnt"
+impl -active fpga_test_project_Implmnt
+project -run synthesis -clean

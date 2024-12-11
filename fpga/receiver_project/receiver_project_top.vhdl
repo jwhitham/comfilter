@@ -1,6 +1,6 @@
 
-library work;
-use work.all;
+library comfilter;
+use comfilter.all;
 
 library ieee;
 use ieee.std_logic_1164.all;

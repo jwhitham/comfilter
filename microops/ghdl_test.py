@@ -27,8 +27,8 @@ library ieee;
 use ieee.std_logic_1164.all;
 
 
-library work;
-use work.all;
+library comfilter;
+use comfilter.all;
 use {prefix}_settings.all;
 use debug_textio.all;
 
@@ -113,7 +113,7 @@ def ghdl_run_ops(ops: OperationList, in_values: typing.List[int]) -> typing.List
     ops.generate(prefix)
     make_test_bench(in_values=in_values, prefix=prefix)
     subprocess.check_call(["ghdl", "--remove"], cwd=FPGA_DIR)
-    subprocess.check_call(["ghdl", "-a", "--work=work",
+    subprocess.check_call(["ghdl", "-a", "--work=comfilter",
             "debug_textio.vhdl",
             "debug_textio-body.vhdl",
             f"../generated/{prefix}_settings.vhdl",
