@@ -9,6 +9,7 @@ use filter_unit_settings.all;
 use debug_textio.all;
 
 entity filter_unit is
+    generic (print_outputs : Boolean := VERBOSE_DEBUG);
     port (
         clock_in            : in std_logic := '0';
         reset_in            : in std_logic := '0';
@@ -454,7 +455,7 @@ begin
             variable x_minus_l : signed(ALL_BITS - 1 downto 0) := (others => '0');
         begin
             if clock_in = '1' and clock_in'event then
-                if debug_strobe = '1' then
+                if debug_strobe = '1' and (VERBOSE_DEBUG or print_outputs) then
                     case mux_select is
                         when ASSERT_X_IS_ABS_O1 =>
                             assert ieee.numeric_std.to_integer(signed(x_debug_value)) =
@@ -474,7 +475,7 @@ begin
                             null;
                     end case;
                 end if;
-                if SEND_Y_TO_OUTPUT = '1' then
+                if SEND_Y_TO_OUTPUT = '1' and (VERBOSE_DEBUG or print_outputs) then
                     write (l, String'("Debug out Y = "));
                     write (l, Integer'(ieee.numeric_std.to_integer(signed(y_debug_value))));
                     writeline (output, l);

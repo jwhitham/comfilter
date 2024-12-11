@@ -35,6 +35,7 @@ begin
                 reset_out => reset);
 
     test_filter_unit : entity filter_unit
+        generic map (print_outputs => true)
         port map (clock_in => clock,
                 reset_in => reset,
                 input_strobe_in => input_strobe,
