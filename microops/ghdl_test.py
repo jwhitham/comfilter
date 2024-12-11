@@ -128,7 +128,7 @@ def ghdl_run_ops(ops: OperationList, in_values: typing.List[int]) -> typing.List
             ], cwd=FPGA_DIR)
             
     with open(GHDL_OUTPUT, "wb") as fd:
-        rc = subprocess.call(["ghdl", "-r", "ghdl_test_top_level"] + RFLAGS,
+        rc = subprocess.call(["ghdl", "-r", "--work=comfilter", "ghdl_test_top_level"] + RFLAGS,
                 stdin=subprocess.DEVNULL, stdout=fd, cwd=FPGA_DIR)
 
     out_values: typing.List[int] = []
