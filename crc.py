@@ -65,3 +65,6 @@ def crc16_ccitt_xmodem(data):
 assert crc16(b"123456789") == 0xbb3d
 assert crc16_ccitt_kermit(b"123456789") == 0x2189
 assert crc16_ccitt_xmodem(b"123456789") == 0x31c3
+assert crc(b"") == 0
+print(hex(crc(b"\x80")))
+
