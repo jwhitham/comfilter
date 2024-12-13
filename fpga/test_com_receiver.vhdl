@@ -14,14 +14,23 @@ architecture test_bench of test_com_receiver is
     constant clock_frequency    : Real := 9600.0;
     constant one_bit_time       : Time := 1e9 ns / baud_rate;
     constant one_clock_time     : Time := 1e9 ns / clock_frequency;
-    constant num_data_bits      : Natural := 9 * 8;
+    constant num_data_bits      : Natural := 40;
     signal clock                : std_logic := '0';
     signal reset                : std_logic := '0';
     signal done                 : std_logic := '0';
     signal expect_data          : std_logic := '0';
     signal strobe               : std_logic := '0';
     signal serial               : std_logic := '0';
-    signal data                 : std_logic_vector (num_data_bits - 1 downto 0) := (others => '0');
+
+    subtype t_data is std_logic_vector (num_data_bits - 1 downto 0);
+    subtype t_crc is std_logic_vector (15 downto 0);
+    signal test_pattern_1       : t_data := x"6654dbbc0a";
+    signal test_pattern_2       : t_data := x"22ebd5cf7c";
+    signal test_pattern_3       : t_data := x"c212151d13";
+    signal crc_1                : t_crc := x"4073";
+    signal crc_2                : t_crc := x"cfb1";
+    signal crc_3                : t_crc := x"5a1f";
+    signal data                 : t_data := (others => '0');
 
 begin
     tcr : entity com_receiver
@@ -69,26 +78,14 @@ begin
         wait for one_bit_time;
 
         -- data bits
-        -- ASCII characters '1' .. '9'
-        for byte_value in 16#31# to 16#39# loop
-            for bit_index in 0 to 7 loop
-                if ((byte_value / (2 ** bit_index)) mod 2) = 1 then
-                    serial <= '1';
-                else
-                    serial <= '0';
-                end if;
-                wait for one_bit_time;
-            end loop;
+        for bit_index in 0 to num_data_bits - 1 loop
+            serial <= test_pattern_1 (bit_index);
+            wait for one_bit_time;
         end loop;
 
         -- crc bits
-        -- 16#BB3D# is the CRC-16 for ASCII '1' .. '9'
         for bit_index in 0 to 15 loop
-            if ((16#BB3D# / (2 ** bit_index)) mod 2) = 1 then
-                serial <= '1';
-            else
-                serial <= '0';
-            end if;
+            serial <= crc_1 (bit_index);
             wait for one_bit_time;
         end loop;
 
@@ -104,7 +101,6 @@ begin
     end process;
 
     process is
-        variable i : Natural := 0;
     begin
         -- Wait for all data to be sent to com_receiver
         loop
@@ -118,19 +114,9 @@ begin
             assert expect_data = '1';
             exit when strobe = '1';
         end loop;
-        -- Check the output (ASCII '1' to '9' with a valid CRC)
+        -- Check the output
         assert strobe = '1';
-        i := num_data_bits;
-        for byte_value in 16#31# to 16#39# loop
-            for bit_index in 0 to 7 loop
-                i := i - 1;
-                if ((byte_value / (2 ** bit_index)) mod 2) = 1 then
-                    assert data (i) = '1';
-                else
-                    assert data (i) = '0';
-                end if;
-            end loop;
-        end loop;
+        assert data = test_pattern_1;
         -- Check that no further output is signalled
         loop
             wait until clock = '1' and clock'event;

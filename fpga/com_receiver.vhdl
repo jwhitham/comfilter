@@ -93,8 +93,8 @@ begin
     process (clock_in, data_strobe) is
     begin
         if clock_in'event and clock_in = '1' and data_strobe = '1' then
-            data_reg (num_data_bits - 1 downto 1) <= data_reg (num_data_bits - 2 downto 0);
-            data_reg (0) <= serial_in;
+            data_reg (num_data_bits - 2 downto 0) <= data_reg (num_data_bits - 1 downto 1);
+            data_reg (num_data_bits - 1) <= serial_in;
         end if;
     end process;
 

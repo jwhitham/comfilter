@@ -80,3 +80,13 @@ def suffix(data):
     return value
 
 assert suffix(b"123456789") == 0xbb3d
+
+def test_pattern(hex_string):
+    num_bytes = len(hex_string) // 2
+    data = [int(hex_string[i:i+2], 16) for i in range(0, len(hex_string), 2)]
+    data.reverse()
+    return crc16(data)
+
+print(hex(test_pattern("6654dbbc0a")))
+print(hex(test_pattern("22ebd5cf7c")))
+print(hex(test_pattern("c212151d13")))
