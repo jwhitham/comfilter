@@ -58,6 +58,7 @@ begin
 
 
     process is
+        variable i : Natural := 0;
     begin
         done <= '0';
         reset <= '1';
@@ -92,37 +93,112 @@ begin
         -- Stop bit
         expect_data <= '1';
         serial <= '1';
-
-        -- That's it! Should get some data soon
-        wait for one_bit_time * 10;
+        wait for one_bit_time;
         expect_data <= '0';
+
+        -- start bit
+        serial <= '0';
+        wait for one_bit_time;
+
+        -- data bits
+        for bit_index in 0 to num_data_bits - 1 loop
+            serial <= test_pattern_2 (bit_index);
+            wait for one_bit_time;
+        end loop;
+
+        -- crc bits
+        for bit_index in 0 to 15 loop
+            serial <= crc_2 (bit_index);
+            wait for one_bit_time;
+        end loop;
+
+        -- Stop bit
+        expect_data <= '1';
+        serial <= '1';
+        wait for one_bit_time;
+        expect_data <= '0';
+
+        -- Send noisy garbage for a while
+        i := 0;
+        for j in 1 to (16 * num_data_bits) loop
+            serial <= test_pattern_2 (i) xor test_pattern_1 (i);
+            wait for one_bit_time / 16;
+            i := (i + 1) mod num_data_bits;
+        end loop;
+
+        -- begin break
+        serial <= '1';
+        wait for one_bit_time * 30;
+
+        -- start bit
+        serial <= '0';
+        wait for one_bit_time;
+        expect_data <= '0';
+
+        -- data bits
+        for bit_index in 0 to num_data_bits - 1 loop
+            serial <= test_pattern_3 (bit_index);
+            wait for one_bit_time;
+        end loop;
+
+        -- crc bits
+        for bit_index in 0 to 15 loop
+            serial <= crc_3 (bit_index);
+            wait for one_bit_time;
+        end loop;
+
+        -- Stop bit
+        expect_data <= '1';
+        serial <= '1';
+        wait for one_bit_time;
+        expect_data <= '0';
+
+        -- That's it! All three test patterns should have been received now
         wait until done = '1';
         wait;
     end process;
 
     process is
     begin
+        while done = '0' loop
+            wait until clock = '1' and clock'event;
+            if strobe = '1' then
+                assert expect_data = '1';
+                assert data = test_pattern_1 or data = test_pattern_2 or data = test_pattern_3;
+            end if;
+        end loop;
+        wait;
+    end process;
+
+    process is
+    begin
         -- Wait for all data to be sent to com_receiver
-        loop
-            wait until clock = '1' and clock'event;
-            assert strobe = '0';
-            exit when expect_data = '1';
-        end loop;
+        wait until clock = '1' and clock'event and expect_data = '1';
         -- Wait for com_receiver to produce output
-        loop
-            wait until clock = '1' and clock'event;
-            assert expect_data = '1';
-            exit when strobe = '1';
-        end loop;
+        wait until clock = '1' and clock'event and strobe = '1';
         -- Check the output
-        assert strobe = '1';
         assert data = test_pattern_1;
-        -- Check that no further output is signalled
-        loop
-            wait until clock = '1' and clock'event;
-            assert strobe = '0';
-            exit when expect_data = '0';
-        end loop;
+        -- Wait for expect_data to go to '0'
+        wait until clock = '1' and clock'event and expect_data = '0';
+
+        -- Wait for all data to be sent to com_receiver
+        wait until clock = '1' and clock'event and expect_data = '1';
+        -- Wait for com_receiver to produce output
+        wait until clock = '1' and clock'event and strobe = '1';
+        -- Check the output
+        assert data = test_pattern_2;
+        -- Wait for expect_data to go to '0'
+        wait until clock = '1' and clock'event and expect_data = '0';
+
+        -- Wait for all data to be sent to com_receiver
+        wait until clock = '1' and clock'event and expect_data = '1';
+        -- Wait for com_receiver to produce output
+        wait until clock = '1' and clock'event and strobe = '1';
+        -- Check the output
+        assert data = test_pattern_3;
+        -- Wait for expect_data to go to '0'
+        wait until clock = '1' and clock'event and expect_data = '0';
+
         -- Finish testing
         done <= '1';
         wait;
