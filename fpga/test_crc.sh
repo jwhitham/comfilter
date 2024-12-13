@@ -4,6 +4,6 @@ RFLAGS=--assert-level=note
 
 ghdl -a --work=comfilter \
         crc.vhdl \
-        crc_test.vhdl
-ghdl -r --work=comfilter crc_test ${RFLAGS}
+        test_crc.vhdl
+ghdl -r --work=comfilter test_crc ${RFLAGS}
 echo "tests ok"

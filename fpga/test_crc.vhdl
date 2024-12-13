@@ -7,10 +7,10 @@ use ieee.numeric_std.all;
 
 use debug_textio.all;
 
-entity crc_test is
-end entity crc_test;
+entity test_crc is
+end entity test_crc;
 
-architecture test_bench of crc_test is
+architecture test_bench of test_crc is
 
 
     signal clock        : std_logic := '0';
@@ -53,6 +53,7 @@ begin
     end process;
 
     process is
+        variable copy_value : std_logic_vector(15 downto 0);
     begin
         -- initial state
         done <= '0';
@@ -84,6 +85,20 @@ begin
         
         assert crc32_value = x"CBF43926";
         assert crc16_value = x"BB3D";
+
+        -- test the output after appending the CRC
+        copy_value := crc16_value;
+        for bit_index in 0 to 15 loop
+            data <= copy_value (bit_index);
+            strobe <= '1';
+            wait until clock = '1' and clock'event;
+        end loop;
+
+        -- test the output (should be 0)
+        strobe <= '0';
+        wait until clock = '1' and clock'event;
+        assert crc16_value = x"0000";
+
         done <= '1';
         wait;
     end process;

@@ -1,5 +1,6 @@
 
 import zlib
+import struct
 
 #polynomial = 0x04C11DB7
 #bit_width = 32
@@ -66,5 +67,16 @@ assert crc16(b"123456789") == 0xbb3d
 assert crc16_ccitt_kermit(b"123456789") == 0x2189
 assert crc16_ccitt_xmodem(b"123456789") == 0x31c3
 assert crc(b"") == 0
-print(hex(crc(b"\x80")))
 
+
+
+def suffix(data):
+    polynomial = 0x8005
+    bit_width = 16
+    value = crc(data, polynomial, bit_width, False)
+    more = struct.pack("<H", value)
+    check = crc(data + more, polynomial, bit_width, False)
+    assert check == 0
+    return value
+
+assert suffix(b"123456789") == 0xbb3d
