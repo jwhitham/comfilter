@@ -9,6 +9,7 @@ use ieee.numeric_std.all;
 entity com_receiver is
     generic (
         clock_frequency : Real;
+        baud_rate       : Real;
         num_data_bits   : Natural);
     port (
         serial_in     : in std_logic := '0';
@@ -20,10 +21,27 @@ end com_receiver;
 
 architecture structural of com_receiver is
 
-    constant num_crc_bits       : Natural := 16;
-    constant baud_rate          : Real := 300.0;
-    constant stable_time        : Natural := 15;
-    constant num_counter_bits   : Natural := 10; -- enough for log2(16 * (num_data_bits + num_crc_bits + 1))
+    constant num_crc_bits        : Natural := 16;
+    constant stable_time_in_bits : Natural := 15;
+
+    function compute_counter_bits return Natural is
+        variable max_value : Natural := 16 * num_data_bits;
+        variable num_bits : Natural := 0;
+    begin
+        if num_crc_bits > num_data_bits then
+            max_value := 16 * num_crc_bits;
+        end if;
+        if stable_time_in_bits > num_data_bits then
+            max_value := 16 * stable_time_in_bits;
+        end if;
+        while max_value > 0 loop
+            num_bits := num_bits + 1;
+            max_value := max_value / 2;
+        end loop;
+        return num_bits;
+    end compute_counter_bits;
+
+    constant num_counter_bits   : Natural := compute_counter_bits;
 
     type t_receive_state is (ZERO_SIGNAL, ONE_SIGNAL, READY,
                     START_BIT, DATA_BIT, CRC_BIT, STOP_BIT);
@@ -69,7 +87,7 @@ begin
             else '0';
     data_strobe <= counter_16_strobe when receive_state = DATA_BIT else '0';
 
-    counter_8_strobe <= '1' when (counter (2 downto 0) = "111") else '0';
+    counter_8_strobe <= baud_div_16 when (counter (2 downto 0) = "111") else '0';
     counter_16_strobe <= counter_8_strobe and counter (3);
 
     process (clock_in, data_strobe) is
@@ -80,7 +98,7 @@ begin
         end if;
     end process;
 
-    valid_crc <= '1' when crc_data = x"ffff" else '0';
+    valid_crc <= '1' when crc_data = x"0000" else '0';
     strobe_out <= (serial_in and valid_crc and counter_16_strobe) when receive_state = STOP_BIT else '0';
     data_out <= data_reg;
 
@@ -102,7 +120,7 @@ begin
                         -- The input must be stable in the '1' state for a while
                         -- in order to enter the READY state
                         if serial_in = '1' then
-                            if counter (num_counter_bits - 1 downto 4) = stable_time then
+                            if counter (num_counter_bits - 1 downto 4) = stable_time_in_bits then
                                 receive_state <= READY;
                             end if;
                         else

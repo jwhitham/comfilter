@@ -10,8 +10,9 @@ end test_com_receiver;
 
 architecture test_bench of test_com_receiver is
 
+    constant baud_rate          : Real := 300.0;
     constant clock_frequency    : Real := 9600.0;
-    constant one_bit_time       : Time := 1e9 ns / 300; -- 300 baud
+    constant one_bit_time       : Time := 1e9 ns / baud_rate;
     constant one_clock_time     : Time := 1e9 ns / clock_frequency;
     constant num_data_bits      : Natural := 9 * 8;
     signal clock                : std_logic := '0';
@@ -25,6 +26,7 @@ architecture test_bench of test_com_receiver is
 begin
     tcr : entity com_receiver
         generic map (
+            baud_rate => baud_rate,
             clock_frequency => clock_frequency,
             num_data_bits => num_data_bits)
         port map (
@@ -47,7 +49,6 @@ begin
 
 
     process is
-        constant crc_value : Natural := 16#BB3D#;
     begin
         done <= '0';
         reset <= '1';
@@ -68,6 +69,7 @@ begin
         wait for one_bit_time;
 
         -- data bits
+        -- ASCII characters '1' .. '9'
         for byte_value in 16#31# to 16#39# loop
             for bit_index in 0 to 7 loop
                 if ((byte_value / (2 ** bit_index)) mod 2) = 1 then
@@ -80,8 +82,9 @@ begin
         end loop;
 
         -- crc bits
+        -- 16#BB3D# is the CRC-16 for ASCII '1' .. '9'
         for bit_index in 0 to 15 loop
-            if ((crc_value / (2 ** bit_index)) mod 2) = 1 then
+            if ((16#BB3D# / (2 ** bit_index)) mod 2) = 1 then
                 serial <= '1';
             else
                 serial <= '0';
@@ -94,16 +97,15 @@ begin
         serial <= '1';
 
         -- That's it! Should get some data soon
-        wait for one_bit_time * 1000;
+        wait for one_bit_time * 10;
         expect_data <= '0';
         wait until done = '1';
         wait;
     end process;
 
     process is
+        variable i : Natural := 0;
     begin
-        wait for one_bit_time;
-        assert data = x"000000000000000000";
         -- Wait for all data to be sent to com_receiver
         loop
             wait until clock = '1' and clock'event;
@@ -116,9 +118,19 @@ begin
             assert expect_data = '1';
             exit when strobe = '1';
         end loop;
-        -- Check the output
+        -- Check the output (ASCII '1' to '9' with a valid CRC)
         assert strobe = '1';
-        assert data = x"313233343536373839";
+        i := num_data_bits;
+        for byte_value in 16#31# to 16#39# loop
+            for bit_index in 0 to 7 loop
+                i := i - 1;
+                if ((byte_value / (2 ** bit_index)) mod 2) = 1 then
+                    assert data (i) = '1';
+                else
+                    assert data (i) = '0';
+                end if;
+            end loop;
+        end loop;
         -- Check that no further output is signalled
         loop
             wait until clock = '1' and clock'event;
