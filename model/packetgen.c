@@ -11,10 +11,11 @@
 
 #define BLOCK_SIZE (1 << 8)
 
-static const uint32_t bits_per_packet = 48;
-static int64_t build_packet(const char* packet)
+static const uint32_t bits_per_packet = 48; // includes start bit 0 and stop bit 1, sent LSB first
+
+static uint64_t build_packet(const char* packet)
 {
-    return 0xcccccccccccccc;
+    return 0x2 | ((uint64_t) 1 << (uint64_t) (bits_per_packet - 1));
 }
 
 static void generate(FILE* fd_out, uint32_t num_packets, char* const* packets)
@@ -69,7 +70,7 @@ static void generate(FILE* fd_out, uint32_t num_packets, char* const* packets)
 
     // Initial setup time - no data - hold at 1
     uint32_t        packet_lifetime = 0;
-    int64_t         packet = 1;
+    uint64_t        packet = 1;
 
     // Generate active blocks
     for (uint32_t j = 0; j < num_active_blocks; j++) {
@@ -79,7 +80,7 @@ static void generate(FILE* fd_out, uint32_t num_packets, char* const* packets)
                 if (packet_lifetime == 0) {
                     if (packet_index >= num_packets) {
                         // leadout - hold at 1
-                        packet_lifetime = 0;
+                        packet_lifetime = 1;
                         bit_lifetime = leadout_samples;
                         packet = 1;
                         reached_leadout = true;
@@ -91,23 +92,19 @@ static void generate(FILE* fd_out, uint32_t num_packets, char* const* packets)
                     }
                 } else {
                     packet = packet >> 1;
-                    packet_lifetime--;
                 }
+                packet_lifetime--;
             }
             bit_lifetime--;
-            if (packet > 0) {
-                angle += (packet & 1) ? upper_delta : lower_delta;
-                if (angle > (M_PI * 2.0)) {
-                    angle -= M_PI * 2.0;
-                }
-                samples[i] = floor((sin(angle) * (double) (INT16_MAX - 1)) + 0.5);
-                if (0 == (packet & 1)) {
-                    samples[i] /= 4;
-                }
-            } else {
-                angle = 0.0;
-                samples[i] = 0;
+            if (packet == 0) {
+                fprintf(stderr, "Error: packet data was 0 (packet incorrectly generated)\n");
+                exit(1);
             }
+            angle += (packet & 1) ? upper_delta : lower_delta;
+            if (angle > (M_PI * 2.0)) {
+                angle -= M_PI * 2.0;
+            }
+            samples[i] = floor((sin(angle) * (double) (INT16_MAX - 1)) + 0.5);
         }
 
         fwrite(&samples, 1, sizeof(samples), fd_out);
@@ -125,7 +122,7 @@ static void generate(FILE* fd_out, uint32_t num_packets, char* const* packets)
         exit(1);
     }
     if (!reached_leadout) {
-        fprintf(stderr, "Error: should have generated all packets\n");
+        fprintf(stderr, "Error: should have generated all packets (computed sizes are wrong)\n");
         exit(1);
     }
 }
