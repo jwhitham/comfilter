@@ -4,41 +4,35 @@
 #include <stdlib.h>
 #include <math.h>
 #include <limits.h>
+#include <stdbool.h>
 
 #include "wave.h"
 #include "settings.h"
 
 #define BLOCK_SIZE (1 << 8)
 
-static const uint32_t bits_per_packet = 8;
+static const uint32_t bits_per_packet = 48;
 static int64_t build_packet(const char* packet)
 {
-    return 1;
+    return 0xcccccccccccccc;
 }
 
 static void generate(FILE* fd_out, uint32_t num_packets, char* const* packets)
 {
     t_header        header;
     const uint32_t  sample_rate = SAMPLE_RATE;
-    const uint32_t  num_bits = (num_packets + 1) * (bits_per_packet + 2);
+    const uint32_t  num_bits = num_packets * bits_per_packet;
     const uint32_t  samples_per_bit = sample_rate / BAUD_RATE;
-    const uint32_t  leadin_samples = samples_per_bit * (bits_per_packet * 2);
-    const double    silent_time = 0.01;
+    const uint32_t  leadin_samples = sample_rate / 10;
+    const uint32_t  leadout_samples = sample_rate / 10;
+    const uint32_t  packet_samples = num_bits * samples_per_bit;
     const double    active_time =
-        (leadin_samples + (samples_per_bit * num_bits)) / (double) sample_rate;
+        (leadin_samples + leadout_samples + packet_samples) / (double) sample_rate;
     const uint32_t  bytes_per_sample = 2;
     const uint32_t  num_active_blocks = (uint32_t) ceil((sample_rate * active_time) / BLOCK_SIZE);
-    const uint32_t  num_silent_blocks = (uint32_t) ceil((sample_rate * silent_time) / BLOCK_SIZE);
-    const uint32_t  num_samples = (num_active_blocks + num_silent_blocks) * BLOCK_SIZE;
-    uint32_t        i = 0;
-    uint32_t        j = 0;
-    double          angle = 0.0;
+    const uint32_t  num_samples = num_active_blocks * BLOCK_SIZE;
     const double    upper_delta = ((M_PI * 2.0) / (double) sample_rate) * UPPER_FREQUENCY;
     const double    lower_delta = ((M_PI * 2.0) / (double) sample_rate) * LOWER_FREQUENCY;
-    uint32_t        bit_lifetime = 0;
-    uint32_t        packet_lifetime = 0;
-    uint32_t        packet_index = 0;
-    int64_t         packet = -1;
 
     // Write wav header
     memset(&header, 0, sizeof(header));
@@ -66,25 +60,32 @@ static void generate(FILE* fd_out, uint32_t num_packets, char* const* packets)
     // Samples
     int16_t samples[BLOCK_SIZE];
     memset(&samples, 0, sizeof(samples));
-    uint64_t sample_count = 0;
+
+    uint64_t        sample_count = 0;
+    bool            reached_leadout = false;
+    uint32_t        bit_lifetime = leadin_samples;
+    uint32_t        packet_index = 0;
+    double          angle = 0.0;
 
     // Initial setup time - no data - hold at 1
-    packet = 1;
-    bit_lifetime = leadin_samples;
+    uint32_t        packet_lifetime = 0;
+    int64_t         packet = 1;
 
     // Generate active blocks
-    for (j = 0; j < num_active_blocks; j++) {
-        for (i = 0; i < BLOCK_SIZE; i++) {
+    for (uint32_t j = 0; j < num_active_blocks; j++) {
+        for (uint32_t i = 0; i < BLOCK_SIZE; i++) {
             if (bit_lifetime == 0) {
                 bit_lifetime = samples_per_bit;
                 if (packet_lifetime == 0) {
                     if (packet_index >= num_packets) {
-                        // hold at 1
+                        // leadout - hold at 1
                         packet_lifetime = 0;
+                        bit_lifetime = leadout_samples;
                         packet = 1;
+                        reached_leadout = true;
                     } else {
                         // get packet data
-                        packet_lifetime = bits_per_packet + 1;
+                        packet_lifetime = bits_per_packet;
                         packet = build_packet(packets[packet_index]);
                         packet_index++;
                     }
@@ -100,20 +101,15 @@ static void generate(FILE* fd_out, uint32_t num_packets, char* const* packets)
                     angle -= M_PI * 2.0;
                 }
                 samples[i] = floor((sin(angle) * (double) (INT16_MAX - 1)) + 0.5);
+                if (0 == (packet & 1)) {
+                    samples[i] /= 4;
+                }
             } else {
                 angle = 0.0;
                 samples[i] = 0;
             }
         }
 
-        fwrite(&samples, 1, sizeof(samples), fd_out);
-        sample_count += BLOCK_SIZE;
-    }
-
-    // Silence at the end
-    memset(&samples, 0, sizeof(samples));
-
-    for (j = 0; j < num_silent_blocks; j++) {
         fwrite(&samples, 1, sizeof(samples), fd_out);
         sample_count += BLOCK_SIZE;
     }
@@ -126,6 +122,10 @@ static void generate(FILE* fd_out, uint32_t num_packets, char* const* packets)
     if (ftell(fd_out) != header.file_size) {
         fprintf(stderr, "Error: file size should be %u, actually %u\n",
             (unsigned) header.file_size, (unsigned) ftell(fd_out));
+        exit(1);
+    }
+    if (!reached_leadout) {
+        fprintf(stderr, "Error: should have generated all packets\n");
         exit(1);
     }
 }
