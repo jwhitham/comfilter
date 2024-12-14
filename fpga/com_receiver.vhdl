@@ -181,7 +181,7 @@ begin
                         if counter_16_reached = '1' then
                             if serial_in_copy = '1' then
                                 receive_state <= READY;
-                                strobe_out <= '1'; -- valid_crc;
+                                strobe_out <= valid_crc;
                             else
                                 -- Unstable - stop bit should be 1
                                 receive_state <= ZERO_SIGNAL;

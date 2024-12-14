@@ -31,8 +31,10 @@ static uint64_t build_packet(const char* packet)
             crc_value ^= polynomial;
         }
     }
-    // append CRC
-    data |= (uint64_t) crc_value << (uint64_t) data_bits;
+    // bit reverse CRC and append
+    for (uint16_t i = 0; i < crc_bits; i++) {
+        data |= ((crc_value >> i) & 1) << (uint64_t) (data_bits + crc_bits - 1 - i);
+    }
     // append stop bit (1)
     data |= (uint64_t) 1 << (uint64_t) (data_bits + crc_bits);
     // insert start bit (0)

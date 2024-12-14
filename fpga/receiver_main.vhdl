@@ -172,11 +172,11 @@ begin
                 case display_counter is
                     when "001" => lrows_out <= not display_out;
                                   lcols_out <= "1110";
-                    when "011" => lrows_out <= "00110000";
+                    when "011" => lrows_out <= not received_data;
                                   lcols_out <= "1101";
-                    when "101" => lrows_out <= "01010000";
+                    when "101" => lrows_out <= "11111111";
                                   lcols_out <= "1011";
-                    when "111" => lrows_out <= "01110000";
+                    when "111" => lrows_out <= "01010100";
                                   lcols_out <= "0111";
                     when others => lcols_out <= "1111";
                 end case;
