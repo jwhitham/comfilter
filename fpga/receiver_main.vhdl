@@ -13,6 +13,7 @@ use filter_unit_settings.all;
 entity receiver_main is
     port (
         clock_in            : in std_logic;
+        clock_12MHz_in      : in std_logic;
 
         serial_out          : out std_logic := '0';
         spdif_rx_in         : in std_logic;
@@ -53,8 +54,26 @@ architecture structural of receiver_main is
     signal input_strobe         : std_logic := '0';
     signal input_ready          : std_logic := '0';
 
+    -- display
+    signal received_data        : std_logic_vector (31 downto 0) := (others => '0');
+    signal received_data_strobe : std_logic := '0';
+    signal display_pulse        : std_logic := '0';
+    signal display_counter      : unsigned (2 downto 0) := (others => '0');
+    signal display_out          : std_logic_vector (31 downto 0) := (others => '0');
 
 begin
+    process (clock_in) is
+    begin
+        if clock_in = '1' and clock_in'event then
+            if reset_count = 0 then
+                reset <= '0';
+            else
+                reset <= '1';
+                reset_count <= reset_count - 1;
+            end if;
+        end if;
+    end process;
+
     sync (0) <= not reset;
 
     dec1 : entity input_decoder
@@ -101,16 +120,6 @@ begin
                 serial_ready_out => serial_ready,
                 serial_data_out => serial_data);
 
-    lrows_out (0) <= serial_copy;
-    lrows_out (1) <= not input_ready;
-    lrows_out (2) <= not input_strobe;
-    lrows_out (3) <= not restart_debug;
-    lrows_out (4) <= not serial_ready;
-    lrows_out (5) <= not sync (1);
-    lrows_out (6) <= not sync (2);
-    lrows_out (7) <= not sync (3);
-    lcols_out (0) <= not raw_data(26);
-    lcols_out (3 downto 1) <= (others => '1');
     serial_out <= serial_copy;
 
     process (clock_in) is
@@ -124,14 +133,56 @@ begin
         end if;
     end process;
 
-    process (clock_in) is
+    tcr : entity com_receiver
+        generic map (
+                baud_rate => 300.0,
+                clock_frequency => 12.0e6,
+                num_data_bits => 32)
+        port map (
+                serial_in => serial_copy,
+                reset_in => reset,
+                clock_in => clock_12MHz_in,
+                data_out => received_data,
+                strobe_out => received_data_strobe);
+
+    process (clock_12MHz_in) is
     begin
-        if clock_in = '1' and clock_in'event then
-            if reset_count = 0 then
-                reset <= '0';
+        if clock_12MHz_in = '1' and clock_12MHz_in'event then
+            if reset = '1' then
+                display_out <= x"00000001";
+            elsif received_data_strobe = '1' then
+                display_out <= received_data;
             else
-                reset <= '1';
-                reset_count <= reset_count - 1;
+                display_out (31 downto 1) <= display_out (30 downto 0);
+                display_out (0) <= display_out (31);
+            end if;
+        end if;
+    end process;
+
+    generate_display_pulse : entity pulse_gen
+        generic map (
+            clock_frequency => 12.0e6,
+            pulse_frequency => 8000.0)
+        port map (
+            pulse_out => display_pulse,
+            clock_in => clock_12MHz_in);
+
+    process (clock_12MHz_in) is
+    begin
+        if clock_12MHz_in = '1' and clock_12MHz_in'event then
+            if display_pulse = '1' then
+                display_counter <= display_counter + 1;
+                case display_counter is
+                    when "001" => lrows_out <= not display_out (7 downto 0);
+                                  lcols_out <= "1110";
+                    when "011" => lrows_out <= not display_out (15 downto 8);
+                                  lcols_out <= "1101";
+                    when "101" => lrows_out <= not display_out (23 downto 16);
+                                  lcols_out <= "1011";
+                    when "111" => lrows_out <= not display_out (31 downto 24);
+                                  lcols_out <= "0111";
+                    when others => lcols_out <= "1111";
+                end case;
             end if;
         end if;
     end process;

@@ -5,8 +5,6 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-use debug_textio.all;
-
 -- The generic defaults are the correct settings for CRC-32, matching the zlib.crc32 function,
 -- assuming that bits are shifted LSB first.
 --

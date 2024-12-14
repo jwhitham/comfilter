@@ -31,6 +31,10 @@ architecture structural of receiver_project_top is
     signal lcols            : std_logic_vector (3 downto 0) := "0000";
     signal lrows            : std_logic_vector (7 downto 0) := "00000000";
     signal clock            : std_logic := '0';
+    
+    attribute syn_global_buffers : Integer;
+    attribute syn_global_buffers of structural : architecture is 4;
+
 
 begin
     pll : entity receiver_project_pll
@@ -42,6 +46,7 @@ begin
     fp : entity receiver_main
         port map (
             clock_in => clock,
+            clock_12MHz_in => clk12MHz,
 
             serial_out => serial_out,
             spdif_rx_in => spdif_rx_in,

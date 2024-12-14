@@ -17,6 +17,9 @@ add_file -vhdl -lib comfilter "../debug_textio.vhdl"
 add_file -vhdl -lib comfilter "../../generated/filter_unit_control_line_decoder.vhdl" 
 add_file -vhdl -lib comfilter "../../generated/filter_unit_microcode_store.vhdl" 
 add_file -vhdl -lib comfilter "../../generated/filter_unit_settings.vhdl" 
+add_file -vhdl -lib work "../com_receiver.vhdl" 
+add_file -vhdl -lib work "../pulse_gen.vhdl" 
+add_file -vhdl -lib work "../crc.vhdl" 
 #implementation: "receiver_project_Implmnt"
 impl -add receiver_project_Implmnt -type fpga
 
