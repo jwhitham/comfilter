@@ -4,6 +4,7 @@ set -xe
 G=generated
 python microops/make_settings.py
 gcc -o $G/siggen.exe model/siggen.c -Wall -Werror -g -lm -I$G
+gcc -o $G/packetgen.exe model/packetgen.c -Wall -Werror -g -lm -I$G
 g++ -o $G/sigdec.exe model/sigdec.cpp -std=c++17 -Wall -Werror -g -lm -I$G
 $G/siggen.exe test_data $G/signal.wav $G/debug_1
 $G/sigdec.exe $G/signal.wav $G/output $G/test_vector $G/debug_2
