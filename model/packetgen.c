@@ -11,18 +11,40 @@
 
 #define BLOCK_SIZE (1 << 8)
 
-static const uint32_t bits_per_packet = 48; // includes start bit 0 and stop bit 1, sent LSB first
+static const uint32_t crc_bits = 16;
+static const uint32_t data_bits = 32;
+static const uint32_t bits_per_packet = data_bits + crc_bits + 2; // 2 = stop and start bits
 
 static uint64_t build_packet(const char* packet)
 {
-    return 0x2 | ((uint64_t) 1 << (uint64_t) (bits_per_packet - 1));
+    // get data bits
+    uint64_t data = (uint64_t) strtoll(packet, NULL, 0);
+    data &= ((uint64_t) 1 << (uint64_t) data_bits) - 1;
+
+    // compute the CRC
+    const uint16_t polynomial = 0x8005;
+    uint16_t crc_value = 0;
+    for (uint16_t i = 0; i < data_bits; i++) {
+        uint16_t bit_flag = (uint16_t) (data >> (uint64_t) i) ^ (crc_value >> (uint64_t) (crc_bits - 1));
+        crc_value = crc_value << 1;
+        if (bit_flag & 1) {
+            crc_value ^= polynomial;
+        }
+    }
+    // append CRC
+    data |= (uint64_t) crc_value << (uint64_t) data_bits;
+    // append stop bit (1)
+    data |= (uint64_t) 1 << (uint64_t) (data_bits + crc_bits);
+    // insert start bit (0)
+    data = data << 1;
+    return data;
 }
 
 static void generate(FILE* fd_out, uint32_t num_packets, char* const* packets)
 {
     t_header        header;
-    const uint32_t  sample_rate = SAMPLE_RATE;
     const uint32_t  num_bits = num_packets * bits_per_packet;
+    const uint32_t  sample_rate = SAMPLE_RATE;
     const uint32_t  samples_per_bit = sample_rate / BAUD_RATE;
     const uint32_t  leadin_samples = sample_rate / 10;
     const uint32_t  leadout_samples = sample_rate / 10;
@@ -91,7 +113,7 @@ static void generate(FILE* fd_out, uint32_t num_packets, char* const* packets)
                         packet_index++;
                     }
                 } else {
-                    packet = packet >> 1;
+                    packet = packet >> (uint64_t) 1;
                 }
                 packet_lifetime--;
             }
