@@ -12,7 +12,7 @@
 #define BLOCK_SIZE (1 << 8)
 
 static const uint32_t crc_bits = 16;
-static const uint32_t data_bits = 8;
+static const uint32_t data_bits = 32;
 
 static uint64_t build_packet(const char* packet)
 {
@@ -32,7 +32,7 @@ static uint64_t build_packet(const char* packet)
     }
     // bit reverse CRC and append
     for (uint16_t i = 0; i < crc_bits; i++) {
-        data |= ((crc_value >> i) & 1) << (uint64_t) (data_bits + crc_bits - 1 - i);
+        data |= (uint64_t) ((crc_value >> i) & 1) << (uint64_t) (data_bits + crc_bits - 1 - i);
     }
     // append stop bit (1)
     data |= (uint64_t) 1 << (uint64_t) (data_bits + crc_bits);
