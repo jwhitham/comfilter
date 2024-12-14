@@ -13,7 +13,6 @@
 
 static const uint32_t crc_bits = 16;
 static const uint32_t data_bits = 8;
-static const uint32_t bits_per_packet = data_bits + crc_bits + 2; // 2 = stop and start bits
 
 static uint64_t build_packet(const char* packet)
 {
@@ -38,13 +37,63 @@ static uint64_t build_packet(const char* packet)
     // append stop bit (1)
     data |= (uint64_t) 1 << (uint64_t) (data_bits + crc_bits);
     // insert start bit (0)
-    data = data << 1;
+    data = data << (uint64_t) 1;
     return data;
 }
 
-static void generate(FILE* fd_out, uint32_t num_packets, char* const* packets)
+static void generate_vhdl(FILE* fd_out, uint32_t num_packets, char* const* packets)
+{
+    // Write VHDL test bench
+    fprintf(fd_out,
+        "library ieee;\n"
+        "use ieee.std_logic_1164.all;\n"
+        "entity test_packet_signal is port (\n"
+        "start_in : in std_logic;\n"
+        "data_out : out std_logic;\n"
+        "done_out : out std_logic);\n"
+        "end test_packet_signal;\n"
+        "architecture test_bench of test_packet_signal is\n"
+        "constant baud_rate : Real := %1.2f;\n"
+        "constant one_bit_time : Time := 1e9 ns / baud_rate;\n"
+        "begin\n"
+        "process is begin\n"
+        "done_out <= '0';\n"
+        "data_out <= '0';\n"
+        "wait until start_in = '1';\n"
+        "data_out <= '1';\n"
+        "wait for one_bit_time * 100;\n", (double) BAUD_RATE);
+
+    const uint32_t bits_per_packet = data_bits + crc_bits + 2; // 2 = stop and start bits
+    for (uint32_t i = 0; i < num_packets; i++) {
+
+        uint64_t packet = build_packet(packets[i]);
+        uint64_t copy_packet = packet;
+        fprintf(fd_out, "-- packet: ");
+        for (uint32_t j = 0; j < 16; j++) {
+            fprintf(fd_out, "%x", (unsigned) (packet >> (uint64_t) 60));
+            packet = packet << 4;
+        }
+        fprintf(fd_out, "\n");
+
+        packet = copy_packet;
+        for (uint32_t j = 0; j < bits_per_packet; j++) {
+            fprintf(fd_out, "data_out <= '%d'; wait for one_bit_time;\n", (int) (packet & 1));
+            packet = packet >> (uint64_t) 1;
+        }
+    }
+    fprintf(fd_out,
+        "-- end\n"
+        "wait for one_bit_time * 100;\n"
+        "done_out <= '1';\n"
+        "wait;\n"
+        "end process;\n"
+        "end architecture test_bench;\n");
+}
+
+static void generate_wav(FILE* fd_out, uint32_t num_packets, char* const* packets)
 {
     t_header        header;
+    const uint32_t  bits_per_packet = data_bits + crc_bits + 2; // 2 = stop and start bits
     const uint32_t  num_bits = num_packets * bits_per_packet;
     const uint32_t  sample_rate = SAMPLE_RATE;
     const uint32_t  samples_per_bit = sample_rate / BAUD_RATE;
@@ -154,18 +203,31 @@ static void generate(FILE* fd_out, uint32_t num_packets, char* const* packets)
 int main(int argc, char ** argv)
 {
     FILE *          fd_out = NULL;
+    const char*     arg_wav = "wav";
+    const char*     arg_vhdl = "vhdl";
 
-    if (argc < 3) {
-        fprintf(stderr, "Usage: packetgen <output.wav> <packets ...>\n");
+    if ((argc < 4)
+    || ((strcmp(argv[1], arg_vhdl) != 0) && (strcmp(argv[1], arg_wav) != 0))) {
+        fprintf(stderr, "Usage: packetgen wav <output.wav> <packets ...>\n"
+                        "   or: packetgen vhdl <test.vhdl> <packets ...>\n");
         return 1;
     }
 
-    fd_out = fopen(argv[1], "wb");
+    bool wav_out = strcmp(argv[1], arg_wav) == 0;
+    if (wav_out) {
+        fd_out = fopen(argv[2], "wb");
+    } else {
+        fd_out = fopen(argv[2], "wt");
+    }
     if (!fd_out) {
         perror("open (write)");
         return 1;
     }
-    generate(fd_out, argc - 2, &argv[2]);
+    if (wav_out) {
+        generate_wav(fd_out, argc - 3, &argv[3]);
+    } else {
+        generate_vhdl(fd_out, argc - 3, &argv[3]);
+    }
     fclose(fd_out);
     return 0;
 }

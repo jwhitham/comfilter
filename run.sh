@@ -11,4 +11,6 @@ $G/sigdec.exe $G/signal.wav $G/output $G/test_vector $G/debug_2
 #gnuplot model/test1.gnuplot > $G/t.png
 cmp test_data $G/output
 python microops/filter_implementation.py
+$G/packetgen.exe wav $G/packet.wav 0xab
+$G/packetgen.exe vhdl $G/test_packet_signal.vhdl 0xab
 python microops/func_test.py
