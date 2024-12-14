@@ -53,8 +53,9 @@ architecture structural of com_receiver is
     signal data_strobe          : std_logic := '0';
     signal frame_strobe         : std_logic := '0';
     signal valid_crc            : std_logic := '0';
-    signal counter_16_strobe    : std_logic := '0';
-    signal counter_8_strobe     : std_logic := '0';
+    signal serial_in_copy       : std_logic := '0';
+    signal counter_16_reached   : std_logic := '0';
+    signal counter_8_reached    : std_logic := '0';
     signal counter              : unsigned (num_counter_bits - 1 downto 0) := (others => '0');
     signal data_reg             : std_logic_vector (num_data_bits - 1 downto 0) := (others => '0');
     signal receive_state        : t_receive_state := ZERO_SIGNAL;
@@ -78,40 +79,49 @@ begin
             clock_in => clock_in,
             reset_in => crc_reset_strobe,
             strobe_in => crc_strobe,
-            data_in => serial_in,
+            data_in => serial_in_copy,
             crc_out => crc_data);
 
-    crc_reset_strobe <= '1' when receive_state = READY else reset_in;
-    crc_strobe <= counter_16_strobe when receive_state = DATA_BIT
-            else counter_16_strobe when receive_state = CRC_BIT
-            else '0';
-    data_strobe <= counter_16_strobe when receive_state = DATA_BIT else '0';
-
-    counter_8_strobe <= baud_div_16 when (counter (2 downto 0) = "111") else '0';
-    counter_16_strobe <= counter_8_strobe and counter (3);
-
-    process (clock_in, data_strobe) is
+    process (clock_in) is
     begin
-        if clock_in'event and clock_in = '1' and data_strobe = '1' then
-            data_reg (num_data_bits - 2 downto 0) <= data_reg (num_data_bits - 1 downto 1);
-            data_reg (num_data_bits - 1) <= serial_in;
+        if clock_in'event and clock_in = '1' then
+            if data_strobe = '1' then
+                data_reg (num_data_bits - 2 downto 0) <= data_reg (num_data_bits - 1 downto 1);
+                data_reg (num_data_bits - 1) <= serial_in_copy;
+            end if;
+            valid_crc <= '0';
+            if crc_data = x"0000" then
+                valid_crc <= '1';
+            end if;
+            counter_8_reached <= '0';
+            counter_16_reached <= '0';
+            if counter (2 downto 0) = "111" then
+                counter_8_reached <= '1';
+                counter_16_reached <= counter (3);
+            end if;
+            if baud_div_16 = '1' then
+                serial_in_copy <= serial_in;
+            end if;
         end if;
     end process;
 
-    valid_crc <= '1' when crc_data = x"0000" else '0';
-    strobe_out <= (serial_in and valid_crc and counter_16_strobe) when receive_state = STOP_BIT else '0';
     data_out <= data_reg;
 
     process (clock_in, baud_div_16) is
     begin
         if clock_in'event and clock_in = '1' then
+            crc_reset_strobe <= reset_in;
+            crc_strobe <= '0';
+            data_strobe <= '0';
+            strobe_out <= '0';
+
             if baud_div_16 = '1' then
                 counter <= counter + 1;
 
                 case receive_state is
                     when ZERO_SIGNAL =>
                         -- In this state the input signal is not stable so no data is captured
-                        if serial_in = '1' then
+                        if serial_in_copy = '1' then
                             receive_state <= ONE_SIGNAL;
                         end if;
                         counter <= (others => '0');
@@ -119,7 +129,7 @@ begin
                     when ONE_SIGNAL =>
                         -- The input must be stable in the '1' state for a while
                         -- in order to enter the READY state
-                        if serial_in = '1' then
+                        if serial_in_copy = '1' then
                             if counter (num_counter_bits - 1 downto 4) = stable_time_in_bits then
                                 receive_state <= READY;
                             end if;
@@ -129,15 +139,16 @@ begin
 
                     when READY =>
                         -- In the READY state we are ready to receive a start bit
-                        if serial_in = '0' then
+                        if serial_in_copy = '0' then
                             receive_state <= START_BIT;
                         end if;
                         counter <= (others => '0');
+                        crc_reset_strobe <= '1';
 
                     when START_BIT =>
                         -- In this state we expect the start bit to be stable
-                        if counter_8_strobe = '1' then
-                            if serial_in = '1' then
+                        if counter_8_reached = '1' then
+                            if serial_in_copy = '1' then
                                 -- Unstable - returned to 1 in the middle of the bit
                                 receive_state <= ZERO_SIGNAL;
                             else
@@ -148,24 +159,33 @@ begin
 
                     when DATA_BIT =>
                         -- Capture data
-                        if counter_16_strobe = '1'
+                        if counter_16_reached = '1'
                           and counter (num_counter_bits - 1 downto 4) = (num_data_bits - 1) then
                             receive_state <= CRC_BIT;
                             counter <= (others => '0');
                         end if;
+                        crc_strobe <= counter_16_reached;
+                        data_strobe <= counter_16_reached;
 
                     when CRC_BIT =>
                         -- Capture CRC value
-                        if counter_16_strobe = '1'
+                        if counter_16_reached = '1'
                           and counter (num_counter_bits - 1 downto 4) = (num_crc_bits - 1) then
                             receive_state <= STOP_BIT;
                             counter <= (others => '0');
                         end if;
+                        crc_strobe <= counter_16_reached;
 
                     when STOP_BIT =>
                         -- Accept the frame if the CRC is valid and the stop bit is 1
-                        if counter_16_strobe = '1' then
-                            receive_state <= READY;
+                        if counter_16_reached = '1' then
+                            if serial_in_copy = '1' then
+                                receive_state <= READY;
+                                strobe_out <= '1'; -- valid_crc;
+                            else
+                                -- Unstable - stop bit should be 1
+                                receive_state <= ZERO_SIGNAL;
+                            end if;
                         end if;
                 end case;
             end if;

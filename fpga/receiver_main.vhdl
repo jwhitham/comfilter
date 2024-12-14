@@ -55,11 +55,11 @@ architecture structural of receiver_main is
     signal input_ready          : std_logic := '0';
 
     -- display
-    signal received_data        : std_logic_vector (31 downto 0) := (others => '0');
+    signal received_data        : std_logic_vector (7 downto 0) := (others => '0');
     signal received_data_strobe : std_logic := '0';
     signal display_pulse        : std_logic := '0';
     signal display_counter      : unsigned (2 downto 0) := (others => '0');
-    signal display_out          : std_logic_vector (31 downto 0) := (others => '0');
+    signal display_out          : std_logic_vector (7 downto 0) := (others => '0');
 
 begin
     process (clock_in) is
@@ -137,7 +137,7 @@ begin
         generic map (
                 baud_rate => 300.0,
                 clock_frequency => 12.0e6,
-                num_data_bits => 32)
+                num_data_bits => 8)
         port map (
                 serial_in => serial_copy,
                 reset_in => reset,
@@ -149,12 +149,9 @@ begin
     begin
         if clock_12MHz_in = '1' and clock_12MHz_in'event then
             if reset = '1' then
-                display_out <= x"00000001";
+                display_out <= x"ff";
             elsif received_data_strobe = '1' then
                 display_out <= received_data;
-            else
-                display_out (31 downto 1) <= display_out (30 downto 0);
-                display_out (0) <= display_out (31);
             end if;
         end if;
     end process;
@@ -173,13 +170,13 @@ begin
             if display_pulse = '1' then
                 display_counter <= display_counter + 1;
                 case display_counter is
-                    when "001" => lrows_out <= not display_out (7 downto 0);
+                    when "001" => lrows_out <= not display_out;
                                   lcols_out <= "1110";
-                    when "011" => lrows_out <= not display_out (15 downto 8);
+                    when "011" => lrows_out <= "00110000";
                                   lcols_out <= "1101";
-                    when "101" => lrows_out <= not display_out (23 downto 16);
+                    when "101" => lrows_out <= "01010000";
                                   lcols_out <= "1011";
-                    when "111" => lrows_out <= not display_out (31 downto 24);
+                    when "111" => lrows_out <= "01110000";
                                   lcols_out <= "0111";
                     when others => lcols_out <= "1111";
                 end case;

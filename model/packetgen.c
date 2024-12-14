@@ -12,7 +12,7 @@
 #define BLOCK_SIZE (1 << 8)
 
 static const uint32_t crc_bits = 16;
-static const uint32_t data_bits = 32;
+static const uint32_t data_bits = 8;
 static const uint32_t bits_per_packet = data_bits + crc_bits + 2; // 2 = stop and start bits
 
 static uint64_t build_packet(const char* packet)
