@@ -13,16 +13,24 @@ $G/siggen.exe test_data $G/signal.wav $G/debug_1
 $G/sigdec.exe $G/signal.wav $G/output $G/test_vector $G/debug_2
 #gnuplot model/test1.gnuplot > $G/t.png
 cmp test_data $G/output
-python microops/filter_implementation.py
-$G/packetgen.exe wav $G/packet.wav 0xc001
 
+# Functional test (Python only)
+python microops/func_test.py
 
+# Test VHDL components without microcode
 cd fpga
 ./test_crc.sh
 ./test_com_receiver.sh
 cd ..
-python microops/ghdl_test.py
-python microops/func_test.py
 
-# hardware test:
+# Test VHDL components with microcode
+# Note - will regenerate VHDL files with test code
+python microops/ghdl_test.py
+
+# Generate usable outputs for testing
+python microops/filter_implementation.py
+$G/packetgen.exe wav $G/packet.wav 1 2 4 8 16 32 64 128 256 512
+
+# Hardware test (use with fpga_test_project_top_bitmap.bin)
 # python microops/fpga_test.py
+

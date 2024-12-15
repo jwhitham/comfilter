@@ -20,6 +20,7 @@ add_file -vhdl -lib comfilter "../../generated/filter_unit_settings.vhdl"
 add_file -vhdl -lib work "../com_receiver.vhdl" 
 add_file -vhdl -lib work "../pulse_gen.vhdl" 
 add_file -vhdl -lib work "../crc.vhdl" 
+add_file -vhdl -lib work "../comfilter.vhdl" 
 #implementation: "receiver_project_Implmnt"
 impl -add receiver_project_Implmnt -type fpga
 

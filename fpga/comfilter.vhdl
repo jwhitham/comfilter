@@ -8,7 +8,7 @@ use ieee.numeric_std.all;
 
 library comfilter;
 use comfilter.all;
-use filter_unit_settings.all;
+use comfilter.filter_unit_settings.all;
 
 entity comfilter is
     generic (slow_clock_frequency : Real);
@@ -18,7 +18,7 @@ entity comfilter is
         reset_in            : in std_logic;
 
         -- Filter input
-        audio_data_in       : in std_logic_vector (15 downto 0) := '0';
+        audio_data_in       : in std_logic_vector (15 downto 0);
         audio_strobe_in     : in std_logic;
 
         -- Data output
@@ -28,13 +28,8 @@ entity comfilter is
 end comfilter;
 
 architecture structural of comfilter is
-
-    signal serial_copy, serial_data : std_logic := '0';
+    signal serial_copy, serial_ready, serial_data : std_logic := '0';
 begin
-
-    input_value (ALL_BITS - 1 downto ALL_BITS - NON_FRACTIONAL_BITS) <= (others => audio_data (15));
-    input_value (ALL_BITS - NON_FRACTIONAL_BITS - 1 downto 0) <=
-        audio_data (14 downto 15 - FRACTIONAL_BITS);
 
     ifu : entity filter_unit
         port map (clock_in => fast_clock_in,
@@ -46,7 +41,7 @@ begin
                 serial_ready_out => serial_ready,
                 serial_data_out => serial_data);
 
-    process (clock_in) is
+    process (fast_clock_in) is
     begin
         if fast_clock_in = '1' and fast_clock_in'event then
             if reset_in = '1' then
@@ -66,7 +61,7 @@ begin
                 num_data_bits => DATA_BITS)
         port map (
                 serial_in => serial_copy,
-                reset_in => reset,
+                reset_in => reset_in,
                 clock_in => slow_clock_in,
                 data_out => data_out,
                 strobe_out => strobe_out);
