@@ -59,6 +59,7 @@ static void generate_vhdl(FILE* fd_out, uint32_t num_packets, char* const* packe
         "process is begin\n"
         "done_out <= '0';\n"
         "data_out <= '0';\n"
+        "wait for one_bit_time;\n"
         "wait until start_in = '1';\n"
         "data_out <= '1';\n"
         "wait for one_bit_time * 100;\n", (double) BAUD_RATE);

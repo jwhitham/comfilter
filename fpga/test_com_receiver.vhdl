@@ -52,9 +52,27 @@ begin
             data_out => data,
             strobe_out => strobe);
 
+    tcr2 : entity com_receiver
+        generic map (
+            baud_rate => baud_rate,
+            clock_frequency => clock_frequency,
+            num_data_bits => DATA_BITS)
+        port map (
+            serial_in => serial2,
+            reset_in => reset,
+            clock_in => clock,
+            data_out => data2,
+            strobe_out => strobe2);
+
+    tcr2signal : entity test_packet_signal
+        port map (
+            start_in => start2,
+            data_out => serial2,
+            done_out => done2);
+
     process is
     begin
-        while done = '0' and done2 = '0' loop
+        while done = '0' loop
             clock <= '0';
             wait for one_clock_time / 2;
             clock <= '1';
@@ -71,7 +89,6 @@ begin
         reset <= '1';
         serial <= '0';
         expect_data <= '0';
-        start2 <= '0';
         wait for one_bit_time;
         reset <= '0';
 
@@ -180,6 +197,7 @@ begin
 
     process is
     begin
+        start2 <= '0';
         -- Wait for all data to be sent to com_receiver
         wait until clock = '1' and clock'event and expect_data = '1';
         -- Wait for com_receiver to produce output
@@ -208,39 +226,19 @@ begin
         wait until clock = '1' and clock'event and expect_data = '0';
 
         -- Finish testing (part 1)
-        done <= '1';
         start2 <= '1';
-        wait;
-    end process;
 
-    tcr2 : entity com_receiver
-        generic map (
-            baud_rate => baud_rate,
-            clock_frequency => clock_frequency,
-            num_data_bits => DATA_BITS)
-        port map (
-            serial_in => serial2,
-            reset_in => reset,
-            clock_in => clock,
-            data_out => data2,
-            strobe_out => strobe2);
-
-    tcr2signal : entity test_packet_signal
-        port map (
-            start_in => start2,
-            data_out => serial2,
-            done_out => open);
-
-    process is
-    begin
-        -- Part 2 - wait for the start signal
-        wait until start2 = '1';
-        -- Wait for data
+        -- Wait for strobe from part 2
+        assert done2 = '0';
         wait until clock = '1' and clock'event and strobe2 = '1';
         assert data2 = x"c001"; -- matches test_com_receiver.sh
-        done2 <= '1';
+        wait until clock = '1' and clock'event;
+        assert strobe2 = '0';
+        wait until done2 = '1';
+
+        -- End of part 2
+        done <= '1';
         wait;
     end process;
-
 
 end architecture test_bench;
