@@ -2,3 +2,5 @@ generated/*
 comfilter-obj93.cf
 __pycache__
 .mypy_cache
+comfilter.tar.gz
+comfilter/*
