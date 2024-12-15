@@ -2,6 +2,7 @@
 set -xe
 RFLAGS=--assert-level=note
 
+ghdl --remove
 ghdl -a --work=comfilter \
         crc.vhdl \
         test_crc.vhdl

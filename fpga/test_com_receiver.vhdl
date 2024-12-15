@@ -1,6 +1,7 @@
 
 library comfilter;
 use comfilter.all;
+use filter_unit_settings.all;
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -10,9 +11,8 @@ end test_com_receiver;
 
 architecture test_bench of test_com_receiver is
 
-    constant baud_rate          : Real := 300.0;
     constant clock_frequency    : Real := 9600.0;
-    constant one_bit_time       : Time := 1e9 ns / baud_rate;
+    constant one_bit_time       : Time := 1e9 ns / BAUD_RATE;
     constant one_clock_time     : Time := 1e9 ns / clock_frequency;
     constant num_data_bits      : Natural := 40;
     signal clock                : std_logic := '0';
@@ -21,6 +21,10 @@ architecture test_bench of test_com_receiver is
     signal expect_data          : std_logic := '0';
     signal strobe               : std_logic := '0';
     signal serial               : std_logic := '0';
+    signal done2                : std_logic := '0';
+    signal serial2              : std_logic := '0';
+    signal start2               : std_logic := '0';
+    signal strobe2              : std_logic := '0';
 
     subtype t_data is std_logic_vector (num_data_bits - 1 downto 0);
     subtype t_crc is std_logic_vector (15 downto 0);
@@ -32,10 +36,13 @@ architecture test_bench of test_com_receiver is
     signal crc_3                : t_crc := x"5a1f";
     signal data                 : t_data := (others => '0');
 
+    subtype t_data2 is std_logic_vector (DATA_BITS - 1 downto 0);
+    signal data2                : t_data2 := (others => '0');
+
 begin
     tcr : entity com_receiver
         generic map (
-            baud_rate => baud_rate,
+            baud_rate => BAUD_RATE,
             clock_frequency => clock_frequency,
             num_data_bits => num_data_bits)
         port map (
@@ -47,7 +54,7 @@ begin
 
     process is
     begin
-        while done = '0' loop
+        while done = '0' and done2 = '0' loop
             clock <= '0';
             wait for one_clock_time / 2;
             clock <= '1';
@@ -64,6 +71,7 @@ begin
         reset <= '1';
         serial <= '0';
         expect_data <= '0';
+        start2 <= '0';
         wait for one_bit_time;
         reset <= '0';
 
@@ -199,9 +207,40 @@ begin
         -- Wait for expect_data to go to '0'
         wait until clock = '1' and clock'event and expect_data = '0';
 
-        -- Finish testing
+        -- Finish testing (part 1)
         done <= '1';
+        start2 <= '1';
         wait;
     end process;
+
+    tcr2 : entity com_receiver
+        generic map (
+            baud_rate => baud_rate,
+            clock_frequency => clock_frequency,
+            num_data_bits => DATA_BITS)
+        port map (
+            serial_in => serial2,
+            reset_in => reset,
+            clock_in => clock,
+            data_out => data2,
+            strobe_out => strobe2);
+
+    tcr2signal : entity test_packet_signal
+        port map (
+            start_in => start2,
+            data_out => serial2,
+            done_out => open);
+
+    process is
+    begin
+        -- Part 2 - wait for the start signal
+        wait until start2 = '1';
+        -- Wait for data
+        wait until clock = '1' and clock'event and strobe2 = '1';
+        assert data2 = x"c001"; -- matches test_com_receiver.sh
+        done2 <= '1';
+        wait;
+    end process;
+
 
 end architecture test_bench;

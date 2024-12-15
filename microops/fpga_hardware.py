@@ -4,7 +4,8 @@ from func_hardware import (
             ALL_BITS, A_BITS
         )
 from settings import (
-            FRACTIONAL_BITS, NON_FRACTIONAL_BITS, DEBUG, DATA_BITS,
+            FRACTIONAL_BITS, NON_FRACTIONAL_BITS, DEBUG,
+            DATA_BITS, BAUD_RATE,
         )
 import typing
 
@@ -94,6 +95,7 @@ constant ALL_BITS : Natural := {ALL_BITS};
 constant A_BITS : Natural := {A_BITS};
 constant VERBOSE_DEBUG : Boolean := {DEBUG > 1};
 constant DATA_BITS : Natural := {DATA_BITS};
+constant BAUD_RATE : Real := {BAUD_RATE:1.1f};
 
 end package {prefix}_settings;\n""")
 

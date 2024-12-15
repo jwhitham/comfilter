@@ -44,22 +44,14 @@ architecture structural of receiver_main is
     -- parallel audio data
     subtype t_data is std_logic_vector (31 downto 0);
     signal raw_data             : t_data := (others => '0');
-
-    -- filter
-    signal restart_debug        : std_logic := '0';
-    signal serial_ready         : std_logic := '0';
-    signal serial_data          : std_logic := '0';
-    signal serial_copy          : std_logic := '0';
-    signal input_value          : std_logic_vector(ALL_BITS - 1 downto 0) := (others => '0');
-    signal input_strobe         : std_logic := '0';
-    signal input_ready          : std_logic := '0';
+    signal raw_strobe           : std_logic := '0';
 
     -- display
-    signal received_data        : std_logic_vector (31 downto 0) := (others => '0');
+    signal received_data        : std_logic_vector (DATA_BITS - 1 downto 0) := (others => '0');
     signal received_data_strobe : std_logic := '0';
     signal display_pulse        : std_logic := '0';
     signal display_counter      : unsigned (2 downto 0) := (others => '0');
-    signal display_out          : std_logic_vector (31 downto 0) := (others => '0');
+    signal display_out          : std_logic_vector (DATA_BITS - 1 downto 0) := (others => '0');
 
 begin
     process (clock_in) is
@@ -103,54 +95,24 @@ begin
                   sync_out => sync (3),
                   data_out => raw_data,
                   subcode_out => open,
-                  left_strobe_out => input_strobe,
+                  left_strobe_out => raw_strobe,
                   right_strobe_out => open);
 
-    input_value (ALL_BITS - 1 downto ALL_BITS - NON_FRACTIONAL_BITS) <= (others => raw_data (27));
-    input_value (ALL_BITS - NON_FRACTIONAL_BITS - 1 downto 0) <=
-        raw_data (26 downto 27 - FRACTIONAL_BITS);
-
-    ifu : entity filter_unit
-        port map (clock_in => clock_in,
-                reset_in => reset,
-                input_strobe_in => input_strobe,
-                input_data_in => input_value,
-                input_ready_out => input_ready,
-                restart_debug_out => restart_debug,
-                serial_ready_out => serial_ready,
-                serial_data_out => serial_data);
-
-    serial_out <= serial_copy;
-
-    process (clock_in) is
-    begin
-        if clock_in = '1' and clock_in'event then
-            if reset = '1' then
-                serial_copy <= '1';
-            elsif serial_ready = '1' then
-                serial_copy <= serial_data;
-            end if;
-        end if;
-    end process;
-
-    tcr : entity com_receiver
-        generic map (
-                baud_rate => 300.0,
-                clock_frequency => 12.0e6,
-                num_data_bits => 32)
-        port map (
-                serial_in => serial_copy,
-                reset_in => reset,
-                clock_in => clock_12MHz_in,
-                data_out => received_data,
-                strobe_out => received_data_strobe);
+    cf: entity comfilter
+        generic map (slow_clock_frequency => 12.0e6)
+        port map (fast_clock_in => clock_in,
+                  slow_clock_in => clock_12MHz_in,
+                  reset_in => reset,
+                  audio_data_in => raw_data (27 downto 12),
+                  audio_strobe_in => raw_strobe,
+                  debug_serial_out => serial_out,
+                  data_out => received_data,
+                  strobe_out => received_data_strobe);
 
     process (clock_12MHz_in) is
     begin
         if clock_12MHz_in = '1' and clock_12MHz_in'event then
-            if reset = '1' then
-                display_out <= x"ffffffff";
-            elsif received_data_strobe = '1' then
+            if received_data_strobe = '1' then
                 display_out <= received_data;
             end if;
         end if;
@@ -174,9 +136,11 @@ begin
                                   lcols_out <= "1110";
                     when "011" => lrows_out <= not display_out (15 downto 8);
                                   lcols_out <= "1101";
-                    when "101" => lrows_out <= not display_out (23 downto 16);
+                    when "101" => lrows_out <= (others => '1');
                                   lcols_out <= "1011";
-                    when "111" => lrows_out <= not display_out (31 downto 24);
+                    when "111" => lrows_out <= (others => '1');
+                                  lrows_out (3 downto 0) <= not sync;
+                                  lrows_out (4) <= not raw_strobe;
                                   lcols_out <= "0111";
                     when others => lcols_out <= "1111";
                 end case;
