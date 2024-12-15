@@ -28,7 +28,8 @@ cp fpga/com_receiver.vhdl $P
 cp fpga/pulse_gen.vhdl $P
 cp fpga/crc.vhdl $P
 cp fpga/comfilter.vhdl $P
-tar cvzf $P.tar.gz $P
+git rev-parse HEAD > $P/version.txt
+tar cvzf $P-$(git rev-parse HEAD).tar.gz $P
 
 # Model test (C++)
 gcc -o $G/siggen.exe model/siggen.c -Wall -Werror -g -lm -I$G
