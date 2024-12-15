@@ -12,6 +12,7 @@ def main() -> None:
 #define RC_DECAY_PER_BIT    {settings.RC_DECAY_PER_BIT:1.5f}
 #define FILTER_WIDTH        {settings.FILTER_WIDTH:1.1f}
 #define SAMPLE_RATE         {settings.SAMPLE_RATE:d}
+#define DATA_BITS           {settings.DATA_BITS:d}
 """)
 
 if __name__ == "__main__":
