@@ -23,11 +23,12 @@ cp fpga/debug_textio-body.vhdl $P
 cp fpga/debug_textio.vhdl $P
 cp $G/filter_unit_control_line_decoder.vhdl $P
 cp $G/filter_unit_microcode_store.vhdl $P
+cp $G/filter_unit_microcode_store.test.vhdl $P
 cp $G/filter_unit_settings.vhdl $P
 cp fpga/com_receiver.vhdl $P
 cp fpga/pulse_gen.vhdl $P
 cp fpga/crc.vhdl $P
-cp fpga/comfilter.vhdl $P
+cp fpga/comfilter_main.vhdl $P
 git rev-parse HEAD > $P/version.txt
 tar cvzf $P-$(git rev-parse HEAD).tar.gz $P
 

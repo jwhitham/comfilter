@@ -1,19 +1,15 @@
 
 library comfilter;
 use comfilter.all;
+use filter_unit_settings.all;
 
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-library comfilter;
-use comfilter.all;
-use filter_unit_settings.all;
-
 entity receiver_main is
     port (
         clock_in            : in std_logic;
-        clock_12MHz_in      : in std_logic;
 
         serial_out          : out std_logic := '0';
         spdif_rx_in         : in std_logic;
@@ -98,10 +94,9 @@ begin
                   left_strobe_out => raw_strobe,
                   right_strobe_out => open);
 
-    cf: entity comfilter
-        generic map (slow_clock_frequency => 12.0e6)
-        port map (fast_clock_in => clock_in,
-                  slow_clock_in => clock_12MHz_in,
+    cf: entity comfilter_main
+        generic map (clock_frequency => 96.0e6)
+        port map (clock_in => clock_in,
                   reset_in => reset,
                   audio_data_in => raw_data (27 downto 12),
                   audio_strobe_in => raw_strobe,
@@ -109,9 +104,9 @@ begin
                   data_out => received_data,
                   strobe_out => received_data_strobe);
 
-    process (clock_12MHz_in) is
+    process (clock_in) is
     begin
-        if clock_12MHz_in = '1' and clock_12MHz_in'event then
+        if clock_in = '1' and clock_in'event then
             if received_data_strobe = '1' then
                 display_out <= received_data;
             end if;
@@ -120,15 +115,15 @@ begin
 
     generate_display_pulse : entity pulse_gen
         generic map (
-            clock_frequency => 12.0e6,
-            pulse_frequency => 8000.0)
+            clock_frequency => 96.0e6,
+            pulse_frequency => 80000.0)
         port map (
             pulse_out => display_pulse,
-            clock_in => clock_12MHz_in);
+            clock_in => clock_in);
 
-    process (clock_12MHz_in) is
+    process (clock_in) is
     begin
-        if clock_12MHz_in = '1' and clock_12MHz_in'event then
+        if clock_in = '1' and clock_in'event then
             if display_pulse = '1' then
                 display_counter <= display_counter + 1;
                 case display_counter is

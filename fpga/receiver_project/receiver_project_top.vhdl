@@ -46,7 +46,6 @@ begin
     fp : entity receiver_main
         port map (
             clock_in => clock,
-            clock_12MHz_in => clk12MHz,
 
             serial_out => serial_out,
             spdif_rx_in => spdif_rx_in,
