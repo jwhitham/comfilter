@@ -82,7 +82,7 @@ static void generate_wav(FILE* fd_out, const size_t num_packets, char* const* pa
     size_t sample_count = 0;
     int16_t* sample_data = NULL;
 
-    if (!packetgen_build_samples(num_packets, packet_data,
+    if (!packetgen_build_samples(num_packets, packet_data, SAMPLE_RATE,
                              &sample_data, &sample_count)) {
         fprintf(stderr, "Error: build_samples failed\n");
         exit(1);

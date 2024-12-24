@@ -13,8 +13,8 @@ mkdir $P
 python microops/make_settings.py
 python microops/filter_implementation.py
 
-cat $G/settings.h c/packetgen.c > $P/packetgen.c
-cp c/packetgen.h $P
+cat $G/settings.h c/packetgen.c | tr -d '\r' > $P/packetgen.c
+tr -d '\r' < c/packetgen.h > $P/packetgen.h
 cp fpga/banked_shift_register.vhdl $P
 cp fpga/filter_unit.vhdl $P
 cp fpga/shift_register.vhdl $P
