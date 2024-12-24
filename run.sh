@@ -48,6 +48,7 @@ $G/packetgen.exe wav $G/packet.wav 1 2 4 8 16 32 64 128 256 512
 python microops/func_test.py
 
 # Test VHDL components without microcode
+generated/packetgen.exe vhdl generated/test_packet_signal.vhdl 0xc001
 cd $P
 ../fpga/test_crc.sh
 ../fpga/test_com_receiver.sh

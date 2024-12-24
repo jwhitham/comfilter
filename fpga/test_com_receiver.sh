@@ -8,7 +8,7 @@ ghdl -a --work=comfilter \
         pulse_gen.vhdl \
         com_receiver.vhdl \
         filter_unit_settings.vhdl \
-        test_packet_signal.vhdl \
+        ../generated/test_packet_signal.vhdl \
         ../fpga/test_com_receiver.vhdl
 ghdl -r --work=comfilter test_com_receiver ${RFLAGS}
 echo "tests ok"
