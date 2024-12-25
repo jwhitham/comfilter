@@ -1,7 +1,7 @@
 #--  Synopsys, Inc.
 #--  Version L-2016.09L+ice40
 #--  Project file J:\comfilter\fpga\receiver_project\receiver_project_syn.prj
-#--  Written on Mon Dec 16 01:45:01 2024
+#--  Written on Wed Dec 25 11:17:58 2024
 
 
 #project files
@@ -11,22 +11,22 @@
 add_file -vhdl -lib comfilter "../receiver_main.vhdl" 
 add_file -vhdl -lib comfilter "receiver_project_pll.vhd" 
 add_file -vhdl -lib comfilter "receiver_project_top.vhdl" 
-add_file -vhdl -lib comfilter "../../comfilter/banked_shift_register.vhdl" 
-add_file -vhdl -lib comfilter "../../comfilter/com_receiver.vhdl" 
-add_file -vhdl -lib comfilter "../../comfilter/comfilter_main.vhdl" 
-add_file -vhdl -lib comfilter "../../comfilter/crc.vhdl" 
-add_file -vhdl -lib comfilter "../../comfilter/debug_textio-body.vhdl" 
-add_file -vhdl -lib comfilter "../../comfilter/debug_textio.vhdl" 
-add_file -vhdl -lib comfilter "../../comfilter/filter_unit.vhdl" 
-add_file -vhdl -lib comfilter "../../comfilter/filter_unit_control_line_decoder.vhdl" 
-add_file -vhdl -lib comfilter "../../comfilter/filter_unit_microcode_store.vhdl" 
-add_file -vhdl -lib comfilter "../../comfilter/filter_unit_settings.vhdl" 
-add_file -vhdl -lib comfilter "../../comfilter/pulse_gen.vhdl" 
-add_file -vhdl -lib comfilter "../../comfilter/shift_register.vhdl" 
-add_file -vhdl -lib comfilter "../../comfilter/subtractor.vhdl" 
 add_file -vhdl -lib comfilter "../input_decoder.vhdl" 
 add_file -vhdl -lib comfilter "../packet_decoder.vhdl" 
 add_file -vhdl -lib comfilter "../channel_decoder.vhdl" 
+add_file -vhdl -lib comfilter "../shift_register.vhdl" 
+add_file -vhdl -lib comfilter "../../generated/filter_unit_control_line_decoder.vhdl" 
+add_file -vhdl -lib comfilter "../../generated/filter_unit_microcode_store.vhdl" 
+add_file -vhdl -lib comfilter "../../generated/filter_unit_settings.vhdl" 
+add_file -vhdl -lib comfilter "../debug_textio.vhdl" 
+add_file -vhdl -lib comfilter "../debug_textio-body.vhdl" 
+add_file -vhdl -lib comfilter "../crc.vhdl" 
+add_file -vhdl -lib comfilter "../comfilter_main.vhdl" 
+add_file -vhdl -lib comfilter "../pulse_gen.vhdl" 
+add_file -vhdl -lib comfilter "../filter_unit.vhdl" 
+add_file -vhdl -lib comfilter "../com_receiver.vhdl" 
+add_file -vhdl -lib comfilter "../subtractor.vhdl" 
+add_file -vhdl -lib comfilter "../banked_shift_register.vhdl" 
 #implementation: "receiver_project_Implmnt"
 impl -add receiver_project_Implmnt -type fpga
 
@@ -44,6 +44,7 @@ set_option -speed_grade
 set_option -part_companion ""
 
 #compilation/mapping options
+set_option -top_module "comfilter.receiver_project_top"
 
 # hdl_compiler_options
 set_option -distributed_compile 0

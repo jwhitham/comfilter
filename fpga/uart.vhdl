@@ -24,13 +24,15 @@ end uart;
 architecture structural of uart is
 
     signal baud_div_16        : std_logic := '0';
+    constant one              : std_logic := '1';
 
 begin
     generate_clock_enable : entity pulse_gen
         generic map (
-            clock_frequency => clock_frequency,
-            pulse_frequency => baud_rate * 16.0)
+            in_frequency => clock_frequency,
+            out_frequency => baud_rate * 16.0)
         port map (
+            clock_enable_in => one,
             pulse_out => baud_div_16,
             clock_in => clock_in);
 

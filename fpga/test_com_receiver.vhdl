@@ -15,6 +15,7 @@ architecture test_bench of test_com_receiver is
     constant one_bit_time       : Time := 1e9 ns / BAUD_RATE;
     constant one_clock_time     : Time := 1e9 ns / clock_frequency;
     constant num_data_bits      : Natural := 40;
+    constant one                : std_logic := '1';
     signal clock                : std_logic := '0';
     signal reset                : std_logic := '0';
     signal done                 : std_logic := '0';
@@ -43,24 +44,26 @@ begin
     tcr : entity com_receiver
         generic map (
             baud_rate => BAUD_RATE,
-            clock_frequency => clock_frequency,
+            clock_enable_frequency => clock_frequency,
             num_data_bits => num_data_bits)
         port map (
             serial_in => serial,
             reset_in => reset,
             clock_in => clock,
+            clock_enable_in => one,
             data_out => data,
             strobe_out => strobe);
 
     tcr2 : entity com_receiver
         generic map (
             baud_rate => baud_rate,
-            clock_frequency => clock_frequency,
+            clock_enable_frequency => clock_frequency,
             num_data_bits => DATA_BITS)
         port map (
             serial_in => serial2,
             reset_in => reset,
             clock_in => clock,
+            clock_enable_in => one,
             data_out => data2,
             strobe_out => strobe2);
 

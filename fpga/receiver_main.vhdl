@@ -95,7 +95,6 @@ begin
                   right_strobe_out => open);
 
     cf: entity comfilter_main
-        generic map (clock_frequency => 96.0e6)
         port map (clock_in => clock_in,
                   reset_in => reset,
                   audio_data_in => raw_data (27 downto 12),
@@ -115,10 +114,11 @@ begin
 
     generate_display_pulse : entity pulse_gen
         generic map (
-            clock_frequency => 96.0e6,
-            pulse_frequency => 80000.0)
+            in_frequency => 96.0e6,
+            out_frequency => 80000.0)
         port map (
             pulse_out => display_pulse,
+            clock_enable_in => enabled,
             clock_in => clock_in);
 
     process (clock_in) is
